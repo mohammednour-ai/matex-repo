@@ -1,0 +1,103 @@
+---
+description: Matex financial integrity rules — escrow lifecycle, commission structure, down payments, credit, wallet, weight adjustments, T5018. Always apply.
+alwaysApply: true
+---
+
+# Matex Financial Integrity Rules
+
+## The Golden Rule: All Payments Flow Through Escrow
+**No money moves directly between buyer and seller.** Every purchase creates an `escrow_mcp.escrows` record first.
+```
+Order confirmed
+  → escrow created (status: created)
+  → buyer funds charged via Stripe PI (status: funds_held)
+  → goods delivered + inspection approved
+  → escrow released to seller (status: released)
+  → Matex commission deducted before payout
+```
+
+## Commission Structure
+| Transaction Type | Rate | Minimum Fee | Cap |
+|---|---|---|---|
+| Standard Sale | 3.5% | $25 CAD | $5,000 CAD |
+| Auction Sale | 4.0% | $50 CAD | $7,500 CAD |
+| Featured Listing | $49.99/month | N/A | N/A |
+| Premium Seller Subscription | $199/month | — | Reduces rate to 2.5% / $3,500 cap |
+| Carrier Commission | 5% of freight | $15 CAD | $1,000 CAD |
+
+GST/HST applies to the commission amount — store in `payments_mcp.transactions.tax_amount`.
+
+## Commission Adjustment Rules
+- Base commission is calculated on the **original agreed amount** at time of sale/close.
+- **Weight discrepancy adjustment**: If final weight differs >tolerance, recalculate on adjusted amount.
+- **Quality deduction adjustment**: Recalculate on net amount after inspection deduction.
+- **Dispute refund adjustment**: Partial refund → recalculate on settled amount. Full refund → reverse commission entirely.
+- **Adjustment window**: Only within 30 days of original transaction. After 30 days, original commission is final.
+- **Minimum floor always applies**: Even after adjustments, the minimum commission fee still applies.
+- Set `commission_adjusted = true` and populate `adjustment_reason` on any recalculation.
+
+## Down Payment Schedule (by transaction value)
+| Transaction Value | Down Payment | Balance | Payment Stages |
+|---|---|---|---|
+| < $5,000 CAD | 100% upfront | N/A | Single payment |
+| $5,000 – $25,000 | 25% down | 75% before shipping | 2-stage |
+| $25,000 – $100,000 | 20% down | 80% in installments | 3-stage (20/40/40) |
+| > $100,000 | 15% down | 85% per milestone | Custom (negotiated) |
+
+Milestones are stored in `payments_mcp.down_payment_schedules.milestones` (JSONB array with `milestone`, `pct`, `amount`, `due_date`, `status`, `paid_at`).
+
+## Escrow Release Conditions
+Never release escrow unless ALL applicable `release_conditions` are met:
+- `inspection_approved: true` (if listing had `inspection_required = true`)
+- `delivery_confirmed: true` (POD uploaded to `logistics_mcp.shipments`)
+- `dispute_resolved: true` (if a dispute was opened against the order)
+
+## Wallet Constraints
+- `payments_mcp.wallets.balance` has `CHECK (balance >= 0)` — this is a hard DB constraint; never bypass.
+- `pending_balance` tracks in-transit funds; never merge into `balance` before settlement.
+- Wallet top-ups: `transaction_type = 'wallet_topup'`.
+
+## Transaction Type Reference
+| Type | When to Use |
+|---|---|
+| `purchase` | Buyer payment for an order |
+| `deposit` | General deposit to wallet |
+| `bid_deposit` | Refundable deposit to participate in auction |
+| `refund` | Returning funds to buyer |
+| `commission` | Matex platform commission deduction |
+| `payout` | Releasing funds to seller |
+| `wallet_topup` | Adding funds to user wallet |
+| `credit_payment` | Repayment of credit facility |
+| `penalty` | Financial penalty imposed via dispute |
+| `adjustment` | Manual correction — requires `adjustment_reason` |
+
+## Credit Facility Rules
+| Tier | Requirements | Credit Limit | Terms |
+|---|---|---|---|
+| `none` | Default | $0 (escrow only) | 100% upfront |
+| `basic` | KYC level_2 + 3 txns + PIS > 70 | $25,000 | Net 15 |
+| `standard` | 6mo active + 10 txns + PIS > 80 + financials | $100,000 | Net 30 |
+| `premium` | 12mo + 25 txns + PIS > 90 + audited financials | $500,000 | Net 60 |
+| `enterprise` | Custom assessment + $1M+ annual volume | Up to $2M | Net 90 |
+
+- Available credit = `credit_limit − total_outstanding`. Never allow drawdown beyond `available_credit`.
+- Matex Credit Score (MCS) range: 300–850.
+- Late payment interest: 1.5%/month (`interest_rate_monthly = 0.0150`).
+- After 15 days overdue: freeze credit facility. After 30 days: collections process.
+- Every score change writes to `credit_mcp.credit_score_history` with `factors` JSONB.
+
+## Weight-Based Price Adjustments
+- Default weight tolerance: ±2% (material-specific tolerances override this).
+- Reference weight priority: `w4_third_party` > `w3_buyer` > `w2_carrier` > `w1_seller`.
+- `w4_third_party` (CAW-certified re-weigh) is binding in disputes.
+- If actual weight differs beyond tolerance, recalculate `orders_mcp.orders.adjusted_amount`.
+
+## Bid Deposits
+- Losing bidders' deposits must be refunded within 24 hours of auction close.
+- Winner's deposit is applied toward the purchase — never double-charged.
+
+## Tax Reporting (T5018)
+`tax-mcp` auto-generates T5018 (Statement of Contract Payments) for any seller receiving >$500 in a calendar year. This is a CRA compliance requirement — it cannot be skipped.
+
+## Seller Payout Timing
+Seller is paid within 7 days of confirmed delivery (when Matex assumes credit risk under trade credit terms). Standard escrow release: after buyer inspection window closes (48–72 hours).

@@ -1,0 +1,98 @@
+---
+description: Matex security rules — RLS enforcement, sensitive field handling, step-up auth, KYC gates, FINTRAC/STR, OFAC, log sanitization, RBAC roles, PIS scoring. Always apply.
+alwaysApply: true
+---
+
+# Matex Security Rules
+
+## Row Level Security (RLS) — Mandatory
+RLS MUST be enabled on every user-facing table before any policies are written.
+Tables with RLS enabled: `auth_mcp.users`, `profile_mcp.profiles`, `listing_mcp.listings`, `bidding_mcp.bids`, `orders_mcp.orders`, `escrow_mcp.escrows`, `payments_mcp.transactions`, `messaging_mcp.threads`, `messaging_mcp.messages`, `notifications_mcp.notifications`.
+
+**Before adding any new user-facing table:** `ALTER TABLE <schema>.<table> ENABLE ROW LEVEL SECURITY;`
+
+## Sensitive Fields — Never Expose in API Responses or Logs
+| Table | Field |
+|---|---|
+| `auth_mcp.users` | `password_hash`, `mfa_secret` |
+| `profile_mcp.bank_accounts` | `account_number_enc` |
+| `kyc_mcp.documents` | `file_url` (use pre-signed URLs with expiry) |
+| `auth_mcp.sessions` | `access_token_hash`, `refresh_token_hash` |
+| `auth_mcp.password_resets` | `token_hash` |
+
+`log-mcp` automatically sanitizes: passwords/tokens → `[REDACTED]`, card numbers → last 4 digits only, SIN/passport → one-way hash.
+
+## Admin Roles (RBAC)
+| Role | Access Level |
+|---|---|
+| `super_admin` | Full platform access, system config, role management |
+| `operations_manager` | User management, KYC review, dispute resolution |
+| `finance_admin` | Payments, credit facilities, refunds, reconciliation |
+| `compliance_officer` | KYC, AML monitoring, FINTRAC reporting, environmental permits |
+| `content_manager` | Listing moderation, category management |
+| `support_agent` | Customer support, basic user actions |
+| `logistics_coordinator` | Carrier management, shipment oversight, cross-border customs |
+
+## Authentication Security
+- Passwords: bcrypt, cost factor ≥ 12.
+- TOTP secret (`mfa_secret`): stored encrypted via `pgcrypto`.
+- After 5 failed logins: `locked_until = NOW() + interval '15 minutes'`.
+- Session revocation: set `sessions.revoked = true` — never delete session rows.
+- Refresh tokens are single-use: rotate on every use, immediately revoke the consumed token.
+- **Step-up authentication**: MFA required for any financial action > $5,000 CAD.
+
+## KYC — Financial Operation Gate
+Before any financial operation verify:
+1. `kyc_mcp.kyc_levels.current_level >= required_level`
+2. `auth_mcp.users.account_status = 'active'`
+3. No unresolved `critical` risk flags in `kyc_mcp.verifications`
+
+For Level 3 (`corporate`): PEP/sanctions screening via Refinitiv/Onfido is mandatory. A `result = 'match'` must trigger manual review — block activation until cleared.
+
+## Document Authenticity
+- `authenticity_score` range: 0.0000–1.0000
+- Score < 0.80: flag for manual review, do not auto-approve
+- Score < 0.50: auto-reject and notify reviewer
+
+## FINTRAC / AML Compliance
+- Suspicious Transaction Reports (STR) must be auto-generated and submitted to FINTRAC for suspicious patterns.
+- KYC periodic re-verification: Level 1 every 24 months, Level 2/3 every 12 months.
+- Daily batch + real-time PEP/sanctions screening on all transactions.
+- `kyc.pep_match.detected` event is **CRITICAL** — immediately escalates to `admin-mcp` and freezes the account pending review.
+
+## OFAC / Cross-Border Compliance
+- All US-bound transactions must be screened against the OFAC SDN list.
+- Denied parties screening is integrated with the KYC module.
+- Country of origin tracked via full chain of custody to verify for US duty/anti-circumvention rules.
+
+## Bid Anti-Manipulation
+1. **Velocity**: >5 bids from same user on same listing within 60 seconds → flag `velocity`.
+2. **Shill bidding**: bidder shares company profile with seller → flag `shill_bidding`.
+3. **Collusion**: coordinated outbidding pattern → flag `collusion`.
+4. Write to `bidding_mcp.anti_manipulation_flags` with severity.
+5. `critical` severity → freeze escrow + alert `admin-mcp` immediately.
+
+## Platform Integrity Score (PIS) Thresholds
+| Tier | Score | Impact |
+|---|---|---|
+| `excellent` | 90–100 | Priority listing visibility, reduced commission, enhanced credit |
+| `good` | 70–89 | Standard access |
+| `fair` | 50–69 | Reduced visibility, enhanced inspection requirements |
+| `poor` | 25–49 | Account review, mandatory inspections, escrow-only transactions |
+| `critical` | 0–24 | Automatic suspension pending admin review |
+
+## Escrow Freeze Authorization
+Frozen escrow can only be released by: (a) explicit admin decision, (b) automated critical anti-manipulation trigger, or (c) arbitration ruling. A frozen escrow cannot be released/refunded without one of these.
+
+## Storage Security
+- All files: `file_hash` (SHA-256) stored for integrity verification.
+- KYC and financial documents (`is_public = false`): pre-signed URLs only, never public direct URL.
+- Public listing images (`is_public = true`): Supabase Storage public URL is acceptable.
+
+## Data Encryption Standards
+| State | Standard |
+|---|---|
+| At rest (database) | AES-256 (Supabase managed) |
+| At rest (files) | AES-256 (S3 server-side) |
+| In transit | TLS 1.3 — no exceptions |
+| Secrets | Vault / env vars — never in code, rotate quarterly |

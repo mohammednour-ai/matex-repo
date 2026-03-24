@@ -1,0 +1,115 @@
+---
+description: Matex external MCP bridge pattern — circuit breaker configuration, fallback providers, retry logic, vendor independence, bridge tool specs. Applies to bridge packages.
+globs: packages/bridges/**
+alwaysApply: false
+---
+
+# Matex External MCP Bridge Rules
+
+## The Bridge Pattern
+Every external service (Stripe, DocuSign, Onfido, carriers, etc.) is wrapped as an **MCP bridge server**. To any consuming server or AI agent, a bridge is **indistinguishable from a local MCP server**. This provides vendor independence and consistent error handling.
+
+A bridge must:
+1. Expose standard MCP tools matching the consuming server's expected interface.
+2. Handle authentication, rate limiting, and retries for the external API internally.
+3. Translate external data formats to Matex standard schemas before returning.
+4. Publish events to the Event Bus (e.g., `stripe-bridge.payment.completed`).
+5. Report all API calls to `log-mcp` (latency, status, errors, request hash).
+6. Implement a circuit breaker.
+7. If a fallback bridge exists, failover automatically on circuit open.
+
+## Circuit Breaker Configuration (All Bridges)
+| Parameter | Default | Description |
+|---|---|---|
+| `retry_count` | 3 | Retries on transient failure |
+| `retry_backoff_base` | 1 second | Base delay for exponential backoff |
+| `retry_backoff_max` | 60 seconds | Maximum delay between retries |
+| `circuit_breaker_threshold` | 5 | Consecutive failures to open circuit |
+| `circuit_breaker_reset` | 30 seconds | Time before half-open retry |
+| `timeout` | 10 seconds | Max wait for external API (30s for carriers, 60s for eSign) |
+
+```typescript
+// All bridge tool calls must wrap external HTTP calls:
+await withCircuitBreaker(bridgeName, async () => {
+  return await withRetry(async () => {
+    return await callExternalApi(endpoint, payload);
+  }, { retryCount: 3, backoffBase: 1000, backoffMax: 60000 });
+});
+```
+
+## Fallback Providers
+| Primary Bridge | Fallback | Trigger |
+|---|---|---|
+| `docusign-bridge` | `adobe-sign-bridge` | Circuit open |
+| `adobe-sign-bridge` | `docusign-bridge` | Circuit open |
+| `sendgrid-bridge` | Postmark bridge | Circuit open |
+| `twilio-bridge` | Vonage bridge | Circuit open |
+| `lme-bridge` | Cached last-known prices | Circuit open |
+| `fastmarkets-bridge` | Cached last-known prices | Circuit open |
+| `maps-bridge` | OpenStreetMap fallback | Circuit open |
+| `onfido-bridge` | Manual review queue | Circuit open |
+| `stripe-bridge` | Queue + retry (no fallback) | Never fail silently — queue |
+
+Financial bridges (`stripe-bridge`) have **no silent fallback** — failures must be queued for retry, never silently dropped.
+
+## Vendor Independence Rule
+Bridges expose standard MCP tool interfaces so consuming servers require **zero code changes** when switching vendors. Example:
+
+Switching from DocuSign to Adobe Sign:
+1. Deploy `adobe-sign-bridge` implementing the same tools (`create_document`, `send_for_signing`, etc.).
+2. Update `esign-mcp` configuration to point to the new bridge.
+3. Zero changes to `esign-mcp` business logic.
+
+## Bridge Tool Specifications
+
+### stripe-bridge
+| Tool | Stripe API |
+|---|---|
+| `create_payment_intent` | POST /v1/payment_intents |
+| `confirm_payment` | POST /v1/payment_intents/:id/confirm |
+| `create_refund` | POST /v1/refunds |
+| `create_transfer` | POST /v1/transfers (Connect payout) |
+| `create_customer` | POST /v1/customers |
+| `attach_payment_method` | POST /v1/payment_methods/:id/attach |
+| `get_balance` | GET /v1/balance |
+| `handle_webhook` | Stripe webhook endpoint |
+
+### onfido-bridge
+Identity verification tools: `create_applicant`, `upload_document`, `create_check`, `get_check_result`.
+On circuit open → route to manual review queue (never block KYC silently).
+
+### carriers-bridge
+Wraps Day & Ross, Manitoulin, Purolator, GoFor simultaneously.
+Tools: `request_quotes` (dispatches to all carriers in parallel), `book_shipment`, `track_shipment`, `cancel_shipment`.
+On circuit open for a specific carrier → exclude from quote results and log.
+
+### lme-bridge / fastmarkets-bridge
+Cache last-known prices with a TTL of 5 minutes.
+On circuit open → return cached price with `{ stale: true, cached_at: timestamp }` flag.
+Never return a null price — always fall back to cache.
+
+## Bridge File Structure
+```
+packages/bridges/<name>-bridge/
+  src/
+    index.ts          — MCP server entry, registers tools
+    client.ts         — external API client with auth
+    circuit-breaker.ts — circuit breaker implementation
+    transformer.ts    — external format → Matex schema mapping
+    types.ts          — bridge-specific types
+  package.json
+```
+
+## Logging Requirements for Bridges
+Every external API call must be logged to `log-mcp` with category `external_api`:
+```typescript
+await logMcp.logExternalApiCall({
+  server: 'stripe-bridge',
+  endpoint: '/v1/payment_intents',
+  method: 'POST',
+  request_hash: sha256(JSON.stringify(payload)),  // never log raw payload
+  response_status: 200,
+  latency_ms: elapsed,
+  success: true,
+});
+```

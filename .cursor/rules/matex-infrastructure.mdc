@@ -1,0 +1,130 @@
+---
+description: Matex infrastructure rules — auction-mcp real-time engine, log-mcp dual storage, resilience patterns, disaster recovery, deployment architecture, CI/CD. Always apply.
+alwaysApply: true
+---
+
+# Matex Infrastructure Rules
+
+## auction-mcp — Special Real-Time Infrastructure
+
+The `auction-mcp` server requires dedicated infrastructure that differs from all other MCP servers.
+
+### Bid Processing Pipeline
+1. Bids arrive at the Bid Gateway (Supabase Edge Function + Redis).
+2. Bids are sequenced in a **FIFO queue** with microsecond-precision server-authoritative timestamps — never use client-provided timestamps.
+3. Each bid is validated, processed via **optimistic concurrency control** (prevents double-processing of simultaneous bids), and broadcast to all clients via Supabase Realtime in < 200ms.
+4. A dedicated Redis instance holds live auction state (current highest bid, time remaining, lot status).
+5. The entire auction state machine is recoverable from the event log — if the server crashes mid-auction, replay events from `log_mcp.audit_log` to restore exact state.
+
+### Fairness & Resilience Rules
+- Bid receipt time = **server timestamp** — `server_timestamp` column on `bidding_mcp.bids`. Client clocks are irrelevant.
+- If a bidder disconnects, their pending bid is queued for 30 seconds before expiring.
+- Degraded mode: if Supabase Realtime fails, fall back to HTTP polling at 2-second intervals.
+- Auto-extend: if any bid arrives within `auto_extend_minutes` (default 5) of lot close, extend the deadline. Maximum `max_extensions` (default 10).
+- All bids are immutably logged. Admin can review and adjudicate any disputed auction result from the audit trail alone.
+- `auction.lot.sold` is published only after the winning bid is written to the DB — never before.
+
+---
+
+## log-mcp — Dual-Storage Architecture
+
+### What Gets Logged (All 8 Categories)
+| Category | Source | Retention |
+|---|---|---|
+| `tool_call` | Every MCP server (interceptor) | 7 years |
+| `event` | Event Bus subscriber | 7 years |
+| `external_api` | Every bridge server | 7 years |
+| `auth` | `auth-mcp` | 7 years |
+| `financial` | `escrow-mcp`, `payments-mcp` | 7 years |
+| `admin_action` | `admin-mcp` | 7 years |
+| `system_health` | All servers (heartbeat) | 90 days |
+| `security` | Gateway + all servers | 7 years |
+
+### Dual-Storage Architecture
+- **Hot storage (0–90 days):** PostgreSQL append-only tables, partitioned by month. Indexed for fast search by `user_id`, `server`, `category`, `created_at`. Used for real-time monitoring and recent audit queries.
+- **Cold storage (90 days – 7 years):** Compressed, AES-256 encrypted monthly archive files in S3 (Supabase Storage or AWS S3 Glacier). Each archive is signed with SHA-256; signature stored separately.
+- **Real-time stream:** Critical log categories (`financial`, `security`, `admin_action`) also streamed to Datadog/Sentry for real-time alerting.
+
+### Hash Chain Immutability
+- Each entry has `prev_hash` (SHA-256 of previous entry) and `entry_hash` (SHA-256 of this entry's content + `prev_hash`).
+- Monthly archive files are signed; signature stored separately.
+- Any break in the hash chain triggers an immediate **CRITICAL** alert to the security team.
+- Log deletion requires: documented compliance process + Super Admin + Legal approval. No exceptions.
+
+### log-mcp Tools
+`search_logs`, `get_entity_history`, `get_user_activity`, `export_compliance`, `verify_integrity`, `get_system_health_log`
+
+---
+
+## Resilience Patterns (All Servers)
+
+Every MCP server must implement all of the following:
+
+| Pattern | Rule |
+|---|---|
+| **Circuit Breaker** | All external calls: 5 consecutive failures → circuit opens for 30 seconds |
+| **Retry with Backoff** | Transient failures: 3 retries, base 1s, max 60s, with jitter |
+| **Bulkhead Isolation** | Critical paths (payments, auctions) isolated from non-critical (analytics, notifications) |
+| **Graceful Degradation** | Non-critical service failure → reduced functionality + user notification; never crash |
+| **Rate Limiting** | Enforced per user, per IP, per endpoint at the Gateway level |
+| **Dead Letter Queue** | Failed events after 3 retries → DLQ per server for manual inspection |
+
+### Failure Mode Handling
+| Scenario | Auto Recovery |
+|---|---|
+| Single MCP server crash | Container auto-restart (< 30s) |
+| DB connection loss | Connection pool retry + circuit breaker |
+| Redis failure | Sentinel auto-failover to replica |
+| External bridge failure | Circuit breaker + fallback bridge |
+| Event bus backlog | Auto-scaling consumer workers |
+| Complete region failure | DNS failover to secondary region |
+| Hash chain break | Immediate CRITICAL alert + point-in-time WAL recovery |
+
+---
+
+## Disaster Recovery Targets
+
+| Parameter | Target | Implementation |
+|---|---|---|
+| RPO (Recovery Point) | < 1 hour | Continuous WAL replication + hourly snapshots |
+| RTO (Recovery Time) | < 4 hours | Automated failover + documented runbooks |
+| Backup frequency | Continuous WAL + daily full | Supabase WAL + daily pg_dump to S3 |
+| Daily backup retention | 30 days | S3 lifecycle policy |
+| Monthly backup retention | 12 months | S3 lifecycle policy |
+| Geographic redundancy | Multi-region | Primary: ca-central-1, Replica: us-east-1 |
+| Recovery testing | Quarterly | Chaos engineering + full restore drill |
+
+---
+
+## Deployment Architecture
+
+| Component | Hosting | Scaling | Deploy Method |
+|---|---|---|---|
+| Web frontend (Next.js) | Vercel | Edge auto-scale | Git push → Vercel CI |
+| MCP servers (21 local) | Railway / Render | Horizontal auto-scale per server | Docker containers, CI/CD |
+| MCP bridges (13 external) | Railway / Render | Horizontal auto-scale per bridge | Docker containers, CI/CD |
+| Database | Supabase Cloud | Managed | Supabase managed |
+| Redis | Upstash | Serverless auto-scale | Upstash managed |
+| Object storage | Supabase Storage | Unlimited (S3-backed) | Supabase managed |
+
+### Docker — MCP Server Container
+All MCP servers use the same multi-stage `Dockerfile.mcp-server` base (node:20-alpine). Each server is a separate container image. Never bundle multiple servers into one container.
+
+### CI/CD Pipeline (Must Follow)
+1. Developer pushes to feature branch.
+2. GitHub Actions runs: lint → typecheck → unit tests → integration tests.
+3. PR approved + merged to `main` → staging deployment triggered.
+4. Staging runs E2E tests against live staging MCP servers.
+5. All green → production deployment via **blue-green strategy**.
+6. Health checks confirm all MCP servers responding (< 200ms p95).
+7. If health check fails → **automatic rollback** to previous version.
+
+Never deploy to production without passing all staging E2E tests. Never skip health check rollback.
+
+### Monitoring Stack
+| Tool | Monitors | Alert Threshold |
+|---|---|---|
+| Datadog APM | MCP server response times, error rates | p95 > 500ms, error rate > 1% |
+| Sentry | Exceptions, stack traces | New error type, spike |
+| `log-mcp` | Business audit, financial, security events | Any financial/security anomaly |
+| UptimeRobot | Endpoint availability, SSL | Any server unreachable > 60s |

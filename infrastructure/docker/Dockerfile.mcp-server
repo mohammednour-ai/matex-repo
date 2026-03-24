@@ -1,0 +1,14 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared ./packages/shared
+ARG SERVER_NAME
+COPY packages/mcp-servers/${SERVER_NAME} ./packages/mcp-servers/${SERVER_NAME}
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+RUN pnpm --filter @matex/${SERVER_NAME} build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/packages/mcp-servers/${SERVER_NAME}/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+CMD ["node", "dist/index.js"]

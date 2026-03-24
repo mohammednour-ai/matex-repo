@@ -1,0 +1,94 @@
+---
+description: Matex Canadian regulatory compliance — provincial tax rules, invoice numbering, CRA BN validation, CAW weight certification, PIPEDA data handling. Always apply.
+alwaysApply: true
+---
+
+# Matex Canadian Compliance Rules
+
+## Provincial Tax Application
+Tax must be calculated based on the **seller province** (supply) and **buyer province** (destination).
+Stored in `tax_mcp.invoices` with separate columns for each tax type.
+
+| Province | Tax Type | Rate |
+|---|---|---|
+| ON, NB, NS, NL, PE | HST | 13–15% |
+| BC | GST + PST | 5% + 7% |
+| AB, SK*, MB* | GST only | 5% |
+| QC | GST + QST | 5% + 9.975% |
+
+Rules:
+- Always store `seller_province` and `buyer_province` on the invoice.
+- Recycled metals and qualifying scrap may be zero-rated for GST/HST — verify the material category before applying tax.
+- Input Tax Credits (ITCs) are tracked per period in `tax_mcp.tax_remittances`.
+- Never use a flat tax rate; always look up the correct province pair.
+
+## Invoice Number Format
+All invoices follow the format: `MTX-YYYY-NNNNNN` (e.g., `MTX-2026-000042`).
+- `YYYY` is the calendar year of issuance.
+- `NNNNNN` is a zero-padded sequential number reset each year.
+- The `invoice_number` column has a `UNIQUE` constraint — enforce this before insert.
+
+```typescript
+// Generate invoice number
+function generateInvoiceNumber(year: number, seq: number): string {
+  return `MTX-${year}-${String(seq).padStart(6, '0')}`;
+}
+```
+
+## CRA Business Number Validation
+Canadian Business Numbers (BN) follow the format: `XXXXXXXXX RT YYYY`
+- 9-digit root number + program identifier (`RT` for GST/HST) + 4-digit account number.
+- Stored in `profile_mcp.companies.business_number` and `gst_hst_number`.
+
+```typescript
+// Validate CRA BN format
+const CRA_BN_REGEX = /^\d{9}(RT\d{4})?$/;
+function validateCraBN(bn: string): boolean {
+  return CRA_BN_REGEX.test(bn.replace(/\s/g, ''));
+}
+```
+
+## Weight Certification — CAW Scale Tickets
+For all weight disputes and final settlement:
+- The scale certificate number (`scale_certificate`) must reference a valid Weights and Measures Canada (CAW) certified scale.
+- `scale_certified = true` requires a certificate number — never set without one.
+- The 4-point weight chain authority order: `w4_third_party` > `w3_buyer` > `w2_carrier` > `w1_seller`.
+- If `w4_third_party` exists, it is the authoritative weight for price adjustment calculation.
+
+## PIPEDA-Compliant Data Handling
+Under PIPEDA (Personal Information Protection and Electronic Documents Act):
+- Collect only the minimum personal data required for KYC level being verified.
+- KYC document files (`kyc_mcp.documents.file_url`) must be stored encrypted at rest.
+- Users can request deletion of personal data — implement a soft-delete pattern that anonymizes PII while retaining financial records for the CRA-required 7-year retention period.
+- Never log full PII (SIN, passport number, DOB) in `log_mcp.audit_log` — use `input_hash` instead.
+- Data residency: all Supabase storage and database must be hosted in Canadian data centres (ca-central-1).
+
+## Environmental Permit Tracking
+Listings for regulated materials (certain metals, e-waste, hazardous) require environmental permits:
+```json
+// listing_mcp.listings.environmental_permits
+[{ "permit_type": "provincial_transport", "number": "ON-2026-12345", "expiry": "2027-01-01" }]
+```
+- Listings without a required permit must stay in `pending_review` status.
+- Expired permits must trigger an automated listing suspension.
+
+## Hazardous Materials (Hazmat)
+Shipments carrying hazmat materials must have `hazmat_class` set (not `none`).
+Hazmat classes map to Transport Canada dangerous goods classifications (TDG regulations):
+- Class 8 (corrosives) — common for lead-acid batteries.
+- Class 9 (miscellaneous) — common for lithium-ion battery scrap.
+Carriers transporting hazmat must have appropriate TDG certification recorded in their profile.
+
+## Currency
+- All amounts on the platform are in **CAD** by default.
+- `pricing_mcp.market_prices` may store USD (LME, Fastmarkets) — always note `currency` column.
+- When displaying or converting LME prices to CAD, use the Bank of Canada daily rate — never use a hardcoded conversion factor.
+
+## Data Retention Schedule
+| Data Category | Retention |
+|---|---|
+| Financial records (invoices, transactions) | 7 years (CRA requirement) |
+| KYC documents | 5 years post-account closure |
+| Audit logs | 7 years |
+| Messages/communications | 3 years |
+| Session tokens | 90 days after expiry |

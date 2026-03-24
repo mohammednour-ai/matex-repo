@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Supabase local
+infrastructure/supabase/supabase/.temp/
+infrastructure/supabase/supabase/.branches/
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+
+# Misc
+*.tsbuildinfo
+
+# Large binary files at root
+*.mp4
+*.jpg
+*.png
+*.gif
+
+# Supabase CLI workdir
+supabase/

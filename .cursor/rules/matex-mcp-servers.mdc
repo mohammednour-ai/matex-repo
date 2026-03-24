@@ -1,0 +1,162 @@
+---
+description: Matex MCP server patterns — tool naming, mandatory audit logging, KYC gates, escrow lifecycle, response shapes, event naming, RBAC+ABAC. Applies to all MCP server source files.
+globs: packages/mcp-servers/**
+alwaysApply: false
+---
+
+# Matex MCP Server Conventions
+
+## Tool Naming Convention
+Tools follow `<verb>_<noun>` within each server's namespace, registered on the MCP server:
+```
+// auth-mcp
+register, verify_email, verify_phone, login, logout, refresh_token, reset_password, enable_mfa
+
+// listing-mcp
+create_listing, update_listing, upload_images, set_pricing, publish_listing, get_listing, get_my_listings
+
+// bidding-mcp
+place_bid, set_proxy_bid, retract_bid, get_current_bids, submit_bid_deposit
+
+// escrow-mcp
+create_escrow, hold_funds, release_funds, freeze_funds, partial_release, refund, adjust_commission
+
+// dispute-mcp
+file_dispute, submit_evidence, propose_settlement, accept_settlement, escalate, render_decision, update_pis_score
+
+// admin-mcp
+manage_user, moderate_listing, review_kyc, configure_commission, get_audit_log, system_health
+```
+
+## Every Tool Must Audit Log
+Every MCP tool call MUST write to `log_mcp.audit_log` via the `log-mcp` server — never directly. Use the interceptor pattern in the MCP server base class.
+
+```typescript
+// Tool handler template
+async function handleTool(name: string, input: unknown, context: ToolContext) {
+  const start = Date.now();
+  try {
+    const result = await executeToolLogic(name, input, context);
+    await logMcp.logToolCall({ server: SERVER_NAME, tool: name, user_id: context.userId,
+      action: name, input_hash: sha256(JSON.stringify(input)),
+      output_summary: 'success', success: true, duration_ms: Date.now() - start });
+    return result;
+  } catch (error) {
+    await logMcp.logToolCall({ ..., success: false, error_message: String(error) });
+    throw error;
+  }
+}
+```
+
+## Event Naming Convention
+All events follow: `{server}.{entity}.{action}`
+
+### Complete Event Catalog (with Critical flags)
+| Server | Events | Critical? |
+|---|---|---|
+| `auth-mcp` | `auth.user.registered`, `auth.user.logged_in`, `auth.user.password_reset`, `auth.mfa.enabled` | No |
+| `kyc-mcp` | `kyc.verification.completed`, `kyc.verification.expired`, `kyc.pep_match.detected` | Yes (PEP match) |
+| `listing-mcp` | `listing.listing.created`, `listing.listing.published`, `listing.listing.sold`, `listing.listing.expired` | No |
+| `bidding-mcp` | `bidding.bid.placed`, `bidding.bid.outbid`, `bidding.bid.won`, `bidding.suspicious_activity` | Yes (suspicious) |
+| `auction-mcp` | `auction.auction.started`, `auction.lot.opened`, `auction.lot.sold`, `auction.auction.ended` | No |
+| `inspection-mcp` | `inspection.inspection.completed`, `inspection.weight_discrepancy.detected`, `inspection.inspection.failed` | Yes (discrepancy, failed) |
+| `escrow-mcp` | `escrow.escrow.created`, `escrow.funds.held`, `escrow.funds.released`, `escrow.escrow.frozen`, `escrow.funds.refunded` | Yes (all) |
+| `payments-mcp` | `payments.payment.completed`, `payments.payment.failed`, `payments.payment.refunded`, `payments.payout.sent` | Yes (all) |
+| `dispute-mcp` | `dispute.dispute.created`, `dispute.dispute.escalated`, `dispute.dispute.resolved`, `dispute.penalty.applied` | Yes (all) |
+| `logistics-mcp` | `logistics.shipment.booked`, `logistics.shipment.picked_up`, `logistics.shipment.delivered`, `logistics.shipment.delayed` | No |
+| `contracts-mcp` | `contracts.contract.activated`, `contracts.order.triggered`, `contracts.contract.terminated`, `contracts.contract.breached` | Yes (breach) |
+| `admin-mcp` | `admin.user.suspended`, `admin.user.banned`, `admin.config.changed` | Yes (all) |
+
+`log-mcp` subscribes to **ALL** events on the bus without exception.
+Critical events trigger immediate real-time alerting via Datadog/Sentry AND a Slack notification to the operations team.
+
+## KYC Level Gates
+| Operation | Minimum KYC Level |
+|---|---|
+| View listings, search | `level_0` (no auth required) |
+| Send messages, save searches, favorites | `level_1` |
+| Place bids, make offers, post listings | `level_2` |
+| Execute orders, receive payouts, use credit, API access | `level_3` |
+| Live auctions, down payments, credit application | `level_2` |
+
+Always validate KYC before financial operations:
+```typescript
+const kyc = await kycMcp.get_verification_status({ user_id });
+if (KYC_LEVEL_ORDER[kyc.level] < KYC_LEVEL_ORDER[required]) {
+  throw new KycInsufficientError(`${required} required`);
+}
+```
+
+## RBAC + ABAC Authorization
+Each tool declares its required role AND minimum KYC level AND additional conditions:
+- **RBAC roles**: `buyer`, `seller`, `carrier`, `inspector`, `admin`
+- **ABAC attributes**: KYC level, PIS score, credit tier, account age, account status
+- Supabase RLS provides the data-layer enforcement backstop
+
+```typescript
+// Tool authorization declaration
+const toolPolicy = {
+  'bidding.place_bid': { roles: ['buyer'], minKycLevel: 'level_2', minPis: 50 },
+  'escrow.release_funds': { roles: ['admin', 'system'], minKycLevel: 'level_3' },
+  'admin.manage_user': { roles: ['admin'], minKycLevel: 'level_3' },
+};
+```
+
+## Escrow Lifecycle State Machine
+```
+created → funds_held → (partially_released) → released
+                    ↘ frozen → (released | refunded)
+                    ↘ refunded
+                    ↘ cancelled  (only before funds_held)
+```
+Always append to `escrow_mcp.escrow_timeline` at each transition. Never skip states.
+
+## Response Shape Convention
+```typescript
+// Success
+{ success: true, data: T, meta?: { pagination?, timing? } }
+
+// Error — always include a structured error code
+{ success: false, error: { code: string, message: string, details?: unknown } }
+```
+
+## Account Status Guard
+Every authenticated tool call must check this first:
+```typescript
+if (user.account_status !== 'active') {
+  throw new AccountNotActiveError(user.account_status);
+}
+```
+
+## Notification Dispatch Pattern
+After significant state changes, dispatch via `notifications-mcp.send_notification`:
+```typescript
+await notificationsMcp.send_notification({
+  user_id: targetUserId,
+  type: 'order.delivered',   // format: '<domain>.<event>'
+  title: 'Your order was delivered',
+  body: '...',
+  channels: ['email', 'in_app'],
+  priority: 'normal',
+  data: { order_id: orderId },
+});
+```
+
+## Anti-Manipulation (bidding-mcp)
+1. Use `server_timestamp` — never trust client-provided timestamps.
+2. Flag `velocity`: >5 bids same user, same listing, within 60 seconds.
+3. Flag `shill_bidding`: bidder shares a company profile with the seller.
+4. Write flags to `bidding_mcp.anti_manipulation_flags`.
+5. `critical` severity → freeze escrow + alert `admin-mcp` immediately.
+
+## MCP Server File Structure
+```
+packages/mcp-servers/<domain>-mcp/
+  src/
+    index.ts          — server entry point, registers tools
+    tools/            — one file per tool group
+    validators/       — Zod schemas for tool inputs
+    services/         — business logic (calls Supabase)
+    types.ts          — local domain types
+  package.json
+```

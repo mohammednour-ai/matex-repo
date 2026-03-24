@@ -1,0 +1,5 @@
+packages:
+  - "apps/*"
+  - "packages/mcp-servers/*"
+  - "packages/bridges/*"
+  - "packages/shared/*"

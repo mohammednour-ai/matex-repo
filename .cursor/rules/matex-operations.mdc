@@ -1,0 +1,160 @@
+---
+description: Matex operational rules — logistics, booking/scheduling, supply contracts, cross-border trade, environmental compliance, material grading, mobile architecture. Always apply.
+alwaysApply: true
+---
+
+# Matex Operational Rules
+
+## Logistics (logistics-mcp)
+
+### Shipment Workflow
+1. Order completed → shipping requirements auto-generated from order details
+2. Multi-carrier quotes dispatched simultaneously to `carriers-bridge`
+3. Buyer/seller selects carrier → BOL auto-generated
+4. Carrier dispatches pickup → GPS tracking activated
+5. Weight recorded at pickup (W2 — carrier certified scale)
+6. Delivery confirmed with photo POD uploaded to `logistics_mcp.shipments`
+7. Weight recorded at destination (W3 — buyer scale, if certified)
+
+### Carrier Integration (carriers-bridge)
+Integrated carriers: Day & Ross, Manitoulin Transport, Purolator Freight, GoFor Industries, Canada Cartage, Uber Freight/Convoy.
+- Always request quotes from ALL integrated carriers simultaneously and rank by price/transit/rating.
+- Generate BOL immediately upon booking confirmation.
+- CO2 emissions (`co2_emissions_kg`) must be calculated per shipment for ESG reporting.
+
+### Hazmat Rules
+- Set `hazmat_class` on every shipment (default `none`).
+- Classes 8 (corrosives — lead-acid batteries) and 9 (misc — lithium-ion scrap) are most common.
+- Carriers transporting hazmat must have TDG certification recorded in their profile.
+- Auto-apply TDGR classification based on material category.
+
+---
+
+## Booking & Scheduling (booking-mcp)
+
+### Bookable Event Lead Times
+| Event Type | Min Lead Time |
+|---|---|
+| Buyer on-site visit | 24 hours |
+| Third-party inspection | 48 hours |
+| Lab sample collection | 72 hours |
+| Live auction session | 7 days |
+| Mediation meeting | 48 hours |
+| Re-weigh appointment | 24 hours |
+
+- Buffer before/after each booking: 30 minutes (configurable).
+- Reminders sent at: 24h, 2h, and 30min before the event.
+- No-show tracking: repeated no-shows trigger `dispute_mcp.platform_integrity_scores` penalty.
+- Cancellation policy: full refund >24h, 50% refund 12–24h, no refund <12h.
+- All times stored in UTC; display in user's local timezone.
+
+### Calendar Integrations
+Two-way sync supported: Google Calendar (OAuth2), Microsoft Outlook (Office 365 API), Apple Calendar (ICS).
+Conflict detection runs against all connected calendars before confirming a booking.
+
+---
+
+## Supply Contracts (contracts-mcp)
+
+### Contract Types
+| Type | Description |
+|---|---|
+| `standing` | Fixed quantity, fixed frequency, auto-executed |
+| `volume` | Committed annual volume, flexible schedule |
+| `hybrid` | Base volume under contract + spot purchases |
+| `index_linked` | Price tied to LME/Fastmarkets index |
+| `rfq_framework` | Pre-negotiated terms; each order via RFQ |
+| `consignment` | Material held at buyer site; invoiced on consumption |
+
+### Index-Linked Pricing Formula
+```
+Order Price = (Index Price on Pricing Date) ± (Agreed Premium/Discount) × Quantity
+```
+- Capture index price via `pricing-mcp.calculate_contract_price` on the agreed `pricing_date`.
+- Log the captured index value and timestamp to `contracts_mcp.contract_orders.index_value`.
+- Floor and ceiling prices override index if the calculated price falls outside bounds.
+
+### Auto-Order Execution Rules
+- Generate draft order 7 days before scheduled delivery.
+- Seller has 48 hours to confirm availability.
+- If seller cannot fulfill → notify buyer → activate breach clause if applicable.
+- All auto-orders are logged; `contracts.order.triggered` event published.
+- Contract breach (`contracts.breached`) is a **CRITICAL** event → escrow freeze + admin alert.
+
+### eSign Requirement
+Every active supply contract must have a completed `esign_mcp.documents` record with `status = 'completed'` before the first auto-order is generated.
+
+---
+
+## Cross-Border Trade
+
+### Supported Corridors
+- Canada → US: Ferrous scrap, aluminum, copper, paper (USMCA, ITAR, TSCA)
+- US → Canada: Mixed metals, plastics, e-waste (CBSA import rules, CEPA)
+- Cross-border triggers a full customs workflow automatically.
+
+### Auto-Generated Documents
+- Commercial Invoice (all cross-border)
+- Packing List (all cross-border)
+- USMCA Certificate of Origin (for duty-free claims)
+- Export Declaration B13A via CBSA CERS API (Canada exports > $2,000)
+- Hazmat Declaration (TDGR/DOT regulated materials)
+
+### Currency Management
+- Transaction currency locked at purchase confirmation (rate guaranteed 24 hours).
+- Buyer pays in preferred currency (CAD or USD); conversion fee = 0.5% markup on mid-market.
+- Use XE or Open Exchange Rates API for real-time rates — never hardcode conversion factors.
+- All financial reports show both original currency AND CAD equivalent for CRA compliance.
+
+### OFAC / CBSA Compliance
+- Screen all US-bound transactions against OFAC SDN list.
+- Monitor for anti-circumvention: flag transshipment patterns.
+- Basel Convention: hazardous waste cannot cross borders without prior informed consent.
+
+---
+
+## Environmental Compliance
+
+### Environmental Permit Lifecycle
+- Sellers declare material handling activities and upload applicable permits at registration.
+- Automated expiry alerts at: 90 days, 60 days, 30 days before permit expiry.
+- Expired permit → automatic listing suspension until renewed permit is uploaded.
+- Each listing requires environmental classification: `non-hazardous`, `potentially_hazardous`, or `hazardous`.
+
+### Chain of Custody Requirements (by transaction value)
+| Value | Required Documentation |
+|---|---|
+| < $5,000 | Self-declaration of ownership |
+| $5,000 – $25,000 | Purchase invoice or generation certificate |
+| $25,000 – $100,000 | Source documentation + chain of custody form |
+| > $100,000 | Full provenance documentation + mandatory third-party site inspection |
+
+### Theft Prevention
+- First-time sellers of high-theft materials (copper, catalytic converters): 72-hour cooling period before listing goes live.
+- Pattern detection: flag unusually frequent listings from individual accounts in high-theft categories.
+- Geographic anomaly: flag if seller location is inconsistent with material source location.
+
+---
+
+## Material Grading Standards
+| Category | Standard | Key Parameters |
+|---|---|---|
+| Ferrous Metals | ISRI Specifications (HMS 1, HMS 2) | Density, composition, contamination, size |
+| Non-Ferrous Metals | ISRI + LME Grade Standards | Purity, alloy type, weight, visual quality |
+| Plastics | ASTM D7611 Resin Identification | Resin type, color, contamination, form |
+| Paper & Cardboard | ISRI Paper Stock Guidelines | Grade, moisture, contamination, bale weight |
+| E-Waste | R2/e-Stewards Certification | Component type, precious metal content, hazmat |
+| Construction | CSA Standards | Composition, size, contamination |
+
+Mandatory inspection thresholds: optional for listings > $25K, mandatory for listings > $100K.
+
+---
+
+## Mobile App Architecture (React Native)
+- Framework: React Native + Expo, React Navigation, Zustand + React Query
+- Offline-first: WatermelonDB for local SQLite storage; background sync when connectivity returns
+- Camera-first workflows: photo capture for listings, scale tickets, inspection reports, POD
+- Push notifications: Firebase Cloud Messaging (FCM) / APNs
+- Biometric auth: Face ID / Touch ID via Expo Local Authentication
+- GPS: Expo Location for delivery tracking and geofencing
+- Sync conflict resolution: last-write-wins with manual merge UI for conflicts

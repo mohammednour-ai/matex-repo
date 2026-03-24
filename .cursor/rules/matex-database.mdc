@@ -1,0 +1,126 @@
+---
+description: Matex database conventions — schema naming, ENUMs, PostGIS, JSONB patterns, index naming, RLS, audit log immutability. Applies to SQL files and migrations.
+globs: **/*.sql,**/migrations/**,**/supabase/**
+alwaysApply: false
+---
+
+# Matex Database Conventions
+
+## Schema Naming
+- All schemas follow the pattern `<domain>_mcp` (e.g., `auth_mcp`, `payments_mcp`).
+- Always schema-qualify table references: `auth_mcp.users`, NOT just `users`.
+- Never create tables in the `public` schema.
+
+## Primary Keys & UUIDs
+```sql
+-- CORRECT
+user_id UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+
+-- WRONG — never use serial integers
+id SERIAL PRIMARY KEY
+```
+
+## ENUM Usage
+- All status and type fields MUST use a named PostgreSQL ENUM, not `VARCHAR`.
+- ENUMs are defined globally (before schema creation) so they are reusable.
+- When adding a new status value, use `ALTER TYPE ... ADD VALUE` — never drop and recreate.
+
+```sql
+-- CORRECT
+status listing_status NOT NULL DEFAULT 'draft'
+
+-- WRONG
+status VARCHAR(20) NOT NULL DEFAULT 'draft'
+```
+
+## Monetary Columns
+```sql
+-- CORRECT — always DECIMAL(12,2), always CAD unless schema says otherwise
+amount DECIMAL(12,2) NOT NULL  -- CAD
+
+-- WRONG
+amount FLOAT
+amount NUMERIC  -- too vague
+```
+
+## Timestamp Columns
+```sql
+-- CORRECT
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+
+-- WRONG — loses timezone info
+created_at TIMESTAMP NOT NULL DEFAULT NOW()
+```
+
+## PostGIS Geography Columns
+```sql
+-- Point columns (user/listing location)
+location GEOGRAPHY(Point, 4326)
+
+-- Polygon columns (inspector service area)
+service_area GEOGRAPHY(Polygon, 4326)
+
+-- Always create a GIST index for geography columns
+CREATE INDEX idx_listings_location ON listing_mcp.listings USING GIST(location);
+```
+
+## JSONB Column Patterns
+- Use JSONB for flexible structured data; always document expected shape in a comment.
+- Always provide a safe default: `DEFAULT '{}'` for objects, `DEFAULT '[]'` for arrays.
+```sql
+-- CORRECT
+address JSONB,  -- {street, city, province, postal_code, country}
+images  JSONB NOT NULL DEFAULT '[]',  -- [{url, order, alt_text}]
+```
+
+## Index Naming Convention
+```
+idx_<table_name>_<column(s)>
+idx_<table_name>_<column>_<column>  -- composite
+```
+Examples:
+```sql
+CREATE INDEX idx_listings_seller   ON listing_mcp.listings(seller_id);
+CREATE INDEX idx_bids_listing_amount ON bidding_mcp.bids(listing_id, amount DESC);
+CREATE INDEX idx_listings_published  ON listing_mcp.listings(published_at) WHERE status = 'active';
+```
+
+## Full-Text Search
+Use `TSVECTOR` + `GIN` index + trigger for searchable entities:
+```sql
+search_vector TSVECTOR,
+CREATE INDEX idx_listings_search ON listing_mcp.listings USING GIN(search_vector);
+-- Trigger populates search_vector on INSERT/UPDATE
+```
+
+## Row Level Security (RLS)
+- Enable RLS on **every** user-facing table before writing any policies.
+- Pattern: users can only see/modify their own rows; active listings are public.
+```sql
+ALTER TABLE listing_mcp.listings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Active listings are public"
+    ON listing_mcp.listings FOR SELECT
+    USING (status = 'active' OR seller_id = auth.uid());
+```
+
+## Audit Log Rules — CRITICAL
+- `log_mcp.audit_log` is **APPEND-ONLY**. Never run `UPDATE` or `DELETE` on it.
+- The table is partitioned by month: `log_mcp.audit_log_YYYY_MM`. Add new partitions before the month begins.
+- Each entry has a `prev_hash` / `entry_hash` chain for tamper detection. Always populate both.
+- `REVOKE UPDATE, DELETE ON log_mcp.audit_log FROM PUBLIC;` must remain in place.
+
+## Migration Rules
+- Migration files live in `infrastructure/supabase/migrations/`.
+- File naming: `NNN_descriptive_name.sql` (e.g., `002_add_inspection_tables.sql`).
+- Migrations are forward-only — never edit a previously applied migration file.
+- Test migrations on a local Supabase instance before committing.
+
+## Deferred Foreign Keys
+When two schemas reference each other circularly, add the FK after both tables exist:
+```sql
+-- At the bottom of the migration, after all tables are created:
+ALTER TABLE orders_mcp.orders
+    ADD CONSTRAINT fk_orders_contract
+    FOREIGN KEY (contract_id) REFERENCES contracts_mcp.contracts(contract_id);
+```

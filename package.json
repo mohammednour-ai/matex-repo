@@ -1,0 +1,43 @@
+{
+  "name": "matex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP-First B2B Marketplace for Scrap Materials & Surplus Inventory",
+  "author": "Mohamed",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @matex/web dev",
+    "dev:gateway": "pnpm --filter @matex/mcp-gateway dev",
+    "dev:http-adapters": "tsx scripts/start-http-adapters.ts",
+    "dev:all": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "pnpm exec supabase db push",
+    "db:reset": "pnpm exec supabase db reset",
+    "db:seed": "pnpm exec supabase db seed",
+    "clean": "pnpm -r exec rm -rf node_modules dist .next .turbo",
+    "healthcheck": "node scripts/health-check.mjs",
+    "smoke:phase1": "node scripts/phase1-db-smoke-sql.mjs",
+    "smoke:phase2": "node scripts/phase2-db-smoke-sql.mjs",
+    "smoke:phase3": "node scripts/phase3-db-smoke-sql.mjs",
+    "smoke:phase4": "node scripts/phase4-db-smoke-sql.mjs",
+    "smoke": "node scripts/phase1-db-smoke-sql.mjs && node scripts/phase2-db-smoke-sql.mjs && node scripts/phase3-db-smoke-sql.mjs && node scripts/phase4-db-smoke-sql.mjs"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.40.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^8.57.0",
+    "pg": "^8.20.0",
+    "prettier": "^3.2.0",
+    "supabase": "^2.78.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

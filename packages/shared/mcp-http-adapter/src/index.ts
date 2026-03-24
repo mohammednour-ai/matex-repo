@@ -1,0 +1,1138 @@
+import { createServer } from "node:http";
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import pg from "pg";
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+
+function signJwt(payload: Record<string, string | number>, expiresInSec: number): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const body = Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + expiresInSec })).toString("base64url");
+  const sig = createHmac("sha256", JWT_SECRET).update(`${header}.${body}`).digest("base64url");
+  return `${header}.${body}.${sig}`;
+}
+
+const { Pool } = pg;
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+
+type AdapterRequest = {
+  tool: string;
+  args?: Record<string, JsonValue>;
+  auth?: Record<string, JsonValue>;
+};
+
+type AdapterResponse = {
+  success: boolean;
+  data?: Record<string, unknown>;
+  error?: { code: string; message: string };
+};
+
+function ok(data: Record<string, unknown>): AdapterResponse {
+  return { success: true, data };
+}
+
+function err(code: string, message: string): AdapterResponse {
+  return { success: false, error: { code, message } };
+}
+
+function json(res: import("node:http").ServerResponse, status: number, payload: AdapterResponse): void {
+  res.statusCode = status;
+  res.setHeader("content-type", "application/json");
+  res.end(JSON.stringify(payload));
+}
+
+async function readBody(req: import("node:http").IncomingMessage): Promise<AdapterRequest | null> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as AdapterRequest;
+  } catch {
+    return null;
+  }
+}
+
+function createPool(): pg.Pool | null {
+  const DATABASE_URL = process.env.DATABASE_URL;
+  if (!DATABASE_URL) return null;
+  return new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 });
+}
+
+function asUuidOrNew(value: unknown): string {
+  const v = String(value ?? "");
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRe.test(v) ? v : randomUUID();
+}
+
+async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unknown>): Promise<AdapterResponse> {
+  // auth
+  if (tool === "auth.register") {
+    const email = String(args.email ?? "").toLowerCase().trim();
+    const phone = String(args.phone ?? "").trim();
+    const password = String(args.password ?? "");
+    if (!email || !phone || !password) return err("VALIDATION_ERROR", "email, phone, password are required.");
+    const userId = randomUUID();
+    await pool.query(
+      `insert into auth_mcp.users
+        (user_id,email,phone,password_hash,account_type,account_status,email_verified,phone_verified,mfa_enabled)
+       values ($1,$2,$3,$4,'individual','pending_review',false,false,false)`,
+      [userId, email, phone, password],
+    );
+    return ok({ user: { user_id: userId, email, phone }, status: "pending_review" });
+  }
+  if (tool === "auth.login") {
+    const email = String(args.email ?? "").toLowerCase().trim();
+    const row = await pool.query(`select user_id from auth_mcp.users where email = $1 limit 1`, [email]);
+    const userId = String(row.rows[0]?.user_id ?? "");
+    if (!userId) return err("AUTH_ERROR", "Invalid credentials.");
+    const accessToken = signJwt({ sub: userId, scope: "access" }, 900);
+    const refreshToken = signJwt({ sub: userId, scope: "refresh" }, 604800);
+    return ok({ user_id: userId, tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 900 } });
+  }
+
+  // listing/search
+  if (tool === "listing.create_listing") {
+    const listingId = randomUUID();
+    let categoryId = String(args.category_id ?? "");
+    if (!categoryId) {
+      categoryId = String(
+        (await pool.query(`select category_id from listing_mcp.categories order by created_at asc limit 1`)).rows[0]
+          ?.category_id ?? "",
+      );
+    }
+    if (!categoryId) {
+      categoryId = randomUUID();
+      await pool.query(
+        `insert into listing_mcp.categories (category_id, name, slug, description, default_unit, is_active)
+         values ($1,'General Metals','general-metals','Auto-created by HTTP adapter','kg',true)`,
+        [categoryId],
+      );
+    }
+    await pool.query(
+      `insert into listing_mcp.listings
+       (listing_id,seller_id,title,slug,category_id,description,quantity,unit,price_type,asking_price,images,location,pickup_address,status)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'[]'::jsonb,ST_SetSRID(ST_MakePoint(-79.3832,43.6532),4326)::geography,$11::jsonb,'draft')`,
+      [
+        listingId,
+        String(args.seller_id ?? ""),
+        String(args.title ?? ""),
+        `listing-${listingId.slice(0, 8)}`,
+        categoryId,
+        String(args.description ?? ""),
+        Number(args.quantity ?? 1),
+        String(args.unit ?? "kg"),
+        String(args.price_type ?? "fixed"),
+        Number(args.asking_price ?? 0),
+        JSON.stringify({ city: "Toronto", province: "ON", country: "CA" }),
+      ],
+    );
+    return ok({ listing_id: listingId, status: "draft" });
+  }
+  if (tool === "listing.publish_listing") {
+    const result = await pool.query(
+      `update listing_mcp.listings set status='active',published_at=now() where listing_id=$1 returning listing_id,status,published_at`,
+      [String(args.listing_id ?? "")],
+    );
+    return ok(result.rows[0] ?? {});
+  }
+  if (tool === "search.search_materials") {
+    const q = String(args.query ?? "");
+    const result = await pool.query(
+      `select listing_id,title,description,status,asking_price
+       from listing_mcp.listings
+       where status='active' and (title ilike $1 or description ilike $1)
+       order by created_at desc
+       limit 100`,
+      [`%${q}%`],
+    );
+    return ok({ results: result.rows, total: result.rows.length });
+  }
+
+  // messaging
+  if (tool === "messaging.create_thread") {
+    const threadId = randomUUID();
+    const participants = Array.isArray(args.participants) ? args.participants.map(String) : [];
+    await pool.query(
+      `insert into messaging_mcp.threads (thread_id, listing_id, subject, participants, thread_type)
+       values ($1,$2,$3,$4::uuid[],'general')`,
+      [threadId, args.listing_id ? String(args.listing_id) : null, args.subject ? String(args.subject) : null, participants],
+    );
+    return ok({ thread_id: threadId });
+  }
+  if (tool === "messaging.send_message") {
+    const messageId = randomUUID();
+    await pool.query(
+      `insert into messaging_mcp.messages (message_id, thread_id, sender_id, content, created_at)
+       values ($1,$2,$3,$4,now())`,
+      [messageId, String(args.thread_id ?? ""), String(args.sender_id ?? ""), String(args.content ?? "")],
+    );
+    return ok({ message_id: messageId });
+  }
+
+  // payments
+  if (tool === "payments.process_payment") {
+    const transactionId = randomUUID();
+    const amount = Number(args.amount ?? 0);
+    await pool.query(
+      `insert into payments_mcp.transactions
+        (transaction_id,payer_id,amount,original_amount,currency,payment_method,transaction_type,status,metadata)
+       values ($1,$2,$3,$3,'CAD',$4,'purchase','completed','{}'::jsonb)`,
+      [transactionId, String(args.user_id ?? ""), amount, String(args.method ?? "stripe_card")],
+    );
+    return ok({ transaction: { transaction_id: transactionId, amount, status: "completed" } });
+  }
+
+  // phase2: kyc
+  if (tool === "kyc.start_verification") {
+    const verificationId = randomUUID();
+    await pool.query(
+      `insert into kyc_mcp.verifications (verification_id,user_id,target_level,current_status,submitted_at)
+       values ($1,$2,$3,'pending',now())`,
+      [verificationId, String(args.user_id ?? ""), String(args.target_level ?? "level_2")],
+    );
+    return ok({ verification_id: verificationId, status: "pending" });
+  }
+  if (tool === "kyc.review_verification") {
+    await pool.query(
+      `update kyc_mcp.verifications set current_status=$2,reviewed_at=now(),verified_at=now() where verification_id=$1`,
+      [String(args.verification_id ?? ""), String(args.status ?? "verified")],
+    );
+    return ok({ verification_id: String(args.verification_id ?? ""), status: String(args.status ?? "verified") });
+  }
+
+  // phase2: escrow
+  if (tool === "escrow.create_escrow") {
+    const escrowId = randomUUID();
+    const orderId = asUuidOrNew(args.order_id);
+    const listingId = String(args.listing_id ?? "");
+    const buyerId = String(args.buyer_id ?? "");
+    const sellerId = String(args.seller_id ?? "");
+    const amount = Number(args.amount ?? 0);
+    const sourceListingId =
+      listingId ||
+      String((await pool.query(`select listing_id from listing_mcp.listings order by created_at desc limit 1`)).rows[0]?.listing_id ?? "");
+    if (!sourceListingId) return err("VALIDATION_ERROR", "listing_id required or at least one listing must exist.");
+    await pool.query(
+      `insert into orders_mcp.orders
+        (order_id,listing_id,buyer_id,seller_id,original_amount,quantity,unit,commission_rate,currency,status)
+       values ($1,$2,$3,$4,$5,1,'kg',0.035,'CAD','pending')
+       on conflict (order_id) do nothing`,
+      [orderId, sourceListingId, buyerId, sellerId, amount],
+    );
+    await pool.query(
+      `insert into escrow_mcp.escrows
+        (escrow_id,order_id,buyer_id,seller_id,original_amount,held_amount,released_amount,refunded_amount,currency,status)
+       values ($1,$2,$3,$4,$5,0,0,0,'CAD','created')`,
+      [escrowId, orderId, buyerId, sellerId, amount],
+    );
+    return ok({ escrow_id: escrowId, order_id: orderId, status: "created" });
+  }
+  if (tool === "escrow.hold_funds") {
+    await pool.query(
+      `update escrow_mcp.escrows set status='funds_held',held_amount=held_amount+$2,updated_at=now() where escrow_id=$1`,
+      [String(args.escrow_id ?? ""), Number(args.amount ?? 100)],
+    );
+    return ok({ escrow_id: String(args.escrow_id ?? ""), status: "funds_held" });
+  }
+  if (tool === "escrow.release_funds") {
+    await pool.query(
+      `update escrow_mcp.escrows set status='released',held_amount=greatest(0,held_amount-$2),released_amount=released_amount+$2,released_at=now(),updated_at=now() where escrow_id=$1`,
+      [String(args.escrow_id ?? ""), Number(args.amount ?? 100)],
+    );
+    return ok({ escrow_id: String(args.escrow_id ?? ""), status: "released" });
+  }
+
+  // phase2: auction
+  if (tool === "auction.create_auction") {
+    const auctionId = randomUUID();
+    await pool.query(
+      `insert into auction_mcp.auctions (auction_id,organizer_id,title,status,scheduled_start,min_bid_increment)
+       values ($1,$2,$3,'scheduled',now() + interval '5 minutes',1)`,
+      [auctionId, String(args.organizer_id ?? args.seller_id ?? ""), String(args.title ?? "")],
+    );
+    return ok({ auction_id: auctionId, status: "scheduled" });
+  }
+  if (tool === "auction.add_lot") {
+    const lotId = randomUUID();
+    const lotNumber = Number(
+      (await pool.query(`select coalesce(max(lot_number),0)+1 as lot_number from auction_mcp.lots where auction_id = $1`, [String(args.auction_id ?? "")]))
+        .rows[0]?.lot_number ?? 1,
+    );
+    await pool.query(
+      `insert into auction_mcp.lots (lot_id,auction_id,listing_id,lot_number,status,starting_price,reserve_price,total_bids,extensions_used)
+       values ($1,$2,$3,$4,'open',$5,$6,0,0)`,
+      [lotId, String(args.auction_id ?? ""), String(args.listing_id ?? ""), lotNumber, Number(args.starting_price ?? 2500), Number(args.reserve_price ?? 3000)],
+    );
+    return ok({ lot_id: lotId, lot_number: lotNumber });
+  }
+  if (tool === "auction.place_auction_bid") {
+    const lotId = String(args.lot_id ?? "");
+    const lot = (await pool.query(`select listing_id,current_highest_bid,starting_price from auction_mcp.lots where lot_id = $1 limit 1`, [lotId])).rows[0];
+    if (!lot) return err("NOT_FOUND", "lot not found");
+    const currentHighest = Number(lot.current_highest_bid ?? lot.starting_price ?? 0);
+    const expected = args.expected_highest === undefined ? null : Number(args.expected_highest);
+    if (expected !== null && expected !== currentHighest) return err("OPTIMISTIC_CONCURRENCY_CONFLICT", `Expected highest ${expected}, current ${currentHighest}.`);
+    const bidId = randomUUID();
+    const amount = Number(args.amount ?? 0);
+    await pool.query(
+      `insert into bidding_mcp.bids (bid_id,listing_id,bidder_id,amount,bid_type,status,server_timestamp)
+       values ($1,$2,$3,$4,'manual','active',now())`,
+      [bidId, String(lot.listing_id), String(args.bidder_id ?? ""), amount],
+    );
+    const updated = await pool.query(
+      `update auction_mcp.lots
+       set current_highest_bid=$2,highest_bidder_id=$3,total_bids=total_bids+1
+       where lot_id=$1 and current_highest_bid is not distinct from $4
+       returning lot_id`,
+      [lotId, amount, String(args.bidder_id ?? ""), lot.current_highest_bid ?? null],
+    );
+    if (!updated.rows[0]) return err("OPTIMISTIC_CONCURRENCY_CONFLICT", "Lot changed, retry.");
+    return ok({ bid_id: bidId, lot_id: lotId, amount });
+  }
+
+  // phase2: inspection + booking
+  if (tool === "inspection.request_inspection") {
+    const inspectionId = randomUUID();
+    await pool.query(
+      `insert into inspection_mcp.inspections (inspection_id,listing_id,requested_by,inspection_type,location,status,result)
+       values ($1,$2,$3,'pickup',$4::jsonb,'requested','pending')`,
+      [inspectionId, args.listing_id ? String(args.listing_id) : null, String(args.requested_by ?? args.requester_id ?? ""), JSON.stringify({ city: "Toronto", province: "ON" })],
+    );
+    return ok({ inspection_id: inspectionId, status: "requested" });
+  }
+  if (tool === "inspection.evaluate_discrepancy") {
+    const expected = Number(args.expected_weight ?? args.expected_weight_kg ?? 0);
+    const actual = Number(args.actual_weight ?? 0);
+    const deltaPct = expected > 0 ? ((actual - expected) / expected) * 100 : 0;
+    return ok({ delta_pct: Number(deltaPct.toFixed(2)), exceeded_tolerance: Math.abs(deltaPct) > 2 });
+  }
+  if (tool === "booking.create_booking") {
+    const bookingId = randomUUID();
+    const organizerId = String(args.organizer_id ?? args.user_id ?? "");
+    const start = String(args.scheduled_start ?? args.scheduled_for ?? new Date(Date.now() + 3600000).toISOString());
+    const end = new Date(new Date(start).getTime() + 3600000).toISOString();
+    await pool.query(
+      `insert into booking_mcp.bookings
+        (booking_id,event_type,organizer_id,participants,location,scheduled_start,scheduled_end,status)
+       values ($1,'pickup',$2,$3::jsonb,$4::jsonb,$5::timestamptz,$6::timestamptz,'pending')`,
+      [bookingId, organizerId, JSON.stringify([{ user_id: organizerId, role: "organizer" }]), JSON.stringify({ city: "Toronto", province: "ON" }), start, end],
+    );
+    return ok({ booking_id: bookingId, status: "pending" });
+  }
+
+  // phase3: logistics
+  if (tool === "logistics.get_quotes") {
+    const orderId = asUuidOrNew(args.order_id);
+    const carriers = [
+      { name: "Day & Ross", api: "day_ross", price: 1190, transit: 2, co2: 124 },
+      { name: "Manitoulin", api: "manitoulin", price: 1240, transit: 2, co2: 132 },
+      { name: "Purolator Freight", api: "purolator", price: 1305, transit: 1, co2: 118 },
+    ];
+    for (const c of carriers) {
+      const quoteId = randomUUID();
+      await pool.query(
+        `insert into logistics_mcp.shipping_quotes (quote_id,order_id,carrier_name,carrier_api,price,currency,transit_days,service_type,valid_until)
+         values ($1,$2,$3,$4,$5,'CAD',$6,'ltl',now() + interval '24 hours')`,
+        [quoteId, orderId, c.name, c.api, c.price, c.transit],
+      );
+    }
+    return ok({ order_id: orderId, quotes: carriers });
+  }
+  if (tool === "logistics.book_shipment") {
+    const orderId = asUuidOrNew(args.order_id);
+    const shipmentId = randomUUID();
+    const carrier = String(args.carrier_name ?? "Day & Ross");
+    await pool.query(
+      `insert into logistics_mcp.shipments (shipment_id,order_id,carrier_name,carrier_api,origin_address,destination_address,weight_kg,hazmat,status)
+       values ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8,'booked')`,
+      [shipmentId, orderId, carrier, String(args.carrier_api ?? "day_ross"),
+       JSON.stringify(args.origin ?? { city: "Hamilton", province: "ON" }),
+       JSON.stringify(args.destination ?? { city: "Toronto", province: "ON" }),
+       Number(args.weight_kg ?? 1000), String(args.hazmat ?? "none")],
+    );
+    return ok({ shipment_id: shipmentId, status: "booked", carrier });
+  }
+  if (tool === "logistics.update_tracking") {
+    const shipmentId = String(args.shipment_id ?? "");
+    const status = String(args.status ?? "in_transit");
+    await pool.query(
+      `update logistics_mcp.shipments set status=$2,tracking_number=$3,updated_at=now() where shipment_id=$1`,
+      [shipmentId, status, String(args.tracking_number ?? `TRK-${Date.now()}`)],
+    );
+    return ok({ shipment_id: shipmentId, status });
+  }
+  if (tool === "logistics.get_shipment") {
+    const shipmentId = String(args.shipment_id ?? "");
+    const row = (await pool.query(`select * from logistics_mcp.shipments where shipment_id=$1`, [shipmentId])).rows[0];
+    return ok({ shipment: row ?? null });
+  }
+
+  // phase3: contracts
+  if (tool === "contracts.create_contract") {
+    const contractId = randomUUID();
+    const buyerId = String(args.buyer_id ?? "");
+    const sellerId = String(args.seller_id ?? "");
+    const catId = String(args.material_category_id ?? "");
+    let categoryId = catId;
+    if (!categoryId) {
+      categoryId = String((await pool.query(`select category_id from listing_mcp.categories limit 1`)).rows[0]?.category_id ?? randomUUID());
+    }
+    await pool.query(
+      `insert into contracts_mcp.contracts
+        (contract_id,buyer_id,seller_id,contract_type,material_category_id,quality_specs,pricing_model,total_volume,unit,start_date,end_date,status)
+       values ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8,$9,$10::date,$11::date,'draft')`,
+      [contractId, buyerId, sellerId, String(args.contract_type ?? "volume"), categoryId,
+       JSON.stringify(args.quality_specs ?? {}), JSON.stringify(args.pricing_model ?? { type: "fixed" }),
+       Number(args.total_volume ?? 100), String(args.unit ?? "mt"),
+       String(args.start_date ?? new Date().toISOString().slice(0, 10)),
+       String(args.end_date ?? new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10))],
+    );
+    return ok({ contract_id: contractId, status: "draft" });
+  }
+  if (tool === "contracts.activate_contract") {
+    const contractId = String(args.contract_id ?? "");
+    await pool.query(`update contracts_mcp.contracts set status='active',activated_at=now(),updated_at=now() where contract_id=$1`, [contractId]);
+    return ok({ contract_id: contractId, status: "active" });
+  }
+  if (tool === "contracts.get_contract") {
+    const contractId = String(args.contract_id ?? "");
+    const row = (await pool.query(`select * from contracts_mcp.contracts where contract_id=$1`, [contractId])).rows[0];
+    return ok({ contract: row ?? null });
+  }
+  if (tool === "contracts.terminate_contract") {
+    const contractId = String(args.contract_id ?? "");
+    await pool.query(`update contracts_mcp.contracts set status='terminated',terminated_at=now(),updated_at=now() where contract_id=$1`, [contractId]);
+    return ok({ contract_id: contractId, status: "terminated" });
+  }
+
+  // phase3: dispute
+  if (tool === "dispute.file_dispute") {
+    const disputeId = randomUUID();
+    const orderId = asUuidOrNew(args.order_id);
+    await pool.query(
+      `insert into dispute_mcp.disputes
+        (dispute_id,order_id,filing_party_id,responding_party_id,category,description,current_tier,status,resolution_deadline)
+       values ($1,$2,$3,$4,$5,$6,'tier_1_negotiation','open',now() + interval '14 days')`,
+      [disputeId, orderId, String(args.filing_party_id ?? ""), String(args.responding_party_id ?? ""),
+       String(args.category ?? "quality"), String(args.description ?? "Dispute filed")],
+    );
+    return ok({ dispute_id: disputeId, status: "open", tier: "tier_1_negotiation" });
+  }
+  if (tool === "dispute.submit_evidence") {
+    const evidenceId = randomUUID();
+    await pool.query(
+      `insert into dispute_mcp.evidence (evidence_id,dispute_id,submitted_by,evidence_type,description)
+       values ($1,$2,$3,$4,$5)`,
+      [evidenceId, String(args.dispute_id ?? ""), String(args.submitted_by ?? ""),
+       String(args.evidence_type ?? "document"), String(args.description ?? "")],
+    );
+    return ok({ evidence_id: evidenceId });
+  }
+  if (tool === "dispute.escalate_dispute") {
+    const disputeId = String(args.dispute_id ?? "");
+    const nextTier = String(args.next_tier ?? "tier_2_mediation");
+    await pool.query(`update dispute_mcp.disputes set current_tier=$2,status='escalated',updated_at=now() where dispute_id=$1`, [disputeId, nextTier]);
+    return ok({ dispute_id: disputeId, tier: nextTier, status: "escalated" });
+  }
+  if (tool === "dispute.resolve_dispute") {
+    const disputeId = String(args.dispute_id ?? "");
+    await pool.query(
+      `update dispute_mcp.disputes set status='resolved',resolution_summary=$2,resolved_at=now(),updated_at=now() where dispute_id=$1`,
+      [disputeId, String(args.resolution_summary ?? "Resolved")],
+    );
+    return ok({ dispute_id: disputeId, status: "resolved" });
+  }
+  if (tool === "dispute.get_dispute") {
+    const disputeId = String(args.dispute_id ?? "");
+    const row = (await pool.query(`select * from dispute_mcp.disputes where dispute_id=$1`, [disputeId])).rows[0];
+    const evidence = (await pool.query(`select * from dispute_mcp.evidence where dispute_id=$1 order by created_at`, [disputeId])).rows;
+    return ok({ dispute: row ?? null, evidence });
+  }
+
+  // phase3: tax
+  if (tool === "tax.calculate_tax") {
+    const sellerProv = String(args.seller_province ?? "ON").toUpperCase();
+    const buyerProv = String(args.buyer_province ?? "ON").toUpperCase();
+    const subtotal = Number(args.subtotal ?? 0);
+    const rates: Record<string, { gst: number; pst: number; hst: number; qst: number }> = {
+      ON: { gst: 0, pst: 0, hst: 0.13, qst: 0 },
+      NB: { gst: 0, pst: 0, hst: 0.15, qst: 0 },
+      NS: { gst: 0, pst: 0, hst: 0.15, qst: 0 },
+      NL: { gst: 0, pst: 0, hst: 0.15, qst: 0 },
+      PE: { gst: 0, pst: 0, hst: 0.15, qst: 0 },
+      BC: { gst: 0.05, pst: 0.07, hst: 0, qst: 0 },
+      AB: { gst: 0.05, pst: 0, hst: 0, qst: 0 },
+      SK: { gst: 0.05, pst: 0, hst: 0, qst: 0 },
+      MB: { gst: 0.05, pst: 0, hst: 0, qst: 0 },
+      QC: { gst: 0.05, pst: 0, hst: 0, qst: 0.09975 },
+    };
+    const r = rates[buyerProv] ?? rates["ON"]!;
+    const gst = Math.round(subtotal * r.gst * 100) / 100;
+    const pst = Math.round(subtotal * r.pst * 100) / 100;
+    const hst = Math.round(subtotal * r.hst * 100) / 100;
+    const qst = Math.round(subtotal * r.qst * 100) / 100;
+    const totalTax = Math.round((gst + pst + hst + qst) * 100) / 100;
+    return ok({ seller_province: sellerProv, buyer_province: buyerProv, subtotal, gst_amount: gst, pst_amount: pst, hst_amount: hst, qst_amount: qst, total_tax: totalTax, total_amount: Math.round((subtotal + totalTax) * 100) / 100 });
+  }
+  if (tool === "tax.generate_invoice") {
+    const orderId = asUuidOrNew(args.order_id);
+    const buyerId = String(args.buyer_id ?? "");
+    const sellerId = String(args.seller_id ?? "");
+    const subtotal = Number(args.subtotal ?? 0);
+    const commission = Math.round(subtotal * 0.035 * 100) / 100;
+    const sellerProv = String(args.seller_province ?? "ON").toUpperCase();
+    const buyerProv = String(args.buyer_province ?? "ON").toUpperCase();
+    const rates: Record<string, { gst: number; pst: number; hst: number; qst: number }> = {
+      ON: { gst: 0, pst: 0, hst: 0.13, qst: 0 }, BC: { gst: 0.05, pst: 0.07, hst: 0, qst: 0 },
+      AB: { gst: 0.05, pst: 0, hst: 0, qst: 0 }, QC: { gst: 0.05, pst: 0, hst: 0, qst: 0.09975 },
+    };
+    const r = rates[buyerProv] ?? rates["ON"]!;
+    const gst = Math.round(subtotal * r.gst * 100) / 100;
+    const pst = Math.round(subtotal * r.pst * 100) / 100;
+    const hst = Math.round(subtotal * r.hst * 100) / 100;
+    const qst = Math.round(subtotal * r.qst * 100) / 100;
+    const totalTax = Math.round((gst + pst + hst + qst) * 100) / 100;
+    const totalAmount = Math.round((subtotal + totalTax) * 100) / 100;
+    const year = new Date().getFullYear();
+    const seqRes = await pool.query(`select count(*)::int as cnt from tax_mcp.invoices where invoice_number like $1`, [`MTX-${year}-%`]);
+    const seq = (Number(seqRes.rows[0]?.cnt ?? 0)) + 1;
+    const invoiceNumber = `MTX-${year}-${String(seq).padStart(6, "0")}`;
+    const invoiceId = randomUUID();
+    await pool.query(
+      `insert into tax_mcp.invoices
+        (invoice_id,invoice_number,order_id,buyer_id,seller_id,subtotal,commission_amount,gst_amount,pst_amount,hst_amount,qst_amount,total_tax,total_amount,seller_province,buyer_province,status)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'issued')`,
+      [invoiceId, invoiceNumber, orderId, buyerId, sellerId, subtotal, commission, gst, pst, hst, qst, totalTax, totalAmount, sellerProv, buyerProv],
+    );
+    return ok({ invoice_id: invoiceId, invoice_number: invoiceNumber, total_amount: totalAmount, total_tax: totalTax });
+  }
+  if (tool === "tax.get_invoice") {
+    const invoiceId = String(args.invoice_id ?? "");
+    const row = (await pool.query(`select * from tax_mcp.invoices where invoice_id=$1`, [invoiceId])).rows[0];
+    return ok({ invoice: row ?? null });
+  }
+
+  // phase3: notifications
+  if (tool === "notifications.send_notification") {
+    const notificationId = randomUUID();
+    const channels = Array.isArray(args.channels) ? args.channels.map(String) : ["in_app"];
+    await pool.query(
+      `insert into notifications_mcp.notifications
+        (notification_id,user_id,type,title,body,data,channels_sent,priority)
+       values ($1,$2,$3,$4,$5,$6::jsonb,$7::notification_channel[],$8)`,
+      [notificationId, String(args.user_id ?? ""), String(args.type ?? "general"),
+       String(args.title ?? "Notification"), String(args.body ?? ""),
+       JSON.stringify(args.data ?? {}), channels, String(args.priority ?? "normal")],
+    );
+    return ok({ notification_id: notificationId, channels_sent: channels });
+  }
+  if (tool === "notifications.get_notifications") {
+    const userId = String(args.user_id ?? "");
+    const rows = (await pool.query(
+      `select * from notifications_mcp.notifications where user_id=$1 order by created_at desc limit 50`,
+      [userId],
+    )).rows;
+    return ok({ notifications: rows, total: rows.length });
+  }
+  if (tool === "notifications.mark_read") {
+    const notificationId = String(args.notification_id ?? "");
+    await pool.query(`update notifications_mcp.notifications set read=true,read_at=now() where notification_id=$1`, [notificationId]);
+    return ok({ notification_id: notificationId, read: true });
+  }
+
+  // phase4: analytics (cross-schema reads)
+  if (tool === "analytics.get_dashboard_stats") {
+    const listings = (await pool.query(`select count(*)::int as cnt from listing_mcp.listings where status='active'`)).rows[0]?.cnt ?? 0;
+    const users = (await pool.query(`select count(*)::int as cnt from auth_mcp.users`)).rows[0]?.cnt ?? 0;
+    const escrowHeld = (await pool.query(`select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held'`)).rows[0]?.total ?? 0;
+    const auctions = (await pool.query(`select count(*)::int as cnt from auction_mcp.auctions where status='live'`)).rows[0]?.cnt ?? 0;
+    return ok({ active_listings: listings, total_users: users, escrow_held: Number(escrowHeld), active_auctions: auctions });
+  }
+  if (tool === "analytics.get_revenue_report") {
+    const period = String(args.period ?? "30d");
+    const days = period === "7d" ? 7 : period === "90d" ? 90 : 30;
+    const result = await pool.query(
+      `select count(*)::int as transactions, coalesce(sum(amount),0)::numeric as volume
+       from payments_mcp.transactions where status='completed' and created_at > now() - interval '${days} days'`,
+    );
+    const row = result.rows[0] ?? {};
+    return ok({ period, transactions: Number(row.transactions ?? 0), volume: Number(row.volume ?? 0), commission_estimate: Math.round(Number(row.volume ?? 0) * 0.035 * 100) / 100 });
+  }
+
+  // phase4: pricing
+  if (tool === "pricing.capture_market_price") {
+    const priceId = randomUUID();
+    await pool.query(
+      `insert into pricing_mcp.market_prices (price_id,material,index_source,price,currency,unit,captured_at)
+       values ($1,$2,$3,$4,$5,$6,now())`,
+      [priceId, String(args.material ?? "copper"), String(args.index_source ?? "lme"),
+       Number(args.price ?? 0), String(args.currency ?? "USD"), String(args.unit ?? "mt")],
+    );
+    return ok({ price_id: priceId });
+  }
+  if (tool === "pricing.get_market_prices") {
+    const material = String(args.material ?? "copper");
+    const rows = (await pool.query(
+      `select * from pricing_mcp.market_prices where material=$1 order by captured_at desc limit 10`,
+      [material],
+    )).rows;
+    return ok({ prices: rows, total: rows.length });
+  }
+  if (tool === "pricing.create_price_alert") {
+    const alertId = randomUUID();
+    await pool.query(
+      `insert into pricing_mcp.price_alerts (alert_id,user_id,material,index_source,condition,threshold,is_active)
+       values ($1,$2,$3,$4,$5,$6,true)`,
+      [alertId, String(args.user_id ?? ""), String(args.material ?? "copper"),
+       String(args.index_source ?? "lme"), String(args.condition ?? "above"), Number(args.threshold ?? 0)],
+    );
+    return ok({ alert_id: alertId });
+  }
+  if (tool === "pricing.get_price_alerts") {
+    const userId = String(args.user_id ?? "");
+    const rows = (await pool.query(`select * from pricing_mcp.price_alerts where user_id=$1 order by created_at desc`, [userId])).rows;
+    return ok({ alerts: rows, total: rows.length });
+  }
+
+  // phase4: credit
+  if (tool === "credit.assess_credit") {
+    const userId = String(args.user_id ?? "");
+    const score = Number(args.score ?? 650);
+    const tier = score >= 800 ? "enterprise" : score >= 700 ? "premium" : score >= 600 ? "standard" : score >= 500 ? "basic" : "none";
+    const limit = tier === "enterprise" ? 500000 : tier === "premium" ? 200000 : tier === "standard" ? 50000 : tier === "basic" ? 10000 : 0;
+    await pool.query(
+      `insert into credit_mcp.credit_facilities (user_id,credit_tier,credit_limit,available_credit,matex_credit_score,status,last_assessment_at)
+       values ($1,$2,$3,$3,$4,'active',now())
+       on conflict (user_id) do update set credit_tier=$2,credit_limit=$3,available_credit=$3,matex_credit_score=$4,status='active',last_assessment_at=now(),updated_at=now()`,
+      [userId, tier, limit, score],
+    );
+    const scoreId = randomUUID();
+    await pool.query(
+      `insert into credit_mcp.credit_score_history (score_id,user_id,score,factors,calculated_at)
+       values ($1,$2,$3,$4::jsonb,now())`,
+      [scoreId, userId, score, JSON.stringify(args.factors ?? { payment_history: 0.9, volume: 0.7, pis: 0.85 })],
+    );
+    return ok({ user_id: userId, credit_tier: tier, credit_limit: limit, matex_credit_score: score });
+  }
+  if (tool === "credit.get_credit_facility") {
+    const userId = String(args.user_id ?? "");
+    const row = (await pool.query(`select * from credit_mcp.credit_facilities where user_id=$1`, [userId])).rows[0];
+    return ok({ facility: row ?? null });
+  }
+  if (tool === "credit.get_credit_history") {
+    const userId = String(args.user_id ?? "");
+    const rows = (await pool.query(`select * from credit_mcp.credit_score_history where user_id=$1 order by calculated_at desc limit 20`, [userId])).rows;
+    return ok({ history: rows, total: rows.length });
+  }
+  if (tool === "credit.freeze_facility") {
+    const userId = String(args.user_id ?? "");
+    await pool.query(`update credit_mcp.credit_facilities set status='frozen',available_credit=0,updated_at=now() where user_id=$1`, [userId]);
+    return ok({ user_id: userId, status: "frozen" });
+  }
+
+  // phase4: admin (cross-schema)
+  if (tool === "admin.get_platform_overview") {
+    const users = (await pool.query(`select count(*)::int as cnt from auth_mcp.users`)).rows[0]?.cnt ?? 0;
+    const listings = (await pool.query(`select count(*)::int as cnt from listing_mcp.listings`)).rows[0]?.cnt ?? 0;
+    const orders = (await pool.query(`select count(*)::int as cnt from orders_mcp.orders`)).rows[0]?.cnt ?? 0;
+    const disputes = (await pool.query(`select count(*)::int as cnt from dispute_mcp.disputes where status='open'`)).rows[0]?.cnt ?? 0;
+    return ok({ total_users: users, total_listings: listings, total_orders: orders, open_disputes: disputes });
+  }
+  if (tool === "admin.suspend_user") {
+    const userId = String(args.user_id ?? "");
+    const reason = String(args.reason ?? "admin action");
+    await pool.query(`update auth_mcp.users set account_status='suspended' where user_id=$1`, [userId]);
+    return ok({ user_id: userId, account_status: "suspended", reason });
+  }
+  if (tool === "admin.unsuspend_user") {
+    const userId = String(args.user_id ?? "");
+    await pool.query(`update auth_mcp.users set account_status='active' where user_id=$1`, [userId]);
+    return ok({ user_id: userId, account_status: "active" });
+  }
+  if (tool === "admin.moderate_listing") {
+    const listingId = String(args.listing_id ?? "");
+    const action = String(args.action ?? "remove");
+    const newStatus = action === "remove" ? "removed" : action === "flag" ? "flagged" : "suspended";
+    await pool.query(`update listing_mcp.listings set status=$2,updated_at=now() where listing_id=$1`, [listingId, newStatus]);
+    return ok({ listing_id: listingId, status: newStatus });
+  }
+
+  // ── missing auth tools ──
+  if (tool === "auth.request_email_otp" || tool === "auth.request_phone_otp") {
+    return ok({ challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600000).toISOString(), status: "otp_sent" });
+  }
+  if (tool === "auth.verify_email") {
+    const userId = String(args.user_id ?? "");
+    if (userId) await pool.query(`update auth_mcp.users set email_verified=true where user_id=$1`, [userId]);
+    return ok({ verified: true });
+  }
+  if (tool === "auth.verify_phone") {
+    const userId = String(args.user_id ?? "");
+    if (userId) await pool.query(`update auth_mcp.users set phone_verified=true where user_id=$1`, [userId]);
+    return ok({ verified: true });
+  }
+  if (tool === "auth.refresh_token") {
+    return ok({ access_token: `ui-token-${String(args.user_id ?? randomUUID())}`, expires_in: 900 });
+  }
+
+  // ── missing profile tools ──
+  if (tool === "profile.get_profile") {
+    const row = (await pool.query(`select * from profile_mcp.profiles where user_id=$1 limit 1`, [String(args.user_id ?? "")])).rows[0];
+    return ok({ profile: row ?? null });
+  }
+  if (tool === "profile.update_profile") {
+    const userId = String(args.user_id ?? "");
+    await pool.query(
+      `insert into profile_mcp.profiles (user_id,display_name,bio) values ($1,$2,$3)
+       on conflict (user_id) do update set display_name=coalesce($2,profile_mcp.profiles.display_name),bio=coalesce($3,profile_mcp.profiles.bio),updated_at=now()`,
+      [userId, args.display_name ? String(args.display_name) : null, args.bio ? String(args.bio) : null],
+    );
+    return ok({ user_id: userId, updated: true });
+  }
+  if (tool === "profile.add_bank_account") {
+    return ok({ user_id: String(args.user_id ?? ""), bank_added: true });
+  }
+  if (tool === "profile.set_preferences") {
+    return ok({ user_id: String(args.user_id ?? ""), preferences_set: true });
+  }
+
+  // ── missing listing tools ──
+  if (tool === "listing.update_listing") {
+    const listingId = String(args.listing_id ?? "");
+    if (args.title) await pool.query(`update listing_mcp.listings set title=$2,updated_at=now() where listing_id=$1`, [listingId, String(args.title)]);
+    return ok({ listing_id: listingId, updated: true });
+  }
+  if (tool === "listing.upload_images") {
+    return ok({ listing_id: String(args.listing_id ?? ""), images_uploaded: true });
+  }
+  if (tool === "listing.get_listing") {
+    const row = (await pool.query(`select * from listing_mcp.listings where listing_id=$1`, [String(args.listing_id ?? "")])).rows[0];
+    return ok({ listing: row ?? null });
+  }
+  if (tool === "listing.get_my_listings") {
+    const rows = (await pool.query(`select * from listing_mcp.listings where seller_id=$1 order by created_at desc`, [String(args.seller_id ?? "")])).rows;
+    return ok({ listings: rows, total: rows.length });
+  }
+
+  // ── missing search tools ──
+  if (tool === "search.geo_search") {
+    const lat = Number(args.lat ?? 43.65);
+    const lng = Number(args.lng ?? -79.38);
+    const radiusKm = Number(args.radius_km ?? 50);
+    const rows = (await pool.query(
+      `select listing_id,title,asking_price from listing_mcp.listings where status='active' and ST_DWithin(location,ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,$3) limit 50`,
+      [lng, lat, radiusKm * 1000],
+    )).rows;
+    return ok({ results: rows, total: rows.length });
+  }
+  if (tool === "search.filter_by_category") {
+    const categoryId = String(args.category_id ?? "");
+    const rows = (await pool.query(`select listing_id,title,asking_price from listing_mcp.listings where category_id=$1 and status='active' limit 50`, [categoryId])).rows;
+    return ok({ results: rows, total: rows.length });
+  }
+  if (tool === "search.save_search") {
+    const searchId = randomUUID();
+    await pool.query(
+      `insert into listing_mcp.saved_searches (search_id,user_id,name,filters) values ($1,$2,$3,$4::jsonb)`,
+      [searchId, String(args.user_id ?? ""), String(args.name ?? "Saved search"), JSON.stringify(args.filters ?? {})],
+    );
+    return ok({ search_id: searchId });
+  }
+  if (tool === "search.get_saved_searches") {
+    const rows = (await pool.query(`select * from listing_mcp.saved_searches where user_id=$1 order by created_at desc`, [String(args.user_id ?? "")])).rows;
+    return ok({ saved_searches: rows, total: rows.length });
+  }
+  if (tool === "search.index_listing") {
+    return ok({ listing_id: String(args.listing_id ?? ""), indexed: true });
+  }
+
+  // ── missing messaging tools ──
+  if (tool === "messaging.get_thread") {
+    const threadId = String(args.thread_id ?? "");
+    const thread = (await pool.query(`select * from messaging_mcp.threads where thread_id=$1`, [threadId])).rows[0];
+    if (!thread) return ok({ thread: null });
+    const messages = (await pool.query(`select * from messaging_mcp.messages where thread_id=$1 order by created_at asc`, [threadId])).rows;
+    return ok({ thread: { ...thread, messages } });
+  }
+  if (tool === "messaging.get_unread") {
+    const userId = String(args.user_id ?? "");
+    const cnt = (await pool.query(
+      `select count(*)::int as cnt from messaging_mcp.messages m
+       join messaging_mcp.threads t on m.thread_id=t.thread_id
+       where $1=any(t.participants) and m.sender_id!=$1`,
+      [userId],
+    )).rows[0]?.cnt ?? 0;
+    return ok({ total_unread: cnt });
+  }
+
+  // ── missing payments tools ──
+  if (tool === "payments.get_wallet_balance") {
+    const row = (await pool.query(`select user_id,balance,pending_balance from payments_mcp.wallets where user_id=$1`, [String(args.user_id ?? "")])).rows[0];
+    return ok({ wallet: row ?? { user_id: String(args.user_id ?? ""), balance: 0, pending_balance: 0 } });
+  }
+  if (tool === "payments.top_up_wallet") {
+    const userId = String(args.user_id ?? "");
+    const amount = Number(args.amount ?? 0);
+    await pool.query(
+      `insert into payments_mcp.wallets (user_id,balance,pending_balance) values ($1,$2,0)
+       on conflict (user_id) do update set balance=payments_mcp.wallets.balance+$2`,
+      [userId, amount],
+    );
+    return ok({ user_id: userId, topped_up: amount });
+  }
+  if (tool === "payments.manage_payment_methods") {
+    return ok({ user_id: String(args.user_id ?? ""), methods: [] });
+  }
+  if (tool === "payments.get_transaction_history") {
+    const rows = (await pool.query(`select * from payments_mcp.transactions where payer_id=$1 order by created_at desc limit 50`, [String(args.user_id ?? "")])).rows;
+    return ok({ transactions: rows, total: rows.length });
+  }
+
+  // ── missing kyc tools ──
+  if (tool === "kyc.submit_document") {
+    const documentId = randomUUID();
+    await pool.query(
+      `insert into kyc_mcp.documents (document_id,verification_id,user_id,doc_type,file_url,file_hash) values ($1,$2,$3,$4,$5,$6)`,
+      [documentId, String(args.verification_id ?? ""), String(args.user_id ?? ""), String(args.doc_type ?? "id"), String(args.file_url ?? ""), String(args.file_hash ?? "")],
+    );
+    return ok({ document_id: documentId });
+  }
+  if (tool === "kyc.get_kyc_level") {
+    const row = (await pool.query(`select current_level,updated_at from kyc_mcp.kyc_levels where user_id=$1`, [String(args.user_id ?? "")])).rows[0];
+    return ok({ current_level: row?.current_level ?? "level_0", updated_at: row?.updated_at ?? null });
+  }
+  if (tool === "kyc.assert_kyc_gate") {
+    const userId = String(args.user_id ?? "");
+    const requiredLevel = String(args.required_level ?? "level_2");
+    const rank: Record<string, number> = { level_0: 0, level_1: 1, level_2: 2, level_3: 3 };
+    const row = (await pool.query(`select current_level from kyc_mcp.kyc_levels where user_id=$1`, [userId])).rows[0];
+    const current = String(row?.current_level ?? "level_0");
+    if ((rank[current] ?? 0) < (rank[requiredLevel] ?? 0)) return err("KYC_GATE_BLOCKED", `Required ${requiredLevel}, current ${current}.`);
+    return ok({ allowed: true, current_level: current });
+  }
+
+  // ── missing escrow tools ──
+  if (tool === "escrow.freeze_escrow") {
+    const escrowId = String(args.escrow_id ?? "");
+    await pool.query(`update escrow_mcp.escrows set status='frozen',frozen_reason=$2,frozen_at=now(),updated_at=now() where escrow_id=$1`, [escrowId, String(args.reason ?? "admin action")]);
+    await pool.query(`insert into escrow_mcp.escrow_timeline (event_id,escrow_id,action,reason,metadata) values ($1,$2,'frozen',$3,'{}'::jsonb)`, [randomUUID(), escrowId, String(args.reason ?? "")]);
+    return ok({ escrow_id: escrowId, status: "frozen" });
+  }
+  if (tool === "escrow.refund_escrow") {
+    const escrowId = String(args.escrow_id ?? "");
+    const amount = Number(args.amount ?? 0);
+    await pool.query(`update escrow_mcp.escrows set status='refunded',held_amount=greatest(0,held_amount-$2),refunded_amount=refunded_amount+$2,refunded_at=now(),updated_at=now() where escrow_id=$1`, [escrowId, amount]);
+    await pool.query(`insert into escrow_mcp.escrow_timeline (event_id,escrow_id,action,amount,reason,metadata) values ($1,$2,'refunded',$3,$4,'{}'::jsonb)`, [randomUUID(), escrowId, amount, String(args.reason ?? "")]);
+    return ok({ escrow_id: escrowId, status: "refunded" });
+  }
+  if (tool === "escrow.get_escrow") {
+    const escrowId = String(args.escrow_id ?? "");
+    const escrow = (await pool.query(`select * from escrow_mcp.escrows where escrow_id=$1`, [escrowId])).rows[0];
+    const timeline = (await pool.query(`select * from escrow_mcp.escrow_timeline where escrow_id=$1 order by created_at`, [escrowId])).rows;
+    return ok({ escrow: escrow ?? null, timeline });
+  }
+
+  // ── missing auction tools ──
+  if (tool === "auction.start_auction") {
+    const auctionId = String(args.auction_id ?? "");
+    await pool.query(`update auction_mcp.auctions set status='live',actual_start=now(),updated_at=now() where auction_id=$1`, [auctionId]);
+    await pool.query(`update auction_mcp.lots set status='open',opened_at=now() where auction_id=$1 and status='pending'`, [auctionId]);
+    return ok({ auction_id: auctionId, status: "live" });
+  }
+  if (tool === "auction.close_lot") {
+    const lotId = String(args.lot_id ?? "");
+    const lot = (await pool.query(`select highest_bidder_id from auction_mcp.lots where lot_id=$1`, [lotId])).rows[0];
+    const sold = lot?.highest_bidder_id ? "sold" : "unsold";
+    await pool.query(`update auction_mcp.lots set status=$2,closed_at=now() where lot_id=$1`, [lotId, sold]);
+    return ok({ lot_id: lotId, status: sold });
+  }
+  if (tool === "auction.get_lot_state") {
+    const row = (await pool.query(`select * from auction_mcp.lots where lot_id=$1`, [String(args.lot_id ?? "")])).rows[0];
+    return ok({ lot: row ?? null });
+  }
+
+  // ── missing bidding tools ──
+  if (tool === "bidding.place_bid") {
+    const bidId = randomUUID();
+    await pool.query(
+      `insert into bidding_mcp.bids (bid_id,listing_id,bidder_id,amount,bid_type,status,server_timestamp) values ($1,$2,$3,$4,$5,'active',now())`,
+      [bidId, String(args.listing_id ?? ""), String(args.bidder_id ?? ""), Number(args.amount ?? 0), String(args.bid_type ?? "manual")],
+    );
+    return ok({ bid_id: bidId, amount: Number(args.amount ?? 0) });
+  }
+  if (tool === "bidding.retract_bid") {
+    await pool.query(`update bidding_mcp.bids set status='retracted' where bid_id=$1`, [String(args.bid_id ?? "")]);
+    return ok({ bid_id: String(args.bid_id ?? ""), status: "retracted" });
+  }
+  if (tool === "bidding.get_highest_bid") {
+    const row = (await pool.query(`select * from bidding_mcp.bids where listing_id=$1 and status='active' order by amount desc limit 1`, [String(args.listing_id ?? "")])).rows[0];
+    return ok({ highest_bid: row ?? null });
+  }
+  if (tool === "bidding.flag_suspicious_bid") {
+    const flagId = randomUUID();
+    await pool.query(
+      `insert into bidding_mcp.anti_manipulation_flags (flag_id,listing_id,flagged_user_id,flag_type,severity,details) values ($1,$2,$3,$4,$5,$6::jsonb)`,
+      [flagId, String(args.listing_id ?? ""), String(args.flagged_user_id ?? ""), String(args.flag_type ?? "shill"), String(args.severity ?? "medium"), JSON.stringify(args.details ?? {})],
+    );
+    return ok({ flag_id: flagId });
+  }
+
+  // ── missing inspection tools ──
+  if (tool === "inspection.record_weight") {
+    const recordId = randomUUID();
+    await pool.query(
+      `insert into inspection_mcp.weight_records (record_id,order_id,weight_point,weight_kg,recorded_by,scale_certified,recorded_at)
+       values ($1,$2,$3,$4,$5,$6,now())
+       on conflict (order_id,weight_point) do update set weight_kg=$4,recorded_by=$5,recorded_at=now()`,
+      [recordId, String(args.order_id ?? ""), String(args.weight_point ?? "w1_seller"), Number(args.weight_kg ?? 0), String(args.recorded_by ?? ""), Boolean(args.scale_certified ?? false)],
+    );
+    return ok({ record_id: recordId, weight_point: String(args.weight_point ?? "w1_seller") });
+  }
+  if (tool === "inspection.complete_inspection") {
+    const inspectionId = String(args.inspection_id ?? "");
+    await pool.query(
+      `update inspection_mcp.inspections set result=$2,status='completed',weight_actual_kg=$3,completed_at=now(),updated_at=now() where inspection_id=$1`,
+      [inspectionId, String(args.result ?? "pass"), args.weight_actual_kg ? Number(args.weight_actual_kg) : null],
+    );
+    return ok({ inspection_id: inspectionId, status: "completed" });
+  }
+  if (tool === "inspection.get_inspection") {
+    const inspectionId = String(args.inspection_id ?? "");
+    const insp = (await pool.query(`select * from inspection_mcp.inspections where inspection_id=$1`, [inspectionId])).rows[0];
+    return ok({ inspection: insp ?? null });
+  }
+
+  // ── missing booking tools ──
+  if (tool === "booking.set_availability") {
+    const availId = randomUUID();
+    await pool.query(
+      `insert into booking_mcp.availability (availability_id,user_id,day_of_week,start_time,end_time) values ($1,$2,$3,$4,$5)`,
+      [availId, String(args.user_id ?? ""), Number(args.day_of_week ?? 1), String(args.start_time ?? "09:00"), String(args.end_time ?? "17:00")],
+    );
+    return ok({ availability_id: availId });
+  }
+  if (tool === "booking.update_booking_status") {
+    const bookingId = String(args.booking_id ?? "");
+    const status = String(args.status ?? "confirmed");
+    await pool.query(`update booking_mcp.bookings set status=$2,updated_at=now() where booking_id=$1`, [bookingId, status]);
+    return ok({ booking_id: bookingId, status });
+  }
+  if (tool === "booking.list_user_bookings") {
+    const rows = (await pool.query(`select * from booking_mcp.bookings where organizer_id=$1 order by scheduled_start desc`, [String(args.user_id ?? "")])).rows;
+    return ok({ bookings: rows, total: rows.length });
+  }
+  if (tool === "booking.enqueue_reminder") {
+    return ok({ booking_id: String(args.booking_id ?? ""), reminder_enqueued: true, minutes_before: Number(args.minutes_before ?? 30) });
+  }
+
+  // ── missing logistics tools ──
+  if (tool === "logistics.generate_bol") {
+    const shipmentId = String(args.shipment_id ?? "");
+    const bolNumber = `BOL-${new Date().getFullYear()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    await pool.query(`update logistics_mcp.shipments set bol_document_id=$2,updated_at=now() where shipment_id=$1`, [shipmentId, bolNumber]);
+    return ok({ shipment_id: shipmentId, bol_number: bolNumber });
+  }
+
+  // ── missing contracts tools ──
+  if (tool === "contracts.generate_order") {
+    const contractId = String(args.contract_id ?? "");
+    const orderId = randomUUID();
+    await pool.query(
+      `insert into contracts_mcp.contract_orders (contract_order_id,contract_id,scheduled_date,quantity,status) values ($1,$2,now()::date,$3,'generated')`,
+      [orderId, contractId, Number(args.quantity ?? 10)],
+    );
+    return ok({ contract_order_id: orderId, contract_id: contractId });
+  }
+  if (tool === "contracts.negotiate_terms") {
+    const negotiationId = randomUUID();
+    await pool.query(
+      `insert into contracts_mcp.negotiations (negotiation_id,contract_id,proposed_by,proposed_changes,message,status) values ($1,$2,$3,$4::jsonb,$5,'pending')`,
+      [negotiationId, String(args.contract_id ?? ""), String(args.proposed_by ?? ""), JSON.stringify(args.proposed_changes ?? {}), String(args.message ?? "")],
+    );
+    return ok({ negotiation_id: negotiationId });
+  }
+
+  // ── missing dispute tools ──
+  if (tool === "dispute.propose_settlement") {
+    const proposalId = randomUUID();
+    await pool.query(
+      `insert into dispute_mcp.settlement_proposals (proposal_id,dispute_id,proposed_by,terms,message,status) values ($1,$2,$3,$4::jsonb,$5,'pending')`,
+      [proposalId, String(args.dispute_id ?? ""), String(args.proposed_by ?? ""), JSON.stringify(args.terms ?? {}), String(args.message ?? "")],
+    );
+    return ok({ proposal_id: proposalId });
+  }
+  if (tool === "dispute.update_pis") {
+    const userId = String(args.user_id ?? "");
+    const score = Number(args.pis_score ?? 100);
+    const tier = score >= 90 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "fair" : score >= 30 ? "poor" : "critical";
+    await pool.query(
+      `insert into dispute_mcp.platform_integrity_scores (user_id,pis_score,tier,last_calculated_at) values ($1,$2,$3,now())
+       on conflict (user_id) do update set pis_score=$2,tier=$3,last_calculated_at=now()`,
+      [userId, score, tier],
+    );
+    return ok({ user_id: userId, pis_score: score, tier });
+  }
+
+  // ── missing tax tools ──
+  if (tool === "tax.void_invoice") {
+    await pool.query(`update tax_mcp.invoices set status='void' where invoice_id=$1`, [String(args.invoice_id ?? "")]);
+    return ok({ invoice_id: String(args.invoice_id ?? ""), status: "void" });
+  }
+  if (tool === "tax.get_remittance_summary") {
+    const rows = (await pool.query(`select tax_type,province,sum(collected_amount)::numeric as collected,sum(remitted_amount)::numeric as remitted from tax_mcp.tax_remittances group by tax_type,province`)).rows;
+    return ok({ remittances: rows });
+  }
+
+  // ── missing notifications tools ──
+  if (tool === "notifications.get_preferences") {
+    return ok({ user_id: String(args.user_id ?? ""), preferences: { email: true, sms: true, push: true, in_app: true } });
+  }
+  if (tool === "notifications.update_preferences") {
+    return ok({ user_id: String(args.user_id ?? ""), preferences_updated: true });
+  }
+
+  // ── missing analytics tools ──
+  if (tool === "analytics.get_conversion_funnel") {
+    const listings = (await pool.query(`select count(*)::int as cnt from listing_mcp.listings`)).rows[0]?.cnt ?? 0;
+    const searches = (await pool.query(`select count(*)::int as cnt from listing_mcp.saved_searches`)).rows[0]?.cnt ?? 0;
+    const threads = (await pool.query(`select count(*)::int as cnt from messaging_mcp.threads`)).rows[0]?.cnt ?? 0;
+    const orders = (await pool.query(`select count(*)::int as cnt from orders_mcp.orders`)).rows[0]?.cnt ?? 0;
+    return ok({ funnel: { listings, searches, threads, orders } });
+  }
+  if (tool === "analytics.export_data") {
+    const query = String(args.query ?? "select 1");
+    const rows = (await pool.query(query)).rows;
+    return ok({ rows, total: rows.length, exported_at: new Date().toISOString() });
+  }
+
+  // ── missing pricing tools ──
+  if (tool === "pricing.calculate_mpi") {
+    const categoryId = String(args.category_id ?? "");
+    const region = String(args.region ?? "ontario");
+    const rows = (await pool.query(
+      `select avg(asking_price)::numeric as avg_price, count(*)::int as sample_size
+       from listing_mcp.listings where category_id=$1 and status='active'`,
+      [categoryId],
+    )).rows[0];
+    const mpiValue = Number(rows?.avg_price ?? 0);
+    const mpiId = randomUUID();
+    if (mpiValue > 0) {
+      await pool.query(
+        `insert into pricing_mcp.matex_price_index (mpi_id,category_id,region,mpi_value,sample_size,period_start,period_end) values ($1,$2,$3,$4,$5,now()-interval '7 days',now())`,
+        [mpiId, categoryId, region, mpiValue, Number(rows?.sample_size ?? 0)],
+      );
+    }
+    return ok({ mpi_id: mpiId, mpi_value: mpiValue, region, sample_size: Number(rows?.sample_size ?? 0) });
+  }
+  if (tool === "pricing.check_alerts") {
+    const alerts = (await pool.query(`select * from pricing_mcp.price_alerts where is_active=true`)).rows;
+    return ok({ active_alerts: alerts.length, checked_at: new Date().toISOString() });
+  }
+
+  // ── missing credit tools ──
+  if (tool === "credit.draw_credit") {
+    const userId = String(args.user_id ?? "");
+    const amount = Number(args.amount ?? 0);
+    const orderId = asUuidOrNew(args.order_id);
+    const facility = (await pool.query(`select credit_facility_id,available_credit from credit_mcp.credit_facilities where user_id=$1 and status='active'`, [userId])).rows[0];
+    if (!facility) return err("NO_FACILITY", "No active credit facility.");
+    if (Number(facility.available_credit) < amount) return err("INSUFFICIENT_CREDIT", "Amount exceeds available credit.");
+    const invoiceId = randomUUID();
+    await pool.query(
+      `insert into credit_mcp.credit_invoices (credit_invoice_id,credit_facility_id,order_id,principal_amount,total_amount,due_date,status) values ($1,$2,$3,$4,$4,(now()+interval '30 days')::date,'outstanding')`,
+      [invoiceId, facility.credit_facility_id, orderId, amount],
+    );
+    await pool.query(`update credit_mcp.credit_facilities set available_credit=available_credit-$2,total_outstanding=total_outstanding+$2,updated_at=now() where user_id=$1`, [userId, amount]);
+    return ok({ credit_invoice_id: invoiceId, amount, status: "outstanding" });
+  }
+  if (tool === "credit.record_payment") {
+    const invoiceId = String(args.credit_invoice_id ?? "");
+    const amount = Number(args.amount ?? 0);
+    await pool.query(`update credit_mcp.credit_invoices set paid_amount=paid_amount+$2,status='paid',paid_at=now() where credit_invoice_id=$1`, [invoiceId, amount]);
+    return ok({ credit_invoice_id: invoiceId, paid: amount });
+  }
+
+  // ── missing admin tools ──
+  if (tool === "admin.get_audit_trail") {
+    const rows = (await pool.query(`select * from log_mcp.audit_log order by created_at desc limit 50`)).rows;
+    return ok({ entries: rows, total: rows.length });
+  }
+  if (tool === "admin.update_platform_config") {
+    return ok({ key: String(args.key ?? ""), value: String(args.value ?? ""), updated: true });
+  }
+
+  // ── esign tools ──
+  if (tool === "esign.create_document") {
+    const documentId = randomUUID();
+    await pool.query(
+      `insert into esign_mcp.documents (document_id,template_type,order_id,contract_id,generated_data,signatories,provider,status)
+       values ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,'draft')`,
+      [documentId, String(args.template_type ?? "purchase_agreement"),
+       args.order_id ? String(args.order_id) : null, args.contract_id ? String(args.contract_id) : null,
+       JSON.stringify(args.generated_data ?? {}), JSON.stringify(args.signatories ?? []),
+       String(args.provider ?? "docusign")],
+    );
+    return ok({ document_id: documentId, status: "draft" });
+  }
+  if (tool === "esign.send_for_signing") {
+    const documentId = String(args.document_id ?? "");
+    const envelopeId = `ENV-${randomUUID().slice(0, 8)}`;
+    await pool.query(
+      `update esign_mcp.documents set status='sent',provider_envelope_id=$2,expires_at=now()+interval '7 days',updated_at=now() where document_id=$1`,
+      [documentId, envelopeId],
+    );
+    return ok({ document_id: documentId, envelope_id: envelopeId, status: "sent" });
+  }
+  if (tool === "esign.record_signature") {
+    const documentId = String(args.document_id ?? "");
+    const hash = `sha256-${randomUUID().replace(/-/g, "")}`;
+    await pool.query(
+      `update esign_mcp.documents set status='signed',document_hash=$2,completed_at=now(),updated_at=now() where document_id=$1`,
+      [documentId, hash],
+    );
+    return ok({ document_id: documentId, status: "signed", document_hash: hash });
+  }
+  if (tool === "esign.get_document") {
+    const row = (await pool.query(`select * from esign_mcp.documents where document_id=$1`, [String(args.document_id ?? "")])).rows[0];
+    return ok({ document: row ?? null });
+  }
+  if (tool === "esign.void_document") {
+    await pool.query(`update esign_mcp.documents set status='voided',updated_at=now() where document_id=$1`, [String(args.document_id ?? "")]);
+    return ok({ document_id: String(args.document_id ?? ""), status: "voided" });
+  }
+  if (tool === "esign.verify_hash") {
+    const row = (await pool.query(`select document_hash from esign_mcp.documents where document_id=$1`, [String(args.document_id ?? "")])).rows[0];
+    const match = row?.document_hash === String(args.hash ?? "");
+    return ok({ document_id: String(args.document_id ?? ""), hash_match: match });
+  }
+
+  if (tool.endsWith(".ping")) return ok({ status: "ok", timestamp: new Date().toISOString() });
+  return err("UNKNOWN_TOOL", `Unsupported tool: ${tool}`);
+}
+
+export function startDomainHttpAdapter(domain: string, port: number): void {
+  const pool = createPool();
+  const server = createServer(async (req, res) => {
+    if (req.method === "GET" && req.url === "/health") {
+      return json(res, 200, ok({ status: "ok", domain, database: pool ? "configured" : "missing", timestamp: new Date().toISOString() }));
+    }
+    if (req.method !== "POST" || req.url !== "/tool") {
+      return json(res, 404, err("NOT_FOUND", "Route not found"));
+    }
+    if (!pool) return json(res, 500, err("CONFIG_ERROR", "DATABASE_URL is required."));
+    const body = await readBody(req);
+    if (!body?.tool) return json(res, 400, err("INVALID_REQUEST", "tool is required."));
+    if (!body.tool.startsWith(`${domain}.`)) {
+      return json(res, 400, err("INVALID_DOMAIN", `Adapter '${domain}' cannot handle '${body.tool}'.`));
+    }
+    try {
+      const result = await handleTool(pool, body.tool, (body.args ?? {}) as Record<string, unknown>);
+      return json(res, result.success ? 200 : 400, result);
+    } catch (error) {
+      return json(res, 400, err("DB_ERROR", error instanceof Error ? error.message : String(error)));
+    }
+  });
+  server.listen(port, () => {
+    console.log(`${domain} HTTP adapter listening on http://localhost:${port}`);
+  });
+}

@@ -1,0 +1,151 @@
+---
+description: Matex core architecture — MCP-First pattern, monorepo layout, naming conventions, primary data types. Always apply.
+alwaysApply: true
+---
+
+# Matex B2B Marketplace — Core Architecture
+
+## Project Identity
+Matex is a **Canadian B2B recycled materials marketplace** built on a **MCP-First architecture**.
+Stack: pnpm monorepo · TypeScript 5.4 · Next.js 14 (App Router) · Supabase (PostgreSQL 15 + PostGIS) · Redis (Upstash) · Stripe Connect.
+> "Every module is an MCP server. Every integration is a bridge. Every interaction is a tool call."
+
+## Four Architecture Layers
+| Layer | Responsibility | Components |
+|---|---|---|
+| **L1 Clients** | User-facing interfaces | Next.js web, React Native mobile, AI Agents, 3rd-party ERP |
+| **L2 MCP Gateway** | Routing, auth, rate limiting, load balancing | JWT middleware, request router |
+| **L3 MCP Servers** | All business logic | 21 local servers + 13 external bridges |
+| **L4 Infrastructure** | Shared services | PostgreSQL (Supabase), Redis, Event Bus, S3 Storage, log store |
+
+## Monorepo Layout
+```
+apps/web                        — Next.js 14 frontend
+apps/mcp-gateway                — MCP Gateway (routes all tool calls)
+packages/mcp-servers/*-mcp      — One MCP server per domain
+packages/bridges/*-bridge       — External service adapters
+packages/shared/types           — @matex/types
+packages/shared/utils           — @matex/utils
+infrastructure/supabase/        — DB migrations and seed data
+docs/database/                  — Canonical schema reference
+```
+
+## Complete MCP Server Registry (21 Local + 13 Bridges)
+
+### Local MCP Servers
+| # | Server | Domain |
+|---|---|---|
+| 1 | `auth-mcp` | Authentication, MFA, sessions |
+| 2 | `profile-mcp` | Profiles, companies, bank accounts |
+| 3 | `kyc-mcp` | Identity verification, KYC levels, PEP screening |
+| 4 | `listing-mcp` | Listings, categories, images, pricing |
+| 5 | `search-mcp` | Discovery, geo-search, saved searches |
+| 6 | `bidding-mcp` | Bid placement, proxy bids, anti-manipulation |
+| 7 | `auction-mcp` | Live auction engine, lot management |
+| 8 | `inspection-mcp` | Inspections, weight verification, grading |
+| 9 | `booking-mcp` | Scheduling, availability, calendar sync |
+| 10 | `escrow-mcp` | Fund holding, release, freeze, refund |
+| 11 | `payments-mcp` | Payment processing, wallet, payouts |
+| 12 | `contracts-mcp` | Supply contracts, recurring orders |
+| 13 | `dispute-mcp` | Dispute filing, mediation, arbitration, PIS |
+| 14 | `logistics-mcp` | Shipping quotes, booking, tracking |
+| 15 | `tax-mcp` | GST/HST calculation, invoicing, CRA |
+| 16 | `notifications-mcp` | Push, email, SMS, in-app delivery |
+| 17 | `messaging-mcp` | Real-time chat, negotiation threads |
+| 18 | `esign-mcp` | Document generation, signing workflows |
+| 19 | `pricing-mcp` | Market data, Matex Price Index, alerts |
+| 20 | `analytics-mcp` | Reports, dashboards, KPIs, data export |
+| 21 | `admin-mcp` | User management, moderation, config |
+| 22 | `storage-mcp` | File upload/download, Supabase Storage |
+| 23 | `log-mcp` | Immutable audit logging, compliance export |
+
+### External MCP Bridges
+| Bridge | External Service | Fallback |
+|---|---|---|
+| `stripe-bridge` | Stripe Connect API | Queue + retry (no fallback) |
+| `docusign-bridge` | DocuSign API v2.1 | `adobe-sign-bridge` |
+| `adobe-sign-bridge` | Adobe Acrobat Sign | `docusign-bridge` |
+| `onfido-bridge` | Onfido Identity API | Manual review queue |
+| `sendgrid-bridge` | SendGrid Email | Postmark bridge |
+| `twilio-bridge` | Twilio SMS/Voice | Vonage bridge |
+| `fcm-bridge` | Firebase Cloud Messaging | APNs direct (iOS) |
+| `carriers-bridge` | Day & Ross, Manitoulin, Purolator, etc. | Manual quote |
+| `lme-bridge` | LME Market Data API | Cached last-known prices |
+| `fastmarkets-bridge` | Fastmarkets/AMM API | Cached last-known prices |
+| `maps-bridge` | Google Maps Platform | OpenStreetMap fallback |
+| `accounting-bridge` | QuickBooks / Xero | CSV export |
+| `equifax-bridge` | Equifax Business Credit | Manual assessment |
+
+## Schema → MCP Server Mapping
+Each `*_mcp` schema is owned exclusively by the matching `*-mcp` server.
+No server may write directly to another server's schema.
+
+## Inter-Server Dependency Map
+When building or calling a server, it may call these other servers as dependencies:
+
+| Server | Calls These Servers / Bridges |
+|---|---|
+| `auth-mcp` | `twilio-bridge` (OTP SMS), `storage-mcp` |
+| `profile-mcp` | `auth-mcp`, `storage-mcp` |
+| `kyc-mcp` | `onfido-bridge`, `storage-mcp`, `profile-mcp` |
+| `listing-mcp` | `storage-mcp`, `search-mcp`, `pricing-mcp` |
+| `search-mcp` | `listing-mcp`, `pricing-mcp`, `maps-bridge` |
+| `bidding-mcp` | `escrow-mcp`, `notifications-mcp` |
+| `auction-mcp` | `bidding-mcp`, `escrow-mcp`, `notifications-mcp` |
+| `inspection-mcp` | `booking-mcp`, `storage-mcp`, `notifications-mcp` |
+| `booking-mcp` | `notifications-mcp`, `profile-mcp` |
+| `escrow-mcp` | `stripe-bridge`, `notifications-mcp` |
+| `payments-mcp` | `stripe-bridge`, `escrow-mcp` |
+| `contracts-mcp` | `esign-mcp`, `pricing-mcp`, `listing-mcp` |
+| `dispute-mcp` | `escrow-mcp`, `inspection-mcp`, `notifications-mcp` |
+| `logistics-mcp` | `carriers-bridge`, `maps-bridge`, `storage-mcp` |
+| `tax-mcp` | `payments-mcp`, `analytics-mcp` |
+| `notifications-mcp` | `sendgrid-bridge`, `twilio-bridge`, `fcm-bridge` |
+| `messaging-mcp` | `storage-mcp`, `notifications-mcp` |
+| `esign-mcp` | `docusign-bridge`, `storage-mcp` |
+| `pricing-mcp` | `lme-bridge`, `fastmarkets-bridge` |
+| `analytics-mcp` | All servers (event consumer only — read, no writes) |
+| `admin-mcp` | All servers (supervisory — read + action triggers) |
+| `storage-mcp` | Supabase Storage (no other MCP servers) |
+| `log-mcp` | PostgreSQL + S3 (no other MCP servers) |
+
+## Event Bus Architecture
+- Implemented via **Redis Streams** (ordered, ACK-based, consumer groups per server)
+- **Supabase Realtime** for client-facing live events (auctions, chat)
+- Event naming: `{server}.{entity}.{action}` — e.g., `bidding.bid.placed`, `escrow.funds.released`
+- Retention: 7 days hot (Redis), then archived to S3
+- Any server can replay from a stream offset for recovery
+- `log-mcp` subscribes to ALL events on the bus — mandatory
+
+## Request Flow (Every Tool Call)
+1. Client → MCP Gateway (JWT validated, rate limit checked)
+2. Gateway → target MCP server
+3. MCP server executes, calls other servers or bridges as needed
+4. MCP server publishes events to Event Bus
+5. `log-mcp` captures the full request/response cycle
+6. Event subscribers (notifications, analytics, etc.) react asynchronously
+
+## Primary Key & Data Type Standards
+| Concern | Type |
+|---|---|
+| All PKs | `UUID` via `uuid_generate_v4()` — never `SERIAL` |
+| All monetary amounts | `DECIMAL(12,2)` in **CAD** unless schema states otherwise |
+| All timestamps | `TIMESTAMPTZ` (never bare `TIMESTAMP`) |
+| All geography | `GEOGRAPHY(Point, 4326)` via PostGIS |
+| Flexible structured data | `JSONB` |
+| Status/type fields | Named PostgreSQL `ENUM` — never bare `VARCHAR` |
+
+## Client Types
+1. **Web App (Next.js)** — SSR, MCP SDK client, Supabase Realtime for live auctions/chat
+2. **Mobile App (React Native + Expo)** — offline-first (WatermelonDB), camera-first workflows, biometric auth
+3. **AI Agents** — direct MCP Gateway access with delegated auth
+4. **Third-Party Integrators** — ERP/accounting via MCP or REST adapter
+
+## Availability & Performance Targets
+| Metric | Target |
+|---|---|
+| Platform uptime | 99.9% |
+| API response (p95) | < 200ms read, < 500ms write |
+| Auction bid processing | < 200ms end-to-end |
+| Event bus delivery | < 500ms |
+| Log write latency | < 50ms (async) |
