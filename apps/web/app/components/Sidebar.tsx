@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 type NavItem = { href: string; icon: string; label: string; count?: number };
 
@@ -22,40 +23,32 @@ const opsNav: NavItem[] = [
   { href: "/contracts", icon: "☷",  label: "Contracts" },
 ];
 
-const harnessNav: NavItem[] = [
+const devNav: NavItem[] = [
   { href: "/phase2",  icon: "◇", label: "Phase 2 Trust" },
   { href: "/phase3",  icon: "◇", label: "Phase 3 Ops" },
   { href: "/phase4",  icon: "◇", label: "Phase 4 Intel" },
-  { href: "/copilot", icon: "◆", label: "AI Copilot" },
 ];
 
 const accountNav: NavItem[] = [
-  { href: "/auth", icon: "⊙", label: "Auth + KYC" },
+  { href: "/copilot", icon: "◆", label: "AI Copilot" },
+  { href: "/auth",    icon: "⊙", label: "Account" },
 ];
 
-const mcpModules = [
-  "auth-mcp", "profile-mcp", "kyc-mcp", "listing-mcp", "search-mcp",
-  "bidding-mcp", "auction-mcp", "inspection-mcp", "booking-mcp",
-  "escrow-mcp", "payments-mcp", "contracts-mcp", "dispute-mcp",
-  "logistics-mcp", "tax-mcp", "notifications-mcp", "messaging-mcp",
-  "esign-mcp", "pricing-mcp", "analytics-mcp", "admin-mcp",
-  "storage-mcp", "log-mcp",
-];
-
-function NavSection({ label, items }: { label: string; items: NavItem[] }) {
+function NavSection({ label, items, collapsed }: { label: string; items: NavItem[]; collapsed: boolean }) {
   const pathname = usePathname();
   return (
     <div className="nav-section">
-      <div className="nav-label">{label}</div>
+      {!collapsed && <div className="nav-label">{label}</div>}
       {items.map((n) => (
         <Link
           key={n.href}
           href={n.href}
           className={`nav-item${pathname === n.href ? " active" : ""}`}
+          title={collapsed ? n.label : undefined}
         >
           <span className="nav-item-icon">{n.icon}</span>
-          {n.label}
-          {n.count ? <span className="nav-item-count">{n.count}</span> : null}
+          {!collapsed && n.label}
+          {!collapsed && n.count ? <span className="nav-item-count">{n.count}</span> : null}
         </Link>
       ))}
     </div>
@@ -63,26 +56,34 @@ function NavSection({ label, items }: { label: string; items: NavItem[] }) {
 }
 
 export function Sidebar() {
-  return (
-    <aside className="sidebar">
-      <NavSection label="Main flow" items={mainNav} />
-      <NavSection label="Operations" items={opsNav} />
-      <NavSection label="Test harness" items={harnessNav} />
-      <NavSection label="Account" items={accountNav} />
+  const [collapsed, setCollapsed] = useState(false);
+  const searchParams = useSearchParams();
+  const devMode = searchParams.get("dev") === "true" || (typeof window !== "undefined" && localStorage.getItem("matex_dev") === "1");
 
-      <div className="mcp-status">
-        <div className="mcp-status-head">
-          <div className="mcp-pulse" />
-          <span style={{ fontSize: 12, fontWeight: 600 }}>MCP orchestration</span>
+  return (
+    <aside className={`sidebar${collapsed ? " sidebar-collapsed" : ""}`}>
+      <button
+        className="sidebar-toggle"
+        type="button"
+        onClick={() => setCollapsed(!collapsed)}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        {collapsed ? "▶" : "◀"}
+      </button>
+
+      <NavSection label="Marketplace" items={mainNav} collapsed={collapsed} />
+      <NavSection label="Operations" items={opsNav} collapsed={collapsed} />
+      {devMode && <NavSection label="Dev tools" items={devNav} collapsed={collapsed} />}
+      <NavSection label="" items={accountNav} collapsed={collapsed} />
+
+      {!collapsed && (
+        <div className="sidebar-footer">
+          <Link href="/copilot" className="nav-item" style={{ color: "var(--cyan)" }}>
+            <span className="nav-item-icon">◆</span>
+            Ask AI anything
+          </Link>
         </div>
-        <div className="mcp-modules">
-          {mcpModules.map((m) => (
-            <div className="mcp-module" key={m}>
-              <i />{m}
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </aside>
   );
 }

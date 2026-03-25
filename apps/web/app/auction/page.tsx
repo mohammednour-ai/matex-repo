@@ -1,4 +1,6 @@
-import { HarnessBanner } from "../components/HarnessBanner";
+"use client";
+import { useState } from "react";
+import { callGatewayTool, addTrackedId } from "../harness-client";
 
 export default function AuctionPage() {
   const lots = [
@@ -19,9 +21,68 @@ export default function AuctionPage() {
 
   const activeLot = lots[0];
 
+  const [bidAmount, setBidAmount] = useState("29000");
+  const [bidLoading, setBidLoading] = useState(false);
+  const [bidResult, setBidResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [copilotLoading, setCopilotLoading] = useState<string | null>(null);
+  const [copilotReply, setCopilotReply] = useState<string | null>(null);
+  const [watchedLots, setWatchedLots] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem("matex_watched_lots") ?? "[]"); } catch { return []; }
+  });
+
+  async function handlePlaceBid(): Promise<void> {
+    setBidLoading(true);
+    setBidResult(null);
+    try {
+      const numericAmount = parseFloat(bidAmount.replace(/[^0-9.]/g, ""));
+      const result = await callGatewayTool("auction.place_auction_bid", {
+        lot_id: activeLot.id,
+        amount: numericAmount,
+        bid_type: "manual",
+      });
+      const d = result.payload.data;
+      const upstream = (d?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+      const bidId = String(upstream?.bid_id ?? d?.bid_id ?? "");
+      if (bidId) addTrackedId("auctionIds", bidId);
+      setBidResult(result.payload.success
+        ? { ok: true, msg: `Bid placed${bidId ? ` (${bidId})` : ""}` }
+        : { ok: false, msg: result.payload.error?.message ?? "Bid failed" });
+    } catch (err) {
+      setBidResult({ ok: false, msg: String(err) });
+    } finally {
+      setBidLoading(false);
+    }
+  }
+
+  async function handleCopilotChip(chipText: string): Promise<void> {
+    setCopilotLoading(chipText);
+    setCopilotReply(null);
+    try {
+      const res = await fetch("/api/copilot", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: chipText }),
+      });
+      const data = await res.json();
+      setCopilotReply(data?.reply ?? data?.message ?? JSON.stringify(data));
+    } catch (err) {
+      setCopilotReply(`Error: ${String(err)}`);
+    } finally {
+      setCopilotLoading(null);
+    }
+  }
+
+  function toggleWatchLot(lotId: string): void {
+    setWatchedLots((prev) => {
+      const next = prev.includes(lotId) ? prev.filter((l) => l !== lotId) : [...prev, lotId];
+      localStorage.setItem("matex_watched_lots", JSON.stringify(next));
+      return next;
+    });
+  }
+
   return (
     <div>
-      <HarnessBanner href="/phase2" label="Test auction flow on Phase 2" />
       <div className="page-header">
         <div>
           <div className="eyebrow">Live auction room</div>
@@ -53,7 +114,16 @@ export default function AuctionPage() {
             </div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{l.title}</div>
             <div style={{ marginTop: 6, fontWeight: 800, color: "var(--cyan)", fontSize: 18 }}>{l.current}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{l.bids} bids · ends {l.ends}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{l.bids} bids · ends {l.ends}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleWatchLot(l.id); }}
+                className="btn btn-ghost"
+                style={{ fontSize: 11, padding: "2px 6px", lineHeight: 1 }}
+              >
+                {watchedLots.includes(l.id) ? "★ Watching" : "☆ Watch"}
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -91,15 +161,36 @@ export default function AuctionPage() {
 
             {/* Quick bid */}
             <div className="bid-presets">
-              <button className="bid-preset">$29,000</button>
-              <button className="bid-preset">$29,500</button>
-              <button className="bid-preset">$30,000 🏆</button>
+              {["29000", "29500", "30000"].map((amt, i) => (
+                <button key={amt} className="bid-preset" onClick={() => { setBidAmount(amt); setBidResult(null); }}>
+                  ${Number(amt).toLocaleString()}{i === 2 ? " 🏆" : ""}
+                </button>
+              ))}
             </div>
 
             <div className="bid-input-row">
-              <input defaultValue="$29,000" />
-              <button className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>Place bid ➤</button>
+              <input
+                value={`$${Number(bidAmount).toLocaleString()}`}
+                onChange={(e) => setBidAmount(e.target.value.replace(/[^0-9]/g, ""))}
+              />
+              <button
+                className="btn btn-primary"
+                style={{ whiteSpace: "nowrap" }}
+                disabled={bidLoading}
+                onClick={handlePlaceBid}
+              >
+                {bidLoading ? "Placing…" : "Place bid ➤"}
+              </button>
             </div>
+
+            {bidResult && (
+              <div style={{ marginTop: 8, fontSize: 13, padding: "8px 12px", borderRadius: "var(--r-sm)",
+                background: bidResult.ok ? "rgba(38,208,124,.1)" : "rgba(255,90,90,.1)",
+                border: `1px solid ${bidResult.ok ? "rgba(38,208,124,.3)" : "rgba(255,90,90,.3)"}`,
+                color: bidResult.ok ? "var(--green)" : "var(--red)" }}>
+                {bidResult.ok ? "✓ " : "✗ "}{bidResult.msg}
+              </div>
+            )}
 
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 10 }}>
               Bid deposit required: $2,850 (10%) · Escrowed funds auto-released on loss within 24h
@@ -175,11 +266,19 @@ export default function AuctionPage() {
                 border: "1px solid rgba(46,232,245,.18)",
                 fontSize: 13
               }}>
-                Reserve met at $28,000. Current bid $28,500 is below comparable lots by ~8%. Auto-extend will trigger if a bid arrives within 5 min of close.
+                {copilotReply
+                  ? copilotReply
+                  : "Reserve met at $28,000. Current bid $28,500 is below comparable lots by ~8%. Auto-extend will trigger if a bid arrives within 5 min of close."}
               </div>
               {["Set proxy bid at $30,500", "Alert me when reserve met", "Analyse competitor pattern"].map((s) => (
-                <button key={s} className="btn btn-ghost btn-sm" style={{ justifyContent: "flex-start" }}>
-                  {s}
+                <button
+                  key={s}
+                  className="btn btn-ghost btn-sm"
+                  style={{ justifyContent: "flex-start" }}
+                  disabled={copilotLoading === s}
+                  onClick={() => handleCopilotChip(s)}
+                >
+                  {copilotLoading === s ? "Thinking…" : s}
                 </button>
               ))}
             </div>
