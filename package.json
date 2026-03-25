@@ -24,6 +24,8 @@
     "db:seed": "pnpm exec supabase db seed",
     "clean": "pnpm -r exec rm -rf node_modules dist .next .turbo",
     "healthcheck": "node scripts/health-check.mjs",
+    "validate-env": "node scripts/validate-env.mjs",
+    "load-test": "node scripts/load-test.mjs",
     "smoke:phase1": "node scripts/phase1-db-smoke-sql.mjs",
     "smoke:phase2": "node scripts/phase2-db-smoke-sql.mjs",
     "smoke:phase3": "node scripts/phase3-db-smoke-sql.mjs",

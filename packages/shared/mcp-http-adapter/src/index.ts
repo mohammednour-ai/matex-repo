@@ -1,6 +1,13 @@
 import { createServer } from "node:http";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import pg from "pg";
+import {
+  checkEnvironmentalPermitExpiry,
+  getChainOfCustodyRequirements,
+  validateBookingLeadTime,
+  validateCAWScaleCertificate,
+  checkTheftPreventionCoolingPeriod,
+} from "../../utils/src/operational-rules";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
@@ -92,6 +99,19 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
 
   // listing/search
   if (tool === "listing.create_listing") {
+    if (Array.isArray(args.environmental_permits) && args.environmental_permits.length > 0) {
+      const permitCheck = checkEnvironmentalPermitExpiry(args.environmental_permits as Array<{ expiry: string }>);
+      if (permitCheck.expired) return err("PERMIT_EXPIRED", "Listing cannot be published with expired environmental permits.");
+    }
+    if (args.seller_is_first_time && args.material_category) {
+      const cooling = checkTheftPreventionCoolingPeriod(true, String(args.material_category), new Date().toISOString());
+      if (cooling.blocked) return err("COOLING_PERIOD", cooling.reason ?? "72-hour cooling period active.");
+    }
+    if (typeof args.asking_price === "number") {
+      const custody = getChainOfCustodyRequirements(Number(args.asking_price));
+      args._chain_of_custody_level = custody.level;
+      args._mandatory_inspection = custody.mandatory_inspection;
+    }
     const listingId = randomUUID();
     let categoryId = String(args.category_id ?? "");
     if (!categoryId) {
@@ -307,9 +327,15 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ delta_pct: Number(deltaPct.toFixed(2)), exceeded_tolerance: Math.abs(deltaPct) > 2 });
   }
   if (tool === "booking.create_booking") {
+    const eventType = String(args.event_type ?? "pickup");
+    const scheduledTime = String(args.scheduled_start ?? args.scheduled_for ?? new Date(Date.now() + 3600000).toISOString());
+    const leadCheck = validateBookingLeadTime(eventType, scheduledTime);
+    if (!leadCheck.valid) {
+      return err("LEAD_TIME_VIOLATION", `${eventType} requires ${leadCheck.min_hours}h lead time, only ${leadCheck.actual_hours}h provided.`);
+    }
     const bookingId = randomUUID();
     const organizerId = String(args.organizer_id ?? args.user_id ?? "");
-    const start = String(args.scheduled_start ?? args.scheduled_for ?? new Date(Date.now() + 3600000).toISOString());
+    const start = scheduledTime;
     const end = new Date(new Date(start).getTime() + 3600000).toISOString();
     await pool.query(
       `insert into booking_mcp.bookings
@@ -879,6 +905,8 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
 
   // ── missing inspection tools ──
   if (tool === "inspection.record_weight") {
+    const cawCheck = validateCAWScaleCertificate(Boolean(args.scale_certified), args.scale_certificate ? String(args.scale_certificate) : null);
+    if (!cawCheck.valid) return err("CAW_VALIDATION", cawCheck.error ?? "Invalid CAW certificate");
     const recordId = randomUUID();
     await pool.query(
       `insert into inspection_mcp.weight_records (record_id,order_id,weight_point,weight_kg,recorded_by,scale_certified,recorded_at)

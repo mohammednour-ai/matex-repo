@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Matex",
+    "slug": "matex",
+    "scheme": "matex",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ca.matexhub.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "ca.matexhub.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-local-authentication",
+      "expo-location",
+      "expo-camera"
+    ]
+  }
+}
