@@ -62,22 +62,122 @@ export async function POST(req: NextRequest) {
     const inspectionIds = list(tracked.inspectionIds);
     const bookingIds = list(tracked.bookingIds);
 
+    // Delete in FK-safe order: leaf tables first, parent tables last
+
+    // Notifications (no children)
+    if (userIds.length) await client.query(`delete from notifications_mcp.notifications where user_id = any($1::uuid[])`, [userIds]);
+
+    // Credit (children before parent)
+    if (userIds.length) {
+      await client.query(`delete from credit_mcp.credit_score_history where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from credit_mcp.credit_invoices where credit_facility_id in (select credit_facility_id from credit_mcp.credit_facilities where user_id = any($1::uuid[]))`, [userIds]);
+      await client.query(`delete from credit_mcp.credit_facilities where user_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Pricing alerts
+    if (userIds.length) await client.query(`delete from pricing_mcp.price_alerts where user_id = any($1::uuid[])`, [userIds]);
+
+    // Messages before threads
     if (messageIds.length) await client.query(`delete from messaging_mcp.messages where message_id = any($1::uuid[])`, [messageIds]);
-    if (threadIds.length) await client.query(`delete from messaging_mcp.threads where thread_id = any($1::uuid[])`, [threadIds]);
+    if (threadIds.length) {
+      await client.query(`delete from messaging_mcp.messages where thread_id = any($1::uuid[])`, [threadIds]);
+      await client.query(`delete from messaging_mcp.threads where thread_id = any($1::uuid[])`, [threadIds]);
+    }
+
+    // Payments
     if (transactionIds.length) await client.query(`delete from payments_mcp.transactions where transaction_id = any($1::uuid[])`, [transactionIds]);
+    if (userIds.length) await client.query(`delete from payments_mcp.wallets where user_id = any($1::uuid[])`, [userIds]);
+
+    // Inspections + weight records
     if (inspectionIds.length) await client.query(`delete from inspection_mcp.inspections where inspection_id = any($1::uuid[])`, [inspectionIds]);
+
+    // Bookings
     if (bookingIds.length) await client.query(`delete from booking_mcp.bookings where booking_id = any($1::uuid[])`, [bookingIds]);
+    if (userIds.length) await client.query(`delete from booking_mcp.availability where user_id = any($1::uuid[])`, [userIds]);
+
+    // KYC (documents before verifications, kyc_levels)
     if (verificationIds.length) {
       await client.query(`delete from kyc_mcp.documents where verification_id = any($1::uuid[])`, [verificationIds]);
       await client.query(`delete from kyc_mcp.verifications where verification_id = any($1::uuid[])`, [verificationIds]);
     }
+    if (userIds.length) await client.query(`delete from kyc_mcp.kyc_levels where user_id = any($1::uuid[])`, [userIds]);
+
+    // Escrow (timeline before escrows)
     if (escrowIds.length) {
       await client.query(`delete from escrow_mcp.escrow_timeline where escrow_id = any($1::uuid[])`, [escrowIds]);
       await client.query(`delete from escrow_mcp.escrows where escrow_id = any($1::uuid[])`, [escrowIds]);
     }
+
+    // Bids before lots before auctions (bids reference listings too)
+    if (listingIds.length) await client.query(`delete from bidding_mcp.bids where listing_id = any($1::uuid[])`, [listingIds]);
     if (lotIds.length) await client.query(`delete from auction_mcp.lots where lot_id = any($1::uuid[])`, [lotIds]);
-    if (auctionIds.length) await client.query(`delete from auction_mcp.auctions where auction_id = any($1::uuid[])`, [auctionIds]);
+    if (auctionIds.length) {
+      await client.query(`delete from auction_mcp.lots where auction_id = any($1::uuid[])`, [auctionIds]);
+      await client.query(`delete from auction_mcp.auctions where auction_id = any($1::uuid[])`, [auctionIds]);
+    }
+
+    // Disputes (evidence + settlements + penalties before disputes)
+    if (userIds.length) {
+      await client.query(`delete from dispute_mcp.penalties where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from dispute_mcp.platform_integrity_scores where user_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Contracts (orders + negotiations before contracts)
+    if (userIds.length) {
+      await client.query(`delete from contracts_mcp.negotiations where proposed_by = any($1::uuid[])`, [userIds]);
+    }
+
+    // Tax invoices
+    if (userIds.length) await client.query(`delete from tax_mcp.invoices where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[])`, [userIds]);
+
+    // Logistics (quotes + shipments reference orders)
+    if (userIds.length) {
+      await client.query(`delete from logistics_mcp.shipping_quotes where order_id in (select order_id from orders_mcp.orders where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))`, [userIds]);
+      await client.query(`delete from logistics_mcp.shipments where order_id in (select order_id from orders_mcp.orders where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))`, [userIds]);
+    }
+
+    // eSign documents
+    if (userIds.length) await client.query(`delete from esign_mcp.documents where order_id in (select order_id from orders_mcp.orders where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))`, [userIds]);
+
+    // Disputes reference orders
+    if (userIds.length) await client.query(`delete from dispute_mcp.disputes where filing_party_id = any($1::uuid[]) or responding_party_id = any($1::uuid[])`, [userIds]);
+
+    // Contract orders + contracts
+    if (userIds.length) {
+      await client.query(`delete from contracts_mcp.contract_orders where contract_id in (select contract_id from contracts_mcp.contracts where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))`, [userIds]);
+      await client.query(`delete from contracts_mcp.contracts where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Escrows that reference orders (catch any not tracked by escrowIds)
+    if (userIds.length) {
+      await client.query(`delete from escrow_mcp.escrow_timeline where escrow_id in (select escrow_id from escrow_mcp.escrows where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[]))`, [userIds]);
+      await client.query(`delete from escrow_mcp.escrows where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Orders (before listings and users)
+    if (userIds.length) await client.query(`delete from orders_mcp.orders where buyer_id = any($1::uuid[]) or seller_id = any($1::uuid[])`, [userIds]);
+
+    // Favorites + saved searches before listings
+    if (listingIds.length) {
+      await client.query(`delete from listing_mcp.favorites where listing_id = any($1::uuid[])`, [listingIds]);
+    }
+    if (userIds.length) {
+      await client.query(`delete from listing_mcp.saved_searches where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from listing_mcp.favorites where user_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Listings (after all children removed)
     if (listingIds.length) await client.query(`delete from listing_mcp.listings where listing_id = any($1::uuid[])`, [listingIds]);
+
+    // Profile data before users
+    if (userIds.length) {
+      await client.query(`delete from profile_mcp.preferences where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from profile_mcp.bank_accounts where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from profile_mcp.profiles where user_id = any($1::uuid[])`, [userIds]);
+      await client.query(`delete from auth_mcp.sessions where user_id = any($1::uuid[])`, [userIds]);
+    }
+
+    // Users last
     if (userIds.length) await client.query(`delete from auth_mcp.users where user_id = any($1::uuid[])`, [userIds]);
 
     await client.query("commit");

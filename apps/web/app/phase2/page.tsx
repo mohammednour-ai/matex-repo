@@ -5,6 +5,12 @@ import { addTrackedId, callGatewayTool, formatResult, readTrackedIds, requiredMe
 import { CopyChip, StatusBanner, ValidationSummary } from "../harness-ui";
 import { PageIntro, Panel } from "../ui";
 
+function extract(result: { payload: { success: boolean; data?: Record<string, unknown> } }, key: string): string {
+  const d = result.payload.data;
+  const upstream = (d?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+  return String((upstream?.[key] as string | undefined) ?? (d?.[key] as string | undefined) ?? "");
+}
+
 export default function Phase2Page() {
   const tracked = readTrackedIds();
   const [userId, setUserId] = useState(tracked.userIds[0] ?? "");
@@ -29,9 +35,9 @@ export default function Phase2Page() {
     const missing = requiredMessage([["user_id", userId]]);
     setValidation(missing);
     if (missing) return;
-    const result = await run("kyc.start_verification", { user_id: userId, verification_type: "business" }, "kyc.start_verification");
+    const result = await run("kyc.start_verification", { user_id: userId, target_level: "level_2" }, "kyc.start_verification");
     if (result.payload.success) {
-      const id = String((result.payload.data?.verification_id as string | undefined) ?? "");
+      const id = extract(result, "verification_id");
       setVerificationId(id);
       addTrackedId("verificationIds", id);
     }
@@ -54,7 +60,7 @@ export default function Phase2Page() {
       "escrow.create_escrow",
     );
     if (result.payload.success) {
-      const id = String((result.payload.data?.escrow_id as string | undefined) ?? "");
+      const id = extract(result, "escrow_id");
       setEscrowId(id);
       addTrackedId("escrowIds", id);
     }
@@ -64,20 +70,20 @@ export default function Phase2Page() {
     const missing = requiredMessage([["escrow_id", escrowId]]);
     setValidation(missing);
     if (missing) return;
-    await run("escrow.hold_funds", { escrow_id: escrowId }, "escrow.hold_funds");
+    await run("escrow.hold_funds", { escrow_id: escrowId, amount: 5000 }, "escrow.hold_funds");
   }
 
   async function releaseEscrow() {
     const missing = requiredMessage([["escrow_id", escrowId]]);
     setValidation(missing);
     if (missing) return;
-    await run("escrow.release_funds", { escrow_id: escrowId }, "escrow.release_funds");
+    await run("escrow.release_funds", { escrow_id: escrowId, amount: 5000 }, "escrow.release_funds");
   }
 
   async function createAuction() {
     const result = await run("auction.create_auction", { seller_id: userId, title: `UI Auction ${Date.now()}` }, "auction.create_auction");
     if (result.payload.success) {
-      const id = String((result.payload.data?.auction_id as string | undefined) ?? "");
+      const id = extract(result, "auction_id");
       setAuctionId(id);
       addTrackedId("auctionIds", id);
     }
@@ -90,7 +96,7 @@ export default function Phase2Page() {
     const listingId = readTrackedIds().listingIds[0] ?? null;
     const result = await run("auction.add_lot", { auction_id: auctionId, listing_id: listingId, reserve_price: 3000, starting_price: 2500 }, "auction.add_lot");
     if (result.payload.success) {
-      const id = String((result.payload.data?.lot_id as string | undefined) ?? "");
+      const id = extract(result, "lot_id");
       setLotId(id);
       addTrackedId("lotIds", id);
     }
@@ -105,12 +111,12 @@ export default function Phase2Page() {
 
   async function createInspection() {
     const listingId = readTrackedIds().listingIds[0] ?? "";
-    const missing = requiredMessage([["listing_id", listingId], ["requester_id", userId]]);
+    const missing = requiredMessage([["requester_id", userId]]);
     setValidation(missing);
     if (missing) return;
-    const result = await run("inspection.request_inspection", { listing_id: listingId, requester_id: userId }, "inspection.request_inspection");
+    const result = await run("inspection.request_inspection", { listing_id: listingId || undefined, requester_id: userId }, "inspection.request_inspection");
     if (result.payload.success) {
-      const id = String((result.payload.data?.inspection_id as string | undefined) ?? "");
+      const id = extract(result, "inspection_id");
       setInspectionId(id);
       addTrackedId("inspectionIds", id);
     }
@@ -124,59 +130,83 @@ export default function Phase2Page() {
   }
 
   async function createBooking() {
-    const result = await run("booking.create_booking", { user_id: userId, title: "UI pickup booking", scheduled_for: new Date(Date.now() + 86400000).toISOString() }, "booking.create_booking");
+    const result = await run("booking.create_booking", { user_id: userId, event_type: "pickup", scheduled_for: new Date(Date.now() + 86400000).toISOString() }, "booking.create_booking");
     if (result.payload.success) {
-      const id = String((result.payload.data?.booking_id as string | undefined) ?? "");
+      const id = extract(result, "booking_id");
       setBookingId(id);
       addTrackedId("bookingIds", id);
     }
   }
 
   return (
-    <div className="page-stack">
-      <PageIntro eyebrow="Phase 2 trust workflows" title="KYC, escrow, auction, inspection, booking" description="Interactive trust-workflow surface for manual demos and validation." />
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+      <div className="page-header">
+        <div>
+          <div className="eyebrow">Phase 2 trust workflows</div>
+          <h1 className="page-title">KYC, escrow, auction, inspection, booking</h1>
+          <p className="page-sub">Interactive trust-workflow surface for manual demos and validation.</p>
+        </div>
+      </div>
       <StatusBanner tone={status} text={status === "success" ? "Last action succeeded." : status === "error" ? "Last action failed." : "Waiting for action."} />
       <ValidationSummary message={validation} />
 
-      <Panel title="KYC" eyebrow="Trust step 1">
-        <div className="tag-row">
-          <input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="user_id" />
-          <button className="ghost-button" type="button" onClick={startKyc}>Start verification</button>
-          <button className="ghost-button" type="button" onClick={reviewKyc}>Review verified</button>
-          {verificationId ? <CopyChip label="verification_id" value={verificationId} /> : null}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-header"><span className="card-title">User context</span></div>
+        <div className="card-body">
+          <div className="field-row"><div className="field-label">User ID</div><input className="field-input" value={userId} onChange={(e) => setUserId(e.target.value)} /></div>
         </div>
-      </Panel>
+      </div>
 
-      <Panel title="Escrow" eyebrow="Trust step 2">
-        <div className="tag-row">
-          <button className="ghost-button" type="button" onClick={createEscrow}>Create escrow</button>
-          <button className="ghost-button" type="button" onClick={holdEscrow}>Hold funds</button>
-          <button className="ghost-button" type="button" onClick={releaseEscrow}>Release funds</button>
-          {escrowId ? <CopyChip label="escrow_id" value={escrowId} /> : null}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-header"><span className="card-title">KYC</span></div>
+        <div className="card-body">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" type="button" onClick={startKyc}>Start verification</button>
+            <button className="btn btn-ghost" type="button" onClick={reviewKyc}>Review verified</button>
+            {verificationId ? <CopyChip label="verification_id" value={verificationId} /> : null}
+          </div>
         </div>
-      </Panel>
+      </div>
 
-      <Panel title="Auction + bids" eyebrow="Trust step 3">
-        <div className="tag-row">
-          <button className="ghost-button" type="button" onClick={createAuction}>Create auction</button>
-          <button className="ghost-button" type="button" onClick={addLot}>Add lot</button>
-          <button className="ghost-button" type="button" onClick={bidLot}>Place lot bid</button>
-          {auctionId ? <CopyChip label="auction_id" value={auctionId} /> : null}
-          {lotId ? <CopyChip label="lot_id" value={lotId} /> : null}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-header"><span className="card-title">Escrow</span></div>
+        <div className="card-body">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" type="button" onClick={createEscrow}>Create escrow</button>
+            <button className="btn btn-ghost" type="button" onClick={holdEscrow}>Hold funds</button>
+            <button className="btn btn-ghost" type="button" onClick={releaseEscrow}>Release funds</button>
+            {escrowId ? <CopyChip label="escrow_id" value={escrowId} /> : null}
+          </div>
         </div>
-      </Panel>
+      </div>
 
-      <Panel title="Inspection + booking" eyebrow="Trust step 4">
-        <div className="tag-row">
-          <button className="ghost-button" type="button" onClick={createInspection}>Request inspection</button>
-          <button className="ghost-button" type="button" onClick={evaluateDiscrepancy}>Evaluate discrepancy</button>
-          <button className="ghost-button" type="button" onClick={createBooking}>Create booking</button>
-          {inspectionId ? <CopyChip label="inspection_id" value={inspectionId} /> : null}
-          {bookingId ? <CopyChip label="booking_id" value={bookingId} /> : null}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-header"><span className="card-title">Auction + bids</span></div>
+        <div className="card-body">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" type="button" onClick={createAuction}>Create auction</button>
+            <button className="btn btn-ghost" type="button" onClick={addLot}>Add lot</button>
+            <button className="btn btn-ghost" type="button" onClick={bidLot}>Place lot bid</button>
+            {auctionId ? <CopyChip label="auction_id" value={auctionId} /> : null}
+            {lotId ? <CopyChip label="lot_id" value={lotId} /> : null}
+          </div>
         </div>
-      </Panel>
+      </div>
 
-      <pre>{output}</pre>
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="card-header"><span className="card-title">Inspection + booking</span></div>
+        <div className="card-body">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" type="button" onClick={createInspection}>Request inspection</button>
+            <button className="btn btn-ghost" type="button" onClick={evaluateDiscrepancy}>Evaluate discrepancy</button>
+            <button className="btn btn-ghost" type="button" onClick={createBooking}>Create booking</button>
+            {inspectionId ? <CopyChip label="inspection_id" value={inspectionId} /> : null}
+            {bookingId ? <CopyChip label="booking_id" value={bookingId} /> : null}
+          </div>
+        </div>
+      </div>
+
+      <pre style={{ whiteSpace: "pre-wrap" }}>{output}</pre>
     </div>
   );
 }

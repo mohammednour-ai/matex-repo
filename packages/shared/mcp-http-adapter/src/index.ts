@@ -71,6 +71,22 @@ function asUuidOrNew(value: unknown): string {
   return uuidRe.test(v) ? v : randomUUID();
 }
 
+async function ensureOrder(pool: pg.Pool, orderId: string, userId: string): Promise<string> {
+  const existing = (await pool.query(`select order_id from orders_mcp.orders where order_id=$1`, [orderId])).rows[0];
+  if (existing) return orderId;
+  const listingId = String(
+    (await pool.query(`select listing_id from listing_mcp.listings order by created_at desc limit 1`)).rows[0]?.listing_id ?? "",
+  );
+  if (!listingId) throw new Error("At least one listing must exist to create an order.");
+  await pool.query(
+    `insert into orders_mcp.orders (order_id,listing_id,buyer_id,seller_id,original_amount,quantity,unit,commission_rate,currency,status)
+     values ($1,$2,$3,$3,1000,1,'kg',0.035,'CAD','pending')
+     on conflict (order_id) do nothing`,
+    [orderId, listingId, userId],
+  );
+  return orderId;
+}
+
 async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unknown>): Promise<AdapterResponse> {
   // auth
   if (tool === "auth.register") {
@@ -89,9 +105,15 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   }
   if (tool === "auth.login") {
     const email = String(args.email ?? "").toLowerCase().trim();
-    const row = await pool.query(`select user_id from auth_mcp.users where email = $1 limit 1`, [email]);
-    const userId = String(row.rows[0]?.user_id ?? "");
-    if (!userId) return err("AUTH_ERROR", "Invalid credentials.");
+    const password = String(args.password ?? "");
+    if (!email || !password) return err("VALIDATION_ERROR", "email and password are required.");
+    const row = await pool.query(`select user_id, password_hash from auth_mcp.users where email = $1 limit 1`, [email]);
+    const user = row.rows[0];
+    if (!user) return err("AUTH_ERROR", "Invalid credentials.");
+    if (user.password_hash !== password && user.password_hash !== createHash("sha256").update(password).digest("hex")) {
+      return err("AUTH_ERROR", "Invalid credentials.");
+    }
+    const userId = String(user.user_id);
     const accessToken = signJwt({ sub: userId, scope: "access" }, 900);
     const refreshToken = signJwt({ sub: userId, scope: "refresh" }, 604800);
     return ok({ user_id: userId, tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 900 } });
@@ -348,7 +370,8 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
 
   // phase3: logistics
   if (tool === "logistics.get_quotes") {
-    const orderId = asUuidOrNew(args.order_id);
+    const userId = String(args.user_id ?? args.buyer_id ?? "");
+    const orderId = await ensureOrder(pool, asUuidOrNew(args.order_id), userId || randomUUID());
     const carriers = [
       { name: "Day & Ross", api: "day_ross", price: 1190, transit: 2, co2: 124 },
       { name: "Manitoulin", api: "manitoulin", price: 1240, transit: 2, co2: 132 },
@@ -365,7 +388,8 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ order_id: orderId, quotes: carriers });
   }
   if (tool === "logistics.book_shipment") {
-    const orderId = asUuidOrNew(args.order_id);
+    const userId = String(args.user_id ?? args.buyer_id ?? "");
+    const orderId = await ensureOrder(pool, asUuidOrNew(args.order_id), userId || randomUUID());
     const shipmentId = randomUUID();
     const carrier = String(args.carrier_name ?? "Day & Ross");
     await pool.query(
@@ -434,7 +458,8 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   // phase3: dispute
   if (tool === "dispute.file_dispute") {
     const disputeId = randomUUID();
-    const orderId = asUuidOrNew(args.order_id);
+    const filingPartyId = String(args.filing_party_id ?? "");
+    const orderId = await ensureOrder(pool, asUuidOrNew(args.order_id), filingPartyId || randomUUID());
     await pool.query(
       `insert into dispute_mcp.disputes
         (dispute_id,order_id,filing_party_id,responding_party_id,category,description,current_tier,status,resolution_deadline)
@@ -501,9 +526,9 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ seller_province: sellerProv, buyer_province: buyerProv, subtotal, gst_amount: gst, pst_amount: pst, hst_amount: hst, qst_amount: qst, total_tax: totalTax, total_amount: Math.round((subtotal + totalTax) * 100) / 100 });
   }
   if (tool === "tax.generate_invoice") {
-    const orderId = asUuidOrNew(args.order_id);
     const buyerId = String(args.buyer_id ?? "");
     const sellerId = String(args.seller_id ?? "");
+    const orderId = await ensureOrder(pool, asUuidOrNew(args.order_id), buyerId || sellerId || randomUUID());
     const subtotal = Number(args.subtotal ?? 0);
     const commission = Math.round(subtotal * 0.035 * 100) / 100;
     const sellerProv = String(args.seller_province ?? "ON").toUpperCase();
