@@ -41,8 +41,17 @@ for (const key of recommended) {
   }
 }
 
+// JWT_SECRET strength check
+const jwtSecret = process.env.JWT_SECRET;
+if (jwtSecret === "dev-secret-change-me") {
+  console.log("\n  WARNING  JWT_SECRET is the default dev value. Set a strong unique secret for production.");
+  hasErrors = true;
+} else if (jwtSecret && jwtSecret.length < 32) {
+  console.log("\n  WARNING  JWT_SECRET is too short (min 32 chars recommended).");
+}
+
 if (hasErrors) {
-  console.log("\nFATAL: Required environment variables are missing.");
+  console.log("\nFATAL: Required environment variables are missing or insecure.");
   process.exit(1);
 } else {
   console.log("\nAll required variables present.");

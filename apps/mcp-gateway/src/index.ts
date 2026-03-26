@@ -287,7 +287,24 @@ async function routeToolRequest(
   };
 }
 
+const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
+
+function setCors(res: ServerResponse): void {
+  res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 const server = createServer(async (req, res) => {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   const parsedUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const path = parsedUrl.pathname;
 

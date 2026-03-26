@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import pg from "pg";
+import * as jwt from "jsonwebtoken";
 import {
   checkEnvironmentalPermitExpiry,
   getChainOfCustodyRequirements,
@@ -12,11 +13,7 @@ import {
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
 function signJwt(payload: Record<string, string | number>, expiresInSec: number): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const now = Math.floor(Date.now() / 1000);
-  const body = Buffer.from(JSON.stringify({ ...payload, iat: now, exp: now + expiresInSec })).toString("base64url");
-  const sig = createHmac("sha256", JWT_SECRET).update(`${header}.${body}`).digest("base64url");
-  return `${header}.${body}.${sig}`;
+  return jwt.sign(payload, JWT_SECRET as jwt.Secret, { expiresIn: expiresInSec });
 }
 
 const { Pool } = pg;
