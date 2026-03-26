@@ -751,7 +751,32 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ listing_id: listingId, updated: true });
   }
   if (tool === "listing.upload_images") {
-    return ok({ listing_id: String(args.listing_id ?? ""), images_uploaded: true });
+    const listingId = String(args.listing_id ?? "");
+    const imageUrls = Array.isArray(args.urls) ? args.urls.map(String) : [];
+    if (listingId && imageUrls.length > 0) {
+      await pool.query(
+        `update listing_mcp.listings set images = $2::jsonb, updated_at = now() where listing_id = $1`,
+        [listingId, JSON.stringify(imageUrls.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` })))],
+      );
+    }
+    const fileId = randomUUID();
+    if (args.file_name) {
+      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+      const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        const storagePath = `listings/${listingId}/${fileId}-${String(args.file_name ?? "image.jpg")}`;
+        const uploadUrl = `${SUPABASE_URL}/storage/v1/object/listing-images/${storagePath}`;
+        return ok({
+          listing_id: listingId,
+          file_id: fileId,
+          upload_url: uploadUrl,
+          storage_path: storagePath,
+          method: "PUT",
+          headers: { "authorization": `Bearer ${SUPABASE_KEY}`, "content-type": String(args.content_type ?? "image/jpeg") },
+        });
+      }
+    }
+    return ok({ listing_id: listingId, file_id: fileId, images_uploaded: true, note: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for real storage upload" });
   }
   if (tool === "listing.get_listing") {
     const row = (await pool.query(`select * from listing_mcp.listings where listing_id=$1`, [String(args.listing_id ?? "")])).rows[0];
