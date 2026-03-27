@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "corepack pnpm install && corepack pnpm --filter @matex/web-v2 build",
+  "outputDirectory": "apps/web-v2/.next",
+  "env": {
+    "NEXT_PUBLIC_GATEWAY_URL": "https://api.matexhub.ca",
+    "NEXT_PUBLIC_APP_URL": "https://app.matexhub.ca"
+  }
+}
