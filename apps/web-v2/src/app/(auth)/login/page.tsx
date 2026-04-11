@@ -736,29 +736,16 @@ export default function LoginPage() {
 
       <div
         className={clsx(
-          "relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col-reverse gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-8 sm:pt-8 lg:grid lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12 lg:gap-y-5 lg:px-10 lg:py-10 xl:gap-x-16",
+          "relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col-reverse gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-8 sm:pt-8 lg:grid lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)] lg:items-start lg:gap-x-12 lg:px-10 lg:py-10 xl:gap-x-16",
           introReady && "login-reveal-active"
         )}
       >
-        {/* Hero: lg grid — row1 logo (col2); row2 trust+body (col2) aligns with login card top (col1) */}
+        {/* Hero: marketing column (logo lives on the sign-in card, top-left) */}
         <section
           className="flex min-w-0 flex-1 flex-col items-start text-left text-white lg:contents"
           aria-labelledby="login-hero-heading"
         >
-          <div
-            className="login-reveal-item mb-4 flex flex-col gap-1.5 sm:mb-5 sm:gap-2 lg:col-start-2 lg:row-start-1 lg:mb-0 lg:gap-0"
-            style={loginRevealDelay(0)}
-          >
-            <Image
-              src="/LogoOrangeTrns.png"
-              alt="Matex — Industrial Materials Exchange"
-              width={220}
-              height={75}
-              className="block h-auto w-full max-w-[min(100%,10rem)] leading-none drop-shadow-2xl sm:max-w-[14rem]"
-              priority
-            />
-          </div>
-          <div className="flex min-w-0 w-full flex-1 flex-col items-start text-left lg:col-start-2 lg:row-start-2 lg:max-w-xl lg:pb-8 xl:max-w-2xl">
+          <div className="flex min-w-0 w-full flex-1 flex-col items-start text-left lg:col-start-2 lg:row-start-1 lg:max-w-xl lg:pb-8 xl:max-w-2xl">
             <span
               className="login-reveal-item mb-4 inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/25 px-3 py-1.5 text-[11px] font-semibold text-orange-200 backdrop-blur-md sm:mb-5 sm:px-4 sm:py-2 sm:text-xs lg:mb-4"
               style={loginRevealDelay(80)}
@@ -854,12 +841,22 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* Sign-in — row 2 col 1 on lg: top aligns with “Trusted by…” (row 2 col 2) */}
+        {/* Sign-in — col 1; logo top-left inside the glass card */}
         <div
-          className="login-reveal-item flex w-full shrink-0 flex-col lg:col-start-1 lg:row-start-2 lg:sticky lg:top-8 lg:max-w-[420px] lg:self-start lg:pr-2"
+          className="login-reveal-item flex w-full shrink-0 flex-col lg:col-start-1 lg:row-start-1 lg:sticky lg:top-8 lg:max-w-[420px] lg:self-start lg:pr-2"
           style={loginRevealDelay(340)}
         >
           <div className="rounded-2xl border border-slate-500/50 bg-slate-900/45 p-5 shadow-2xl backdrop-blur-2xl sm:rounded-3xl sm:p-6">
+            <div className="mb-4 flex w-full justify-start sm:mb-5">
+              <Image
+                src="/LogoOrangeTrns.png"
+                alt="Matex — Industrial Materials Exchange"
+                width={200}
+                height={68}
+                className="h-auto w-auto max-w-[9.5rem] object-left object-contain leading-none drop-shadow-lg sm:max-w-[11rem]"
+                priority
+              />
+            </div>
             <div className="mb-6 text-center">
               <h2 className="mb-2 text-3xl font-bold text-white">
                 {tab === "login" ? "Welcome Back" : "Get started"}
