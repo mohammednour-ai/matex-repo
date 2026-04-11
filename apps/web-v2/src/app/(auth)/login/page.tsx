@@ -759,17 +759,10 @@ export default function LoginPage() {
             />
           </div>
           <div className="flex min-w-0 w-full flex-1 flex-col items-start text-left lg:col-start-2 lg:row-start-2 lg:max-w-xl lg:pb-8 xl:max-w-2xl">
-            <span
-              className="login-reveal-item mb-4 inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/25 px-3 py-1.5 text-[11px] font-semibold text-orange-200 backdrop-blur-md sm:mb-5 sm:px-4 sm:py-2 sm:text-xs lg:mb-4"
-              style={loginRevealDelay(80)}
-            >
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden />
-              Trusted by teams in recycling, manufacturing, and logistics
-            </span>
           <h1
             id="login-hero-heading"
             className="login-reveal-item mb-4 text-balance text-4xl font-black leading-[1.08] drop-shadow-md sm:mb-5 sm:text-5xl xl:text-6xl"
-            style={loginRevealDelay(160)}
+            style={loginRevealDelay(80)}
           >
             <span className="block text-white">INDUSTRIAL</span>
             <span className="block text-orange-400">MATERIALS</span>
