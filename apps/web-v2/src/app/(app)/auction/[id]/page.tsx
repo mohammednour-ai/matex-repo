@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type AuctionStatus = "scheduled" | "live" | "completed";
 type LotStatus = "upcoming" | "active" | "sold" | "unsold";
@@ -376,15 +377,12 @@ function LobbyView({
   onRegister: () => void;
 }) {
   return (
-    <div className="space-y-6 p-6 max-w-3xl mx-auto">
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <Badge variant="info">Scheduled</Badge>
-          <span className="text-sm text-slate-500">{auction.organizer}</span>
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">{auction.title}</h1>
-        <p className="text-slate-600 text-sm leading-relaxed">{auction.description}</p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <AppPageHeader
+        title={auction.title}
+        description={`${auction.organizer} — ${auction.description}`}
+        actions={<Badge variant="info">Scheduled</Badge>}
+      />
 
       <div className="rounded-xl border-2 border-blue-200 bg-blue-50 p-8 text-center">
         <p className="text-sm font-medium text-blue-600 mb-3">Auction Begins In</p>
@@ -399,7 +397,7 @@ function LobbyView({
         <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-3">Lot Preview</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {auction.lots.map((lot) => (
-            <div key={lot.lot_id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div key={lot.lot_id} className="marketplace-card p-4">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs text-slate-400 mb-0.5">Lot #{lot.lot_number}</p>
@@ -412,7 +410,7 @@ function LobbyView({
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5">
+      <div className="marketplace-card flex items-center justify-between p-5">
         <div className="flex items-center gap-3">
           <FileText className="h-5 w-5 text-slate-400" />
           <span className="text-sm font-medium text-slate-700">Auction Terms & Conditions</span>
@@ -439,7 +437,7 @@ function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots
   const mockWon: Lot[] = auction.lots.filter((l) => l.status === "sold").slice(0, 2);
 
   return (
-    <div className="space-y-6 p-6 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-2xl space-y-6">
       {mockWon.length > 0 && (
         <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-6 text-center">
           <Trophy className="mx-auto mb-3 h-10 w-10 text-emerald-600" />

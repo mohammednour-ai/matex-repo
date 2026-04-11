@@ -18,14 +18,28 @@ export async function POST(req: NextRequest) {
     headers.authorization = `Bearer ${body.token}`;
   }
 
-  const r = await fetch(`${GATEWAY}/tool`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ tool: body.tool, args: body.args ?? {} }),
-  });
+  try {
+    const r = await fetch(`${GATEWAY}/tool`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ tool: body.tool, args: body.args ?? {} }),
+    });
 
-  return new NextResponse(await r.text(), {
-    status: r.status,
-    headers: { "content-type": "application/json" },
-  });
+    return new NextResponse(await r.text(), {
+      status: r.status,
+      headers: { "content-type": "application/json" },
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error && err.cause && (err.cause as NodeJS.ErrnoException).code === "ECONNREFUSED"
+        ? "MCP Gateway is not reachable. Make sure it is running on " + GATEWAY
+        : err instanceof Error
+          ? err.message
+          : "Unknown gateway error";
+
+    return NextResponse.json(
+      { success: false, error: { code: "GATEWAY_UNREACHABLE", message } },
+      { status: 502 },
+    );
+  }
 }

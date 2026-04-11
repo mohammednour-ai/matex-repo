@@ -399,7 +399,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         mcpData = (await mcpRes.json()) as unknown;
 
         if (!mcpRes.ok) {
-          mcpError = `MCP server returned ${mcpRes.status}`;
+          mcpError = mcpRes.status === 401
+            ? "Session expired. Please log out and sign in again."
+            : `MCP server returned ${mcpRes.status}`;
         }
       } catch (err) {
         mcpError = err instanceof Error ? err.message : "Failed to call MCP server";

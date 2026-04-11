@@ -18,6 +18,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type EscrowStatus = "created" | "funds_held" | "released" | "frozen" | "refunded" | "disputed";
 type Tab = "active" | "pending_release" | "released" | "frozen";
@@ -174,11 +175,19 @@ export default function EscrowPage() {
   });
 
   async function doAction(escrowId: string, action: string): Promise<void> {
+    if (action === "freeze") {
+      const reason = window.prompt("Please enter a reason for freezing this escrow:");
+      if (!reason) return;
+      setActionLoading(escrowId + action);
+      await callTool("escrow.freeze_escrow", { escrow_id: escrowId, reason });
+      setEscrows((prev) => prev.map((e) => e.escrow_id === escrowId ? { ...e, status: "frozen" } : e));
+      setActionLoading(null);
+      return;
+    }
     setActionLoading(escrowId + action);
     const toolMap: Record<string, string> = {
       hold: "escrow.hold_funds",
       release: "escrow.release_funds",
-      freeze: "escrow.freeze_escrow",
       refund: "escrow.release_funds",
       dispute: "dispute.file_dispute",
     };
@@ -196,40 +205,41 @@ export default function EscrowPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Escrow Management</h1>
-          <p className="mt-1 text-sm text-slate-500">All funds are held in escrow until release conditions are met.</p>
-        </div>
-        <Link href="/escrow/create">
-          <Button size="sm">+ New Escrow</Button>
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="Escrow Management"
+        description="All funds are held in escrow until release conditions are met."
+        actions={
+          <Link href="/escrow/create">
+            <Button size="sm">+ New Escrow</Button>
+          </Link>
+        }
+      />
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
-          { label: "Total Held", value: formatCAD(escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0)), color: "text-blue-600" },
-          { label: "Active", value: escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length, color: "text-slate-800" },
+          { label: "Total Held", value: formatCAD(escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0)), color: "text-brand-600" },
+          { label: "Active", value: escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length, color: "text-steel-900" },
           { label: "Released", value: escrows.filter((e) => e.status === "released").length, color: "text-emerald-600" },
           { label: "Frozen", value: escrows.filter((e) => e.status === "frozen").length, color: "text-red-600" },
         ].map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">{c.label}</p>
+          <div key={c.label} className="marketplace-card p-4">
+            <p className="text-xs text-steel-500">{c.label}</p>
             <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 w-fit">
+      <div className="flex w-fit gap-1 rounded-2xl border border-steel-200/80 bg-steel-100/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
+            type="button"
             onClick={() => setTab(t.key)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.key ? "bg-white text-steel-900 shadow-sm" : "text-steel-500 hover:text-steel-800"
             }`}
           >
             {t.label}
@@ -238,7 +248,7 @@ export default function EscrowPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="marketplace-card overflow-hidden">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
             <Shield className="h-10 w-10 opacity-30" />
@@ -319,15 +329,15 @@ function EscrowRow({
                   <div className="flex flex-col items-center">
                     <div
                       className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                        i <= step ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
+                        i <= step ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-400"
                       }`}
                     >
                       {i < step ? "✓" : i + 1}
                     </div>
-                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-blue-700 font-medium" : "text-slate-400"}`}>{s}</p>
+                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-brand-700 font-medium" : "text-slate-400"}`}>{s}</p>
                   </div>
                   {i < TIMELINE_STEPS.length - 1 && (
-                    <div className={`h-0.5 flex-1 mb-4 ${i < step ? "bg-blue-600" : "bg-slate-200"}`} />
+                    <div className={`h-0.5 flex-1 mb-4 ${i < step ? "bg-brand-600" : "bg-slate-200"}`} />
                   )}
                 </div>
               ))}

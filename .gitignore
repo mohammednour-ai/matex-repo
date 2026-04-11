@@ -31,6 +31,8 @@ infrastructure/supabase/supabase/.branches/
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
+apps/web-v2/test-results/
+apps/web-v2/playwright-report/
 
 # Logs
 *.log
@@ -42,6 +44,9 @@ coverage/
 
 # Misc
 *.tsbuildinfo
+# Windows reserved-name artifact (bad shell redirect)
+NUL
+apps/web-v2/NUL
 
 # Large binary files at root
 *.mp4

@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Modal } from "@/components/ui/Modal";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -213,16 +214,35 @@ export default function MessagesPage() {
   const handleCreateThread = async (): Promise<void> => {
     if (!newThreadForm.listing_id.trim() || !newThreadForm.message.trim()) return;
     setCreatingThread(true);
+    const userId = getUser()?.userId ?? "";
     const res = await callTool("messaging.create_thread", {
-      listing_id: newThreadForm.listing_id,
-      initial_message: newThreadForm.message,
+      listing_id: newThreadForm.listing_id || undefined,
+      participants: [userId, userId],
+      subject: `Thread about listing ${newThreadForm.listing_id || "general"}`,
     });
-    if (res.success) {
-      const data = res.data as unknown as { thread?: Thread };
-      if (data?.thread) {
-        setThreads((t) => [data.thread!, ...t]);
-        setActiveThread(data.thread!);
+    const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+    const threadId = String(upData?.thread_id ?? (res.data as Record<string,unknown>)?.thread_id ?? "");
+    if (res.success && threadId) {
+      if (newThreadForm.message.trim()) {
+        await callTool("messaging.send_message", {
+          thread_id: threadId,
+          sender_id: userId,
+          content: newThreadForm.message,
+        });
       }
+      const newThread: Thread = {
+        thread_id: threadId,
+        listing_id: newThreadForm.listing_id || undefined,
+        listing_title: `Listing ${newThreadForm.listing_id || "general"}`,
+        other_user_name: "Seller",
+        other_user_id: userId,
+        last_message: newThreadForm.message || "Thread created",
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+        status: "active",
+      };
+      setThreads((t) => [newThread, ...t]);
+      setActiveThread(newThread);
       setShowNewThread(false);
       setNewThreadForm({ listing_id: "", message: "" });
     }
@@ -232,9 +252,15 @@ export default function MessagesPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex min-h-0 flex-col gap-4">
+      <AppPageHeader
+        title="Messages"
+        description="Negotiate with buyers and sellers in secure threads."
+        className="mb-0 shrink-0 sm:mb-0"
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-steel-200/80 bg-white/95 shadow-card md:h-[min(720px,calc(100vh-12rem))]">
       {/* ── Left: Thread List ───────────────────────────────────────────── */}
-      <aside className="flex w-80 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-steel-200/80 bg-white">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
           <h2 className="font-semibold text-slate-800">Messages</h2>
@@ -308,7 +334,7 @@ export default function MessagesPage() {
       </aside>
 
       {/* ── Center: Conversation ────────────────────────────────────────── */}
-      <main className="flex flex-1 flex-col overflow-hidden bg-slate-50">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
         {!activeThread ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-slate-400">
             <MessageSquare className="h-12 w-12 opacity-30" />
@@ -491,6 +517,7 @@ export default function MessagesPage() {
           )}
         </div>
       </aside>
+      </div>
 
       {/* ── New Thread Modal ─────────────────────────────────────────────── */}
       <Modal

@@ -286,10 +286,10 @@ function BidModal({
     <Modal open={open} onClose={onClose} title="Place a Bid" size="sm">
       <div className="space-y-4">
         {/* Current bid info */}
-        <div className="bg-blue-50 rounded-lg p-3 text-sm">
+        <div className="bg-brand-50 rounded-lg p-3 text-sm">
           <div className="flex justify-between items-center">
             <span className="text-gray-600">Current highest bid</span>
-            <span className="font-bold text-blue-700">{fmtCAD(listing.current_bid ?? listing.price)} CAD</span>
+            <span className="font-bold text-brand-700">{fmtCAD(listing.current_bid ?? listing.price)} CAD</span>
           </div>
           <div className="flex justify-between items-center mt-1">
             <span className="text-gray-600">Minimum bid</span>
@@ -508,7 +508,7 @@ function BuyNowModal({
         </div>
 
         <p className="text-xs text-gray-500 flex items-start gap-1.5">
-          <Info size={12} className="flex-shrink-0 mt-0.5 text-blue-500" />
+          <Info size={12} className="flex-shrink-0 mt-0.5 text-brand-500" />
           Final amounts may vary based on actual weight, carrier selection, and applicable taxes at checkout.
         </p>
 
@@ -881,7 +881,14 @@ export default function ListingDetailPage() {
       setLoading(false);
       return;
     }
-    const listingData = listingRes.data as unknown as Listing;
+    const upRes = (listingRes.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+    const raw = (upRes?.listing ?? upRes ?? listingRes.data) as Record<string, unknown>;
+    const listingData: Listing = {
+      ...(raw as unknown as Listing),
+      price: Number(raw.asking_price ?? raw.price ?? 0),
+      quantity: Number(raw.quantity ?? 1),
+      created_at: String(raw.created_at ?? new Date().toISOString()),
+    };
     setListing(listingData);
 
     // Fetch highest bid (for bidding listings)
@@ -1001,7 +1008,7 @@ export default function ListingDetailPage() {
           <div>
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold text-gray-900 leading-tight">{listing.title}</h1>
+                <h1 className="app-inpage-title leading-tight">{listing.title}</h1>
                 <div className="flex items-center gap-2 flex-wrap mt-2">
                   <Badge variant={envConfig.variant}>{envConfig.label}</Badge>
                   {listing.hazmat_class && listing.hazmat_class !== "none" && (
@@ -1032,7 +1039,7 @@ export default function ListingDetailPage() {
           <div className={clsx(
             "rounded-xl p-4 border",
             listing.sale_mode === "fixed" && "bg-emerald-50 border-emerald-200",
-            listing.sale_mode === "bidding" && "bg-blue-50 border-blue-200",
+            listing.sale_mode === "bidding" && "bg-brand-50 border-brand-200",
             listing.sale_mode === "auction" && "bg-amber-50 border-amber-200",
           )}>
             {listing.sale_mode === "fixed" && (
@@ -1058,24 +1065,24 @@ export default function ListingDetailPage() {
             {listing.sale_mode === "bidding" && (
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-sm text-blue-700 font-medium">Live Bidding</p>
-                  <p className="text-2xl font-bold text-blue-800 mt-1">
+                  <p className="text-sm text-brand-700 font-medium">Live Bidding</p>
+                  <p className="text-2xl font-bold text-brand-800 mt-1">
                     {fmtCAD(listing.current_bid ?? listing.price)} CAD
-                    <span className="text-sm font-normal text-blue-500 ml-2">current bid</span>
+                    <span className="text-sm font-normal text-brand-500 ml-2">current bid</span>
                   </p>
-                  <p className="text-sm text-blue-600 mt-0.5">{listing.bid_count ?? 0} bids placed</p>
+                  <p className="text-sm text-brand-600 mt-0.5">{listing.bid_count ?? 0} bids placed</p>
                   {listing.bidding_ends_at && (
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Clock size={13} className="text-blue-500" />
-                      <span className="text-sm text-blue-700">Ends in:</span>
-                      <CountdownTimer targetDate={listing.bidding_ends_at} className="text-blue-800" />
+                      <Clock size={13} className="text-brand-500" />
+                      <span className="text-sm text-brand-700">Ends in:</span>
+                      <CountdownTimer targetDate={listing.bidding_ends_at} className="text-brand-800" />
                     </div>
                   )}
                 </div>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => setBidModal(true)}
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-sm shadow-sm"
+                    className="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl transition-colors text-sm shadow-sm"
                   >
                     Place Bid
                   </button>
@@ -1263,7 +1270,7 @@ export default function ListingDetailPage() {
             {listing.sale_mode === "bidding" && (
               <button
                 onClick={() => setBidModal(true)}
-                className="w-full py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="w-full py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
               >
                 Place Bid
               </button>

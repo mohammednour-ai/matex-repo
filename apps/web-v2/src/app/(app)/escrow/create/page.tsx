@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type PaymentMethod = "card" | "wallet" | "credit";
 
@@ -113,7 +114,7 @@ export default function CreateEscrowPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="marketplace-card p-5">
             <h3 className="text-sm font-semibold text-slate-700 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
@@ -145,16 +146,14 @@ export default function CreateEscrowPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Fund Escrow</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Funds will be held securely until all release conditions are met.
-        </p>
-      </div>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <AppPageHeader
+        title="Fund Escrow"
+        description="Funds will be held securely until all release conditions are met."
+      />
 
       {/* Order summary */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="marketplace-card p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Order Summary</h2>
         <div className="flex items-start gap-4 mb-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50">
@@ -192,7 +191,7 @@ export default function CreateEscrowPage() {
       </div>
 
       {/* Payment method */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="marketplace-card p-5">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Payment Method</h2>
         <div className="space-y-3">
           <PaymentOption
@@ -233,7 +232,7 @@ export default function CreateEscrowPage() {
       </div>
 
       {/* Terms */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="marketplace-card p-5">
         <label className="flex cursor-pointer items-start gap-3">
           <input
             type="checkbox"
@@ -267,7 +266,7 @@ export default function CreateEscrowPage() {
 
 function PartyCard({ role, name }: { role: string; name: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="marketplace-card p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{role}</p>
       <p className="font-medium text-slate-800 text-sm truncate">{name}</p>
     </div>

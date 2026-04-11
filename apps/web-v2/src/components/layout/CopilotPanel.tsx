@@ -79,11 +79,15 @@ export function CopilotPanel() {
       if (!res.ok) throw new Error("Chat request failed");
       const data = await res.json();
 
+      const toolCall = data.tool_call ?? data.tool_used;
+      const toolStatus = data.tool_call?.status;
+      const isToolError = toolStatus && toolStatus >= 400;
+      const toolLabel = typeof toolCall === "object" ? toolCall?.tool : toolCall;
       const assistantMsg: Message = {
         id: `a-${Date.now()}`,
         role: "assistant",
         content: data.message ?? data.content ?? "No response",
-        toolUsed: data.tool_used,
+        toolUsed: toolLabel ? `${toolLabel}${isToolError ? " (error)" : ""}` : undefined,
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch {

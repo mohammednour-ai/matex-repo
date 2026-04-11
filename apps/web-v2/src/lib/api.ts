@@ -11,14 +11,26 @@ function getToken(): string {
   return localStorage.getItem("matex_token") ?? "";
 }
 
-export function getUser(): { userId: string; email: string; accountType: string } | null {
+export type MatexUser = {
+  userId: string;
+  email: string;
+  accountType: string;
+  /** Set at login when the account is in `public.matex_admin_operators` or matches `MATEX_DEV_ADMIN_EMAILS`. */
+  isPlatformAdmin?: boolean;
+};
+
+export function getUser(): MatexUser | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem("matex_user");
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    return JSON.parse(raw) as MatexUser;
+  } catch {
+    return null;
+  }
 }
 
-export function setUser(user: { userId: string; email: string; accountType: string }) {
+export function setUser(user: MatexUser) {
   if (typeof window !== "undefined") localStorage.setItem("matex_user", JSON.stringify(user));
 }
 
@@ -39,9 +51,15 @@ export async function callTool<T = Record<string, unknown>>(
   args: Record<string, unknown> = {},
   options: { token?: string } = {}
 ): Promise<MCPResponse<T>> {
+  const publicTools = ["auth.register","auth.login","auth.request_email_otp","auth.request_phone_otp","auth.verify_email","auth.verify_phone"];
+  const isPublic = publicTools.includes(tool);
   const token = options.token ?? getToken();
-  const isPublic = ["auth.register","auth.login","auth.request_email_otp","auth.request_phone_otp","auth.verify_email","auth.verify_phone"].includes(tool);
-  
+
+  // Don't make authenticated calls without a token
+  if (!isPublic && !token) {
+    return { success: false, error: { code: "UNAUTHENTICATED", message: "Not logged in." } };
+  }
+
   const res = await fetch("/api/mcp", {
     method: "POST",
     headers: { "content-type": "application/json" },

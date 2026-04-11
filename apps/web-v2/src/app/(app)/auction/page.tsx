@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type AuctionStatus = "live" | "upcoming" | "completed";
 
@@ -147,35 +148,34 @@ export default function AuctionPage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Auctions</h1>
-          <p className="mt-1 text-sm text-slate-500">Bid on recycled material lots from verified sellers across Canada.</p>
-        </div>
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search auctions…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-        </div>
-      </div>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="Auctions"
+        description="Bid on recycled material lots from verified sellers across Canada."
+        actions={
+          <div className="relative w-full min-w-0 sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel-400" />
+            <input
+              type="search"
+              placeholder="Search auctions…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-steel-200/80 bg-white/95 py-2 pl-9 pr-3 text-sm text-steel-900 shadow-sm placeholder:text-steel-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+            />
+          </div>
+        }
+      />
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 w-fit">
+      <div className="flex w-fit gap-1 rounded-2xl border border-steel-200/80 bg-steel-100/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            className={`relative flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.key
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-white text-steel-900 shadow-sm"
+                : "text-steel-500 hover:text-steel-800"
             }`}
           >
             {t.key === "live" && t.count > 0 && (
@@ -187,7 +187,7 @@ export default function AuctionPage() {
             {t.label}
             <span
               className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                tab === t.key ? "bg-blue-100 text-blue-700" : "bg-slate-200 text-slate-500"
+                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-steel-200 text-steel-500"
               }`}
             >
               {loading && t.key === "live" ? "…" : t.count}
@@ -222,7 +222,7 @@ function AuctionCard({ auction }: { auction: Auction }) {
   const isCompleted = auction.status === "completed";
 
   return (
-    <div className="group relative flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <div className="group marketplace-card relative flex flex-col p-5 transition-shadow hover:shadow-md">
       {/* Live badge */}
       {isLive && (
         <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-0.5">

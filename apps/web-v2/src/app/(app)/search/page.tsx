@@ -17,9 +17,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import clsx from "clsx";
-import { callTool, getUser, extractId } from "@/lib/api";
+import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,6 +90,21 @@ const SALE_MODE_CONFIG: Record<SaleMode, { label: string; variant: "success" | "
   bidding: { label: "Bidding", variant: "info", color: "bg-blue-500" },
   auction: { label: "Auction", variant: "warning", color: "bg-amber-500" },
 };
+
+/** Gateway returns `{ upstream_response: { data: { results } } }` when forwarded to the HTTP adapter. */
+function extractForwardedData(res: MCPResponse): Record<string, unknown> | undefined {
+  const d = res.data as Record<string, unknown> | undefined;
+  const up = d?.upstream_response as Record<string, unknown> | undefined;
+  const inner = up?.data ?? d;
+  return inner && typeof inner === "object" ? (inner as Record<string, unknown>) : undefined;
+}
+
+function extractSearchResults(res: MCPResponse): ListingResult[] {
+  const inner = extractForwardedData(res);
+  const results = inner?.results;
+  if (Array.isArray(results)) return results as ListingResult[];
+  return [];
+}
 
 // ---------------------------------------------------------------------------
 // Hooks
@@ -315,7 +331,7 @@ function FilterSidebar({
   }
 
   return (
-    <aside className="w-[260px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-4 h-fit sticky top-24 space-y-5 overflow-y-auto max-h-[calc(100vh-7rem)]">
+    <aside className="marketplace-card sticky top-24 h-fit max-h-[calc(100vh-7rem)] w-[260px] flex-shrink-0 space-y-5 overflow-y-auto p-4">
       {/* Search query */}
       <div>
         <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Search</label>
@@ -554,7 +570,7 @@ function SavedSearchesPanel({
   if (!searches.length) return null;
 
   return (
-    <div className="mb-5 bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="marketplace-card mb-5 overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
         onClick={() => setExpanded((e) => !e)}
@@ -654,8 +670,10 @@ export default function SearchPage() {
       const user = getUser();
       if (!user) return;
       const res = await callTool("search.get_saved_searches", { user_id: user.userId });
-      if (res.success && Array.isArray(res.data)) {
-        setSavedSearches(res.data as SavedSearch[]);
+      const inner = extractForwardedData(res);
+      const list = inner?.saved_searches;
+      if (res.success && Array.isArray(list)) {
+        setSavedSearches(list as SavedSearch[]);
       }
     }
     loadSavedSearches();
@@ -682,8 +700,8 @@ export default function SearchPage() {
     if (inspectionOnly) args.inspection_required = true;
 
     const res = await callTool("search.search_materials", args);
-    if (res.success && Array.isArray(res.data)) {
-      setResults(res.data as ListingResult[]);
+    if (res.success) {
+      setResults(extractSearchResults(res));
     } else {
       setResults([]);
     }
@@ -735,7 +753,9 @@ export default function SearchPage() {
     setSavingSearch(false);
     // Refresh saved searches
     const res = await callTool("search.get_saved_searches", { user_id: user.userId });
-    if (res.success && Array.isArray(res.data)) setSavedSearches(res.data as SavedSearch[]);
+    const inner = extractForwardedData(res);
+    const list = inner?.saved_searches;
+    if (res.success && Array.isArray(list)) setSavedSearches(list as SavedSearch[]);
   }
 
   function handleLoadSavedSearch(s: SavedSearch) {
@@ -772,21 +792,20 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-[calc(100vh-5rem)]">
-      {/* Page heading */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Browse Materials</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Find recycled materials from verified Canadian suppliers</p>
-        </div>
-        {/* Mobile filter trigger */}
-        <button
-          className="md:hidden flex items-center gap-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2"
-          onClick={() => setFilterOpen(true)}
-        >
-          <SlidersHorizontal size={15} />
-          Filters
-        </button>
-      </div>
+      <AppPageHeader
+        title="Browse Materials"
+        description="Find recycled materials from verified Canadian suppliers"
+        actions={
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-xl border border-steel-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-steel-800 shadow-sm md:hidden"
+            onClick={() => setFilterOpen(true)}
+          >
+            <SlidersHorizontal size={15} />
+            Filters
+          </button>
+        }
+      />
 
       <div className="flex gap-6 items-start">
         {/* Desktop filter sidebar */}

@@ -18,6 +18,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type Step = 1 | 2 | 3;
 type PaymentMethod = "card" | "wallet" | "credit";
@@ -137,9 +138,14 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
+    <div className="mx-auto max-w-2xl space-y-8">
+      <AppPageHeader
+        title="Checkout"
+        description="Review your order, complete payment, and confirm your purchase."
+      />
+
       {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-0">
+      <div className="flex items-center gap-0">
         {(["Order Review", "Payment", "Confirmation"] as const).map((label, i) => {
           const s = (i + 1) as Step;
           const active = step === s;
@@ -167,7 +173,7 @@ export default function CheckoutPage() {
       {/* Step 1 */}
       {step === 1 && (
         <div className="space-y-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="marketplace-card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Order Details</h2>
             <div className="flex items-start gap-4 mb-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50">
@@ -181,7 +187,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="marketplace-card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Price Breakdown</h2>
             {taxLoading ? (
               <div className="flex justify-center py-6">
@@ -218,7 +224,7 @@ export default function CheckoutPage() {
       {/* Step 2 */}
       {step === 2 && (
         <div className="space-y-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="marketplace-card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Select Payment Method</h2>
             <div className="space-y-3">
               <PaymentOption
@@ -287,7 +293,7 @@ export default function CheckoutPage() {
             <p className="mt-1 text-sm text-emerald-700">Payment processed. Funds are now in escrow.</p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+          <div className="marketplace-card p-5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-500">Invoice Number</span>
               <div className="flex items-center gap-2">
@@ -307,7 +313,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="marketplace-card p-5">
             <h3 className="text-sm font-semibold text-slate-700 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[

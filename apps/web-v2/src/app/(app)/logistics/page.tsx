@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type ShipmentStatus = "pending" | "booked" | "in_transit" | "delivered" | "exception";
 
@@ -133,6 +134,7 @@ export default function LogisticsPage() {
       destination,
       weight_kg: Number(weight),
       hazmat_class: hazmat,
+      user_id: getUser()?.userId ?? "",
     });
     const mock: CarrierQuote[] = [
       { carrier: "Day & Ross", price: 2340, transit_days: 3, co2_kg: 94.2, rating: 4.7, recommended: true },
@@ -141,9 +143,9 @@ export default function LogisticsPage() {
       { carrier: "GoFor Industries", price: 1980, transit_days: 5, co2_kg: 79.3, rating: 4.2 },
       { carrier: "Canada Cartage", price: 2420, transit_days: 3, co2_kg: 96.8, rating: 4.6 },
     ];
-    setQuotes(
-      (res.success && (res.data as unknown as { quotes?: CarrierQuote[] })?.quotes) ? (res.data as unknown as { quotes: CarrierQuote[] }).quotes : mock
-    );
+    const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+    const realQuotes = (upData?.quotes ?? (res.data as unknown as { quotes?: CarrierQuote[] })?.quotes) as CarrierQuote[] | undefined;
+    setQuotes(res.success && realQuotes?.length ? realQuotes : mock);
     setQuotesLoading(false);
   }
 
@@ -187,23 +189,23 @@ export default function LogisticsPage() {
   const totalCO2 = shipments.reduce((s, sh) => s + sh.co2_kg, 0);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Logistics</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage shipments, get multi-carrier quotes, and track deliveries.</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2">
-          <Leaf className="h-4 w-4 text-emerald-600" />
-          <div className="text-sm">
-            <span className="font-semibold text-emerald-800">{totalCO2.toFixed(1)} kg CO₂</span>
-            <span className="text-emerald-600"> total emissions tracked</span>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="Logistics"
+        description="Manage shipments, get multi-carrier quotes, and track deliveries."
+        actions={
+          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 px-4 py-2 shadow-sm">
+            <Leaf className="h-4 w-4 text-emerald-600" />
+            <div className="text-sm">
+              <span className="font-semibold text-emerald-800">{totalCO2.toFixed(1)} kg CO₂</span>
+              <span className="text-emerald-600"> total emissions tracked</span>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Active shipments */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="marketplace-card overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-700">Active Shipments</h2>
         </div>
@@ -264,7 +266,7 @@ export default function LogisticsPage() {
       </div>
 
       {/* Get quotes */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="marketplace-card p-5">
         <h2 className="mb-4 text-sm font-semibold text-slate-700">Get Carrier Quotes</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-4">
           <Input
@@ -291,7 +293,7 @@ export default function LogisticsPage() {
             <select
               value={hazmat}
               onChange={(e) => setHazmat(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
             >
               {HAZMAT_CLASSES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -329,7 +331,7 @@ export default function LogisticsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {quotes.sort((a, b) => a.price - b.price).map((q) => (
-                  <tr key={q.carrier} className={q.recommended ? "bg-blue-50" : ""}>
+                  <tr key={q.carrier} className={q.recommended ? "bg-brand-50" : ""}>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-800">{q.carrier}</span>
@@ -385,15 +387,15 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
         {TRACKING_STEPS.map((step, i) => (
           <div key={step} className="flex flex-1 items-start min-w-[80px]">
             <div className="flex flex-col items-center w-full">
-              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-400"}`}>
                 {i < currentStep ? "✓" : i + 1}
               </div>
-              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-blue-700 font-medium" : "text-slate-400"}`}>
+              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-700 font-medium" : "text-slate-400"}`}>
                 {step}
               </p>
             </div>
             {i < TRACKING_STEPS.length - 1 && (
-              <div className={`mt-3 h-0.5 flex-1 ${i < currentStep ? "bg-blue-600" : "bg-slate-200"}`} />
+              <div className={`mt-3 h-0.5 flex-1 ${i < currentStep ? "bg-brand-600" : "bg-slate-200"}`} />
             )}
           </div>
         ))}

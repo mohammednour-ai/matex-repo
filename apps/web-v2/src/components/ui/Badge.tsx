@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-type BadgeVariant = "success" | "warning" | "danger" | "info" | "gray";
+type BadgeVariant = "success" | "warning" | "danger" | "info" | "gray" | "accent";
 
 type BadgeProps = {
   variant?: BadgeVariant;
@@ -9,11 +9,12 @@ type BadgeProps = {
 };
 
 const variantClasses: Record<BadgeVariant, string> = {
-  success: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  warning: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  danger: "bg-red-50 text-red-700 ring-red-600/20",
-  info: "bg-blue-50 text-blue-700 ring-blue-600/20",
-  gray: "bg-slate-100 text-slate-600 ring-slate-500/20",
+  success: "bg-success-50 text-success-700 ring-success-500/20",
+  warning: "bg-warning-50 text-warning-700 ring-warning-500/20",
+  danger: "bg-danger-50 text-danger-700 ring-danger-500/20",
+  info: "bg-brand-50 text-brand-700 ring-brand-500/20",
+  gray: "bg-steel-100 text-steel-600 ring-steel-300/40",
+  accent: "bg-accent-50 text-accent-700 ring-accent-500/20",
 };
 
 export function Badge({ variant = "gray", children, className }: BadgeProps) {
@@ -21,7 +22,7 @@ export function Badge({ variant = "gray", children, className }: BadgeProps) {
     <span
       className={clsx(
         "inline-flex items-center rounded-full px-2.5 py-0.5",
-        "text-xs font-medium ring-1 ring-inset",
+        "text-xs font-semibold ring-1 ring-inset tracking-wide",
         variantClasses[variant],
         className
       )}

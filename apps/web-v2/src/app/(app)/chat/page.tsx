@@ -461,23 +461,24 @@ export default function ChatPage() {
     <>
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
 
-      <div className="flex flex-col h-[calc(100vh-4rem)] -m-6 md:-m-8 bg-white">
+      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-steel-200/80 bg-white/95 shadow-card">
         {/* Page header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-steel-200/80 bg-white/90 px-6 py-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
               <Bot size={20} />
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 text-lg leading-tight">Matex AI</h1>
-              <p className="text-xs text-gray-500">
+              <h1 className="app-inpage-title text-lg sm:text-xl">Matex AI</h1>
+              <p className="text-xs text-steel-500">
                 Ask me anything about your listings, auctions, escrow, logistics, and more.
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setShowOnboarding(true)}
-            className="text-xs text-brand-600 hover:text-brand-800 font-medium border border-brand-200 rounded-lg px-3 py-1.5 hover:bg-brand-50 transition-colors"
+            className="rounded-xl border border-brand-200/80 px-3 py-1.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-800"
           >
             What can I do?
           </button>

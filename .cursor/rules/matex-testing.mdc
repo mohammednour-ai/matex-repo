@@ -1,0 +1,91 @@
+---
+description: Matex QA and regression testing standards. Apply when creating or modifying test files, adding new features, or preparing PRs.
+globs: ["**/e2e/**", "**/*.spec.ts", "**/*.test.ts"]
+---
+
+# Matex Testing Standards
+
+## Regression Test Policy
+
+Every PR must pass the full regression suite before merge. The CI pipeline runs:
+1. `pnpm --filter @matex/web-v2 lint`
+2. `pnpm --filter @matex/web-v2 test:e2e:ci` (build + `next start` when `CI=true`, then all Playwright projects including `legacy` / `happy-path.spec.ts`)
+3. Local quick check: `pnpm --filter @matex/web-v2 test:smoke` with MCP gateway on `:3001` (Playwright starts Next via `next dev` unless `PLAYWRIGHT_WEBSERVER=start`)
+
+If any test fails, the PR is blocked.
+
+## Test File Structure
+
+```
+apps/web-v2/e2e/
+  fixtures/auth.ts          — shared auth helper (register + login + seed localStorage)
+  smoke/                    — fast health checks (<30s total), run on every commit
+  functional/<domain>.spec.ts — per-domain feature tests
+  regression/               — end-to-end critical user journeys
+  uiux/                     — design system and accessibility checks
+  api/                      — direct gateway API tests (no browser)
+  compliance/               — Canadian legal/regulatory checks
+  report/                   — QA report generator (`pnpm test:report` after a run that writes `test-results/results.json`)
+```
+
+Playwright **projects**: `smoke`, `api`, `functional`, `regression`, `uiux`, `compliance`, `legacy` (root `e2e/happy-path.spec.ts` only).
+
+## Naming Convention
+
+- Files: `e2e/<suite>/<domain>.spec.ts` (e.g. `e2e/functional/auth.spec.ts`)
+- Tests: `test("AUTH-01: register with valid credentials", …)`
+- Use domain prefix IDs from QA_USER_MANUAL.md (AUTH-, LIST-, SRCH-, MSG-, PAY-, etc.)
+
+## Auth Fixture — Required for All Browser Tests
+
+Every test that visits an authenticated page MUST use the shared auth fixture:
+
+```typescript
+import { authenticatedPage } from "../fixtures/auth";
+
+authenticatedPage("test name", async ({ page, userId, token }) => {
+  // page already has matex_token and matex_user in localStorage
+});
+```
+
+Never manually set `localStorage` in individual tests — always use the fixture.
+
+## Assertion Standards
+
+- **Functional tests** must assert on actual data returned by MCP tool calls, not just UI text presence.
+- **Regression tests** must cover the full user journey end-to-end (register → action → verify outcome).
+- **Smoke tests** must complete in under 30 seconds total.
+- **API tests** use Playwright `request` context — no browser needed.
+
+## Coverage Requirements
+
+- Every `callTool()` call-site in the frontend MUST have at least one corresponding test.
+- Every new page added to the app MUST have a smoke test (renders without error) and at least one functional test.
+- Every Canadian compliance rule (tax, permits, hazmat, CAW, ISRI) MUST have a compliance test.
+
+## Flaky Test Policy
+
+- Never use `test.skip()` without linking to a GitHub issue explaining why.
+- Use `test.fixme()` for known broken tests that need fixing — these are tracked and must be resolved within 1 sprint.
+- If a test fails intermittently 3+ times, investigate root cause before marking fixme.
+
+## Test Data
+
+- Tests run against the gateway's dev-mode in-memory stores — no database required.
+- Each test suite should be independent — do not rely on state from other suites.
+- Use unique emails per test to avoid collisions: `test-{randomSuffix}@matex-qa.com`.
+- The gateway restarts clear all in-memory data — tests must be self-contained.
+
+## Canadian Compliance Tests
+
+These tests enforce regulatory requirements and must NEVER be skipped:
+- Provincial tax calculations (10 provinces, correct HST/GST/PST/QST rates)
+- Invoice number format: `MTX-YYYY-NNNNNN`
+- CRA Business Number validation: `^\d{9}(RT\d{4})?$`
+- Environmental permit fields present in listing creation
+- Hazmat class options match TDG regulations (Class 8, Class 9)
+- ISRI material categories present in category dropdown
+- Weight units include metric tons (mt) and kilograms (kg)
+- All 13 Canadian provinces/territories in province selectors
+- Escrow mandatory for transactions >= $5,000 CAD
+- Commission rates: 3.5% standard (min $25, max $5,000), 4.0% auction (min $50, max $7,500)

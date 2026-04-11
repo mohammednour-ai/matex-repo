@@ -17,6 +17,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type ContractType = "standing" | "volume" | "hybrid" | "index_linked" | "rfq_framework" | "consignment";
 type ContractStatus = "draft" | "pending_signature" | "active" | "suspended" | "expired" | "breached";
@@ -250,14 +251,12 @@ export default function ContractsPage() {
   }, {});
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Supply Contracts</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage standing orders, volume agreements, and index-linked pricing.</p>
-        </div>
-        <Button size="sm">+ New Contract</Button>
-      </div>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="Supply Contracts"
+        description="Manage standing orders, volume agreements, and index-linked pricing."
+        actions={<Button size="sm">+ New Contract</Button>}
+      />
 
       {/* LME Price Widget */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -265,7 +264,7 @@ export default function ContractsPage() {
           const contractsUsingThis = contracts.filter((c) => c.index_name === p.commodity && c.status === "active");
           const impliedCAD = p.price * 1.38;
           return (
-            <div key={p.commodity} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={p.commodity} className="marketplace-card p-4">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-semibold text-slate-500">{p.commodity}</p>
                 <button onClick={loadPrices} className="text-slate-300 hover:text-slate-500">
@@ -295,7 +294,7 @@ export default function ContractsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="marketplace-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead>

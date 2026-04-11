@@ -126,12 +126,18 @@ const TOOL_PATTERNS: Array<{
     description: "Check your notifications",
   },
 
-  // Pricing
+  // Pricing (listing workflow)
   {
     pattern: /market\s+prices?\s+(?:for\s+)?(.+)/i,
     tool: "pricing.get_market_prices",
     buildArgs: (m) => ({ material: m[1].trim() }),
     description: "Get market prices for a material",
+  },
+  {
+    pattern: /^(?:commodity|index)\s+price\s+for\s+(.+)/i,
+    tool: "pricing.get_market_prices",
+    buildArgs: (m) => ({ material: m[1].trim() }),
+    description: "Commodity / index price lookup",
   },
 
   // Bookings & scheduling
@@ -216,46 +222,126 @@ const SUGGESTION_HINTS = [
   "track shipment ship-001",
 ];
 
+const LISTING_CREATE_HINTS = [
+  "market prices for copper",
+  "commodity price for aluminum",
+  "my listings",
+  "calculate tax for $5000 ON ON",
+  "dashboard stats",
+  "shipping quotes",
+  "show my draft",
+  "book inspection for listing-xyz",
+];
+
 type RequestBody = {
   message: string;
   context?: Record<string, unknown>;
   token?: string;
 };
 
+function tryContextualTool(
+  trimmed: string,
+  context: Record<string, unknown> | undefined,
+): { tool: string; args: Record<string, unknown> } | null {
+  const lid =
+    typeof context?.listing_id === "string" ? context.listing_id.trim() : "";
+  if (!lid) return null;
+
+  if (/^(show my draft|draft listing details|get this listing)$/i.test(trimmed)) {
+    return { tool: "listing.get_listing", args: { listing_id: lid } };
+  }
+  if (/^book inspection for this listing$/i.test(trimmed)) {
+    return { tool: "inspection.request_inspection", args: { listing_id: lid } };
+  }
+  return null;
+}
+
+function summarizeToolResult(tool: string, payload: unknown): string {
+  const p = payload as { success?: boolean } | null;
+  const ok = p == null || typeof p !== "object" || p.success !== false;
+
+  if (!ok) {
+    return `MCP returned an error for \`${tool}\`. See the tool badge below for details.`;
+  }
+  switch (tool) {
+    case "pricing.get_market_prices":
+      return `Pulled market pricing via MCP (\`${tool}\`).`;
+    case "listing.get_listing":
+      return `Loaded listing data via \`${tool}\`.`;
+    case "listing.get_my_listings":
+      return `Fetched your listings through \`${tool}\`.`;
+    case "listing.create_listing":
+      return `Listing create tool invoked (\`${tool}\`).`;
+    case "search.search_materials":
+      return `Searched the marketplace via \`${tool}\`.`;
+    case "tax.calculate_tax":
+      return `Tax calculation completed (\`${tool}\`).`;
+    case "analytics.get_dashboard_stats":
+      return `Dashboard stats loaded via \`${tool}\`.`;
+    case "inspection.request_inspection":
+      return `Inspection request sent via \`${tool}\`.`;
+    default:
+      return `Completed \`${tool}\` via the MCP gateway.`;
+  }
+}
+
+async function runTool(
+  req: NextRequest,
+  tool: string,
+  args: Record<string, unknown>,
+  token: string | undefined,
+) {
+  const mcpRes = await fetch(`${req.nextUrl.origin}/api/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tool, args, token }),
+  });
+
+  const data = (await mcpRes.json()) as unknown;
+
+  return NextResponse.json({
+    content: summarizeToolResult(tool, data),
+    tool_call: { tool, args, result: data },
+  });
+}
+
 export async function POST(req: NextRequest) {
   const { message, context, token } = (await req.json()) as RequestBody;
   const trimmed = message.trim();
+
+  const ctx = context && typeof context === "object" ? context : undefined;
+  const contextual = tryContextualTool(trimmed, ctx);
+  if (contextual) {
+    return runTool(req, contextual.tool, contextual.args, token);
+  }
 
   for (const { pattern, tool, buildArgs } of TOOL_PATTERNS) {
     const match = trimmed.match(pattern);
     if (match) {
       const args = buildArgs(match, trimmed);
-
-      const mcpRes = await fetch(
-        `${req.nextUrl.origin}/api/mcp`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ tool, args, token }),
-        },
-      );
-
-      const data = (await mcpRes.json()) as unknown;
-
-      return NextResponse.json({
-        content: `Called \`${tool}\` successfully.`,
-        tool_call: { tool, args, result: data },
-      });
+      return runTool(req, tool, args, token);
     }
   }
 
-  // No match — return helpful suggestion
-  const sample = SUGGESTION_HINTS.slice(0, 6)
+  const page = typeof ctx?.page === "string" ? ctx.page : "";
+  const step = ctx?.step;
+  const stepLabel =
+    typeof step === "number" && step >= 1 && step <= 99 ? ` (step ${step})` : "";
+
+  const hints =
+    page === "listing-create" ? LISTING_CREATE_HINTS : SUGGESTION_HINTS;
+  const sample = hints
+    .slice(0, 6)
     .map((h) => `• "${h}"`)
     .join("\n");
 
+  const prefix =
+    page === "listing-create"
+      ? `You're on **Create listing**${stepLabel}. Try:\n`
+      : "";
+
   return NextResponse.json({
-    content: `I didn't understand "${trimmed}". Here are some things you can ask:\n${sample}\n\nFor a full list of commands, type "help".`,
+    content: `${prefix}I didn't understand "${trimmed}". Here are some things you can ask:\n${sample}\n\nFor more commands, open the full **Chat** page from the nav.`,
     tool_call: null,
   });
 }

@@ -62,10 +62,147 @@ function createPool(): pg.Pool | null {
   return new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 });
 }
 
+let matexAuxTablesEnsured = false;
+async function ensureMatexAuxTables(pool: pg.Pool): Promise<boolean> {
+  if (matexAuxTablesEnsured) return true;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.matex_platform_config (
+        config_key TEXT PRIMARY KEY,
+        config_value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS public.matex_admin_operators (
+        user_id UUID PRIMARY KEY
+      );
+    `);
+    matexAuxTablesEnsured = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const VALID_ACCOUNT_STATUS = new Set(["active", "suspended", "pending_review", "deactivated", "banned"]);
+const VALID_ACCOUNT_TYPE = new Set(["individual", "corporate", "carrier", "inspector"]);
+const VALID_LISTING_STATUS = new Set(["draft", "pending_review", "active", "sold", "expired", "cancelled", "suspended"]);
+
 function asUuidOrNew(value: unknown): string {
   const v = String(value ?? "");
   const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRe.test(v) ? v : randomUUID();
+}
+
+type SaleModeUi = "fixed" | "bidding" | "auction";
+
+function saleModeFromPriceType(pt: string): SaleModeUi {
+  const p = (pt || "fixed").toLowerCase();
+  if (p === "auction") return "auction";
+  if (p === "negotiable") return "bidding";
+  return "fixed";
+}
+
+function pickupProvince(addr: unknown): string {
+  if (addr && typeof addr === "object" && "province" in addr) {
+    return String((addr as { province?: string }).province ?? "ON").slice(0, 2).toUpperCase();
+  }
+  return "ON";
+}
+
+function imageUrlsFromJson(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((img) =>
+      typeof img === "object" && img && "url" in img ? String((img as { url: string }).url) : String(img),
+    )
+    .filter((u) => u.length > 0);
+}
+
+/** Map DB listing_status to My Listings UI tabs */
+function mapUiListingStatus(dbStatus: string): string {
+  if (dbStatus === "cancelled" || dbStatus === "suspended") return "archived";
+  if (dbStatus === "expired") return "ended";
+  if (dbStatus === "pending_review") return "draft";
+  return dbStatus;
+}
+
+function mapListingRowForMyListings(row: Record<string, unknown>): Record<string, unknown> {
+  const imgs = imageUrlsFromJson(row.images);
+  return {
+    ...row,
+    sale_mode: saleModeFromPriceType(String(row.price_type ?? "fixed")),
+    thumbnail_url: imgs[0],
+    view_count: Number(row.views_count ?? 0),
+    bids_count: 0,
+    category: row.category_name ?? undefined,
+    status: mapUiListingStatus(String(row.status ?? "draft")),
+    asking_price: row.asking_price != null ? Number(row.asking_price) : undefined,
+  };
+}
+
+function mapListingRowForSearch(row: Record<string, unknown>): Record<string, unknown> {
+  const addr = row.pickup_address;
+  const priceType = String(row.price_type ?? "fixed");
+  const asking = Number(row.asking_price ?? 0);
+  return {
+    listing_id: row.listing_id,
+    title: row.title,
+    sale_mode: saleModeFromPriceType(priceType),
+    price: asking,
+    unit: row.unit,
+    quantity: Number(row.quantity ?? 0),
+    material_grade: String(row.quality_grade ?? "—"),
+    seller_province: pickupProvince(addr),
+    inspection_required: Boolean(row.inspection_required),
+    photo_url: imageUrlsFromJson(row.images)[0],
+    created_at: row.created_at,
+    currency: "CAD",
+    bid_count: 0,
+    current_bid: asking,
+  };
+}
+
+function mapListingRowForDetail(row: Record<string, unknown>): Record<string, unknown> {
+  const imgs = imageUrlsFromJson(row.images);
+  const addr = row.pickup_address;
+  const qd = row.quality_details;
+  const qc = qd && typeof qd === "object" ? (qd as Record<string, unknown>) : {};
+  const company = row.company_name ? String(row.company_name) : "";
+  const fn = String(row.first_name ?? "");
+  const ln = String(row.last_name ?? "");
+  const display = String(row.display_name ?? "").trim();
+  const sellerName = company || display || `${fn} ${ln}`.trim() || "Seller";
+
+  return {
+    listing_id: row.listing_id,
+    title: row.title,
+    description: String(row.description ?? ""),
+    sale_mode: saleModeFromPriceType(String(row.price_type ?? "fixed")),
+    price: Number(row.asking_price ?? 0),
+    unit: String(row.unit ?? "kg"),
+    quantity: Number(row.quantity ?? 0),
+    currency: "CAD",
+    material_category: String(row.category_name ?? "Materials"),
+    material_grade: String(row.quality_grade ?? "—"),
+    contamination_pct: Number(qc.contamination_pct ?? 0),
+    moisture_pct: Number(qc.moisture_pct ?? 0),
+    hazmat_class: "none",
+    inspection_required: Boolean(row.inspection_required),
+    seller_id: row.seller_id,
+    seller_name: sellerName,
+    seller_province: pickupProvince(addr),
+    seller_kyc_level: 2,
+    seller_pis_score: 88,
+    created_at: String(row.created_at ?? new Date().toISOString()),
+    photos: imgs,
+    video_url: undefined,
+    certifications: Array.isArray(row.certifications) ? row.certifications : [],
+    chain_of_custody: "",
+    environmental_classification: "standard",
+    environmental_permits: Array.isArray(row.environmental_permits) ? row.environmental_permits : [],
+    asking_price: row.asking_price,
+    status: row.status,
+  };
 }
 
 async function ensureOrder(pool: pg.Pool, orderId: string, userId: string): Promise<string> {
@@ -104,7 +241,11 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const email = String(args.email ?? "").toLowerCase().trim();
     const password = String(args.password ?? "");
     if (!email || !password) return err("VALIDATION_ERROR", "email and password are required.");
-    const row = await pool.query(`select user_id, password_hash from auth_mcp.users where email = $1 limit 1`, [email]);
+    const row = await pool.query(
+      `select user_id, password_hash, account_type::text as account_type, account_status::text as account_status
+       from auth_mcp.users where email = $1 limit 1`,
+      [email],
+    );
     const user = row.rows[0];
     if (!user) return err("AUTH_ERROR", "Invalid credentials.");
     if (user.password_hash !== password && user.password_hash !== createHash("sha256").update(password).digest("hex")) {
@@ -113,7 +254,19 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const userId = String(user.user_id);
     const accessToken = signJwt({ sub: userId, scope: "access" }, 900);
     const refreshToken = signJwt({ sub: userId, scope: "refresh" }, 604800);
-    return ok({ user_id: userId, tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 900 } });
+    let is_platform_admin = false;
+    const auxOk = await ensureMatexAuxTables(pool);
+    if (auxOk) {
+      const adm = await pool.query(`select 1 from public.matex_admin_operators where user_id = $1 limit 1`, [userId]);
+      is_platform_admin = (adm.rowCount ?? 0) > 0;
+    }
+    return ok({
+      user_id: userId,
+      account_type: String(user.account_type ?? "individual"),
+      account_status: String(user.account_status ?? "pending_review"),
+      is_platform_admin,
+      tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 900 },
+    });
   }
 
   // listing/search
@@ -175,16 +328,20 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok(result.rows[0] ?? {});
   }
   if (tool === "search.search_materials") {
-    const q = String(args.query ?? "");
+    const q = String(args.query ?? "").trim();
+    const pattern = `%${q}%`;
     const result = await pool.query(
-      `select listing_id,title,description,status,asking_price
-       from listing_mcp.listings
-       where status='active' and (title ilike $1 or description ilike $1)
-       order by created_at desc
+      `select l.*, c.name as category_name
+       from listing_mcp.listings l
+       join listing_mcp.categories c on c.category_id = l.category_id
+       where l.status = 'active'
+         and ($1 = '' or l.title ilike $2 or l.description ilike $2)
+       order by l.created_at desc
        limit 100`,
-      [`%${q}%`],
+      [q, pattern],
     );
-    return ok({ results: result.rows, total: result.rows.length });
+    const rows = result.rows.map((row) => mapListingRowForSearch(row as Record<string, unknown>));
+    return ok({ results: rows, total: rows.length });
   }
 
   // messaging
@@ -594,7 +751,17 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const users = (await pool.query(`select count(*)::int as cnt from auth_mcp.users`)).rows[0]?.cnt ?? 0;
     const escrowHeld = (await pool.query(`select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held'`)).rows[0]?.total ?? 0;
     const auctions = (await pool.query(`select count(*)::int as cnt from auction_mcp.auctions where status='live'`)).rows[0]?.cnt ?? 0;
-    return ok({ active_listings: listings, total_users: users, escrow_held: Number(escrowHeld), active_auctions: auctions });
+    const escrowCount = (await pool.query(`select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held')`)).rows[0]?.cnt ?? 0;
+    return ok({
+      active_listings: listings,
+      total_users: users,
+      escrow_held: Number(escrowHeld),
+      active_escrows: escrowCount,
+      active_auctions: auctions,
+      listings_change_pct: null,
+      orders_pending_action: 0,
+      orders_in_transit: 0,
+    });
   }
   if (tool === "analytics.get_revenue_report") {
     const period = String(args.period ?? "30d");
@@ -700,9 +867,142 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   if (tool === "admin.moderate_listing") {
     const listingId = String(args.listing_id ?? "");
     const action = String(args.action ?? "remove");
-    const newStatus = action === "remove" ? "removed" : action === "flag" ? "flagged" : "suspended";
-    await pool.query(`update listing_mcp.listings set status=$2,updated_at=now() where listing_id=$1`, [listingId, newStatus]);
+    const newStatus = action === "remove" ? "cancelled" : action === "flag" ? "suspended" : "suspended";
+    await pool.query(`update listing_mcp.listings set status=$2::listing_status,updated_at=now() where listing_id=$1`, [listingId, newStatus]);
     return ok({ listing_id: listingId, status: newStatus });
+  }
+  if (tool === "admin.list_users") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (
+      await pool.query(
+        `select user_id, email, phone, account_type::text, account_status::text, email_verified, phone_verified, created_at
+         from auth_mcp.users order by created_at desc limit $1`,
+        [limit],
+      )
+    ).rows;
+    return ok({ users: rows, total: rows.length });
+  }
+  if (tool === "admin.update_user") {
+    const userId = String(args.user_id ?? "");
+    if (!userId) return err("VALIDATION_ERROR", "user_id is required.");
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    if (args.account_status !== undefined && args.account_status !== null && String(args.account_status) !== "") {
+      const s = String(args.account_status);
+      if (!VALID_ACCOUNT_STATUS.has(s)) return err("VALIDATION_ERROR", `Invalid account_status: ${s}`);
+      sets.push(`account_status = $${i}::account_status`);
+      vals.push(s);
+      i++;
+    }
+    if (args.account_type !== undefined && args.account_type !== null && String(args.account_type) !== "") {
+      const t = String(args.account_type);
+      if (!VALID_ACCOUNT_TYPE.has(t)) return err("VALIDATION_ERROR", `Invalid account_type: ${t}`);
+      sets.push(`account_type = $${i}::account_type`);
+      vals.push(t);
+      i++;
+    }
+    if (args.phone !== undefined && args.phone !== null && String(args.phone).trim() !== "") {
+      sets.push(`phone = $${i}`);
+      vals.push(String(args.phone).trim());
+      i++;
+    }
+    if (sets.length === 0) return err("VALIDATION_ERROR", "No fields to update (account_status, account_type, phone).");
+    vals.push(userId);
+    await pool.query(`update auth_mcp.users set ${sets.join(", ")}, updated_at = now() where user_id = $${i}`, vals);
+    return ok({ user_id: userId, updated: true });
+  }
+  if (tool === "admin.list_listings") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (
+      await pool.query(
+        `select l.listing_id, l.seller_id, l.title, l.status::text, l.price_type::text, l.asking_price, l.quantity, l.unit, l.created_at
+         from listing_mcp.listings l
+         order by l.created_at desc
+         limit $1`,
+        [limit],
+      )
+    ).rows;
+    return ok({ listings: rows, total: rows.length });
+  }
+  if (tool === "admin.update_listing_status") {
+    const listingId = String(args.listing_id ?? "");
+    const status = String(args.status ?? "");
+    if (!listingId || !VALID_LISTING_STATUS.has(status)) {
+      return err("VALIDATION_ERROR", "listing_id and valid status are required.");
+    }
+    await pool.query(`update listing_mcp.listings set status=$2::listing_status,updated_at=now() where listing_id=$1`, [listingId, status]);
+    return ok({ listing_id: listingId, status });
+  }
+  if (tool === "admin.list_escrows") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (await pool.query(`select * from escrow_mcp.escrows order by updated_at desc limit $1`, [limit])).rows;
+    return ok({ escrows: rows, total: rows.length });
+  }
+  if (tool === "admin.list_auctions") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 50), 1), 200);
+    const rows = (
+      await pool.query(
+        `select a.*,
+          (select count(*)::int from auction_mcp.lots l where l.auction_id = a.auction_id) as lot_count
+         from auction_mcp.auctions a
+         order by a.created_at desc
+         limit $1`,
+        [limit],
+      )
+    ).rows;
+    return ok({ auctions: rows, total: rows.length });
+  }
+  if (tool === "admin.list_lots") {
+    const auctionId = args.auction_id ? String(args.auction_id) : null;
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = auctionId
+      ? (await pool.query(`select * from auction_mcp.lots where auction_id = $1 order by lot_number`, [auctionId])).rows
+      : (await pool.query(`select * from auction_mcp.lots order by opened_at desc nulls last, auction_id, lot_number limit $1`, [limit])).rows;
+    return ok({ lots: rows, total: rows.length });
+  }
+  if (tool === "admin.list_orders") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (await pool.query(`select * from orders_mcp.orders order by created_at desc limit $1`, [limit])).rows;
+    return ok({ orders: rows, total: rows.length });
+  }
+  if (tool === "admin.update_order_status") {
+    const orderId = String(args.order_id ?? "");
+    const status = String(args.status ?? "");
+    if (!orderId || !status) return err("VALIDATION_ERROR", "order_id and status are required.");
+    await pool.query(`update orders_mcp.orders set status=$2, updated_at=now() where order_id=$1`, [orderId, status]);
+    return ok({ order_id: orderId, status });
+  }
+  if (tool === "admin.list_bids") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (await pool.query(`select * from bidding_mcp.bids order by server_timestamp desc nulls last limit $1`, [limit])).rows;
+    return ok({ bids: rows, total: rows.length });
+  }
+  if (tool === "admin.list_transactions") {
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+    const rows = (await pool.query(`select * from payments_mcp.transactions order by created_at desc limit $1`, [limit])).rows;
+    return ok({ transactions: rows, total: rows.length });
+  }
+  if (tool === "admin.list_platform_config") {
+    const ready = await ensureMatexAuxTables(pool);
+    if (!ready) return err("CONFIG_ERROR", "Could not ensure public.matex_platform_config (database permissions).");
+    const rows = (await pool.query(`select config_key, config_value, updated_at from public.matex_platform_config order by config_key`)).rows;
+    return ok({ entries: rows, total: rows.length });
+  }
+  if (tool === "admin.grant_platform_admin") {
+    const targetId = String(args.user_id ?? "");
+    if (!targetId) return err("VALIDATION_ERROR", "user_id is required.");
+    const ready = await ensureMatexAuxTables(pool);
+    if (!ready) return err("CONFIG_ERROR", "Could not ensure matex_admin_operators table.");
+    await pool.query(`insert into public.matex_admin_operators (user_id) values ($1) on conflict (user_id) do nothing`, [targetId]);
+    return ok({ user_id: targetId, granted: true });
+  }
+  if (tool === "admin.revoke_platform_admin") {
+    const targetId = String(args.user_id ?? "");
+    if (!targetId) return err("VALIDATION_ERROR", "user_id is required.");
+    await ensureMatexAuxTables(pool);
+    await pool.query(`delete from public.matex_admin_operators where user_id = $1`, [targetId]);
+    return ok({ user_id: targetId, revoked: true });
   }
 
   // ── missing auth tools ──
@@ -779,12 +1079,41 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ listing_id: listingId, file_id: fileId, images_uploaded: true, note: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for real storage upload" });
   }
   if (tool === "listing.get_listing") {
-    const row = (await pool.query(`select * from listing_mcp.listings where listing_id=$1`, [String(args.listing_id ?? "")])).rows[0];
-    return ok({ listing: row ?? null });
+    const row = (
+      await pool.query(
+        `select l.*, c.name as category_name,
+          p.first_name, p.last_name, p.display_name,
+          (select co.company_name from profile_mcp.companies co where co.user_id = l.seller_id order by co.created_at asc limit 1) as company_name
+         from listing_mcp.listings l
+         join listing_mcp.categories c on c.category_id = l.category_id
+         left join profile_mcp.profiles p on p.user_id = l.seller_id
+         where l.listing_id = $1
+         limit 1`,
+        [String(args.listing_id ?? "")],
+      )
+    ).rows[0];
+    const listing = row ? mapListingRowForDetail(row as Record<string, unknown>) : null;
+    return ok({ listing });
   }
   if (tool === "listing.get_my_listings") {
-    const rows = (await pool.query(`select * from listing_mcp.listings where seller_id=$1 order by created_at desc`, [String(args.seller_id ?? "")])).rows;
-    return ok({ listings: rows, total: rows.length });
+    const rows = (
+      await pool.query(
+        `select l.*, c.name as category_name
+         from listing_mcp.listings l
+         join listing_mcp.categories c on c.category_id = l.category_id
+         where l.seller_id = $1
+         order by l.created_at desc`,
+        [String(args.seller_id ?? "")],
+      )
+    ).rows;
+    const mapped = rows.map((row) => mapListingRowForMyListings(row as Record<string, unknown>));
+    return ok({ listings: mapped, total: mapped.length });
+  }
+  if (tool === "listing.archive_listing") {
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return err("VALIDATION_ERROR", "listing_id is required.");
+    await pool.query(`update listing_mcp.listings set status = 'cancelled', updated_at = now() where listing_id = $1`, [listingId]);
+    return ok({ listing_id: listingId, status: "archived" });
   }
 
   // ── missing search tools ──
@@ -805,11 +1134,13 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   }
   if (tool === "search.save_search") {
     const searchId = randomUUID();
+    const q = String(args.query ?? args.name ?? "");
     await pool.query(
-      `insert into listing_mcp.saved_searches (search_id,user_id,name,filters) values ($1,$2,$3,$4::jsonb)`,
-      [searchId, String(args.user_id ?? ""), String(args.name ?? "Saved search"), JSON.stringify(args.filters ?? {})],
+      `insert into listing_mcp.saved_searches (saved_search_id,user_id,name,query,filters,alert_enabled,alert_channels)
+       values ($1,$2,$3,$4,$5::jsonb,true,'["email"]'::jsonb)`,
+      [searchId, String(args.user_id ?? ""), String(args.name ?? "Saved search"), q, JSON.stringify(args.filters ?? {})],
     );
-    return ok({ search_id: searchId });
+    return ok({ search_id: searchId, saved_search_id: searchId });
   }
   if (tool === "search.get_saved_searches") {
     const rows = (await pool.query(`select * from listing_mcp.saved_searches where user_id=$1 order by created_at desc`, [String(args.user_id ?? "")])).rows;
@@ -1133,7 +1464,18 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ entries: rows, total: rows.length });
   }
   if (tool === "admin.update_platform_config") {
-    return ok({ key: String(args.key ?? ""), value: String(args.value ?? ""), updated: true });
+    const key = String(args.key ?? "").trim();
+    const value = String(args.value ?? "");
+    if (!key) return err("VALIDATION_ERROR", "key is required.");
+    const ready = await ensureMatexAuxTables(pool);
+    if (!ready) return err("CONFIG_ERROR", "Could not ensure public.matex_platform_config.");
+    await pool.query(
+      `insert into public.matex_platform_config (config_key, config_value, updated_at)
+       values ($1, $2, now())
+       on conflict (config_key) do update set config_value = $2, updated_at = now()`,
+      [key, value],
+    );
+    return ok({ key, value, updated: true });
   }
 
   // ── esign tools ──

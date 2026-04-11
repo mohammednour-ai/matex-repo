@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "pnpm --filter @matex/web dev",
     "dev:gateway": "pnpm --filter @matex/mcp-gateway dev",
+    "dev:web-v2-stack": "pnpm -r --parallel --filter @matex/mcp-gateway --filter @matex/web-v2 dev",
     "dev:http-adapters": "tsx scripts/start-http-adapters.ts",
     "dev:all": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
@@ -22,6 +23,7 @@
     "db:migrate": "pnpm exec supabase db push",
     "db:reset": "pnpm exec supabase db reset",
     "db:seed": "pnpm exec supabase db seed",
+    "db:seed:xlsx": "node scripts/seed-matex-from-xlsx.mjs",
     "clean": "pnpm -r exec rm -rf node_modules dist .next .turbo",
     "healthcheck": "node scripts/health-check.mjs",
     "validate-env": "node scripts/validate-env.mjs",

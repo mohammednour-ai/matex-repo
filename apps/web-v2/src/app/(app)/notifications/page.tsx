@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import clsx from "clsx";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -332,44 +333,43 @@ export default function NotificationsPage() {
     return notifications.filter((n) => n.type === tab).length;
   };
 
-  return (
-    <div className="max-w-3xl mx-auto">
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {unreadCount > 0 ? (
-              <>
-                <span className="font-semibold text-brand-600">{unreadCount} unread</span>
-                {" · "}
-              </>
-            ) : null}
-            {notifications.length} total
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void fetchNotifications()}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            aria-label="Refresh notifications"
-            title="Refresh"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
-          <button
-            onClick={() => void markAllRead()}
-            disabled={unreadCount === 0}
-            className="text-sm font-medium text-brand-600 hover:text-brand-800 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors"
-          >
-            Mark all read
-          </button>
-        </div>
-      </div>
+  const notifDescription =
+    unreadCount > 0
+      ? `${unreadCount} unread · ${notifications.length} total`
+      : `${notifications.length} total`;
 
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <AppPageHeader
+        title="Notifications"
+        description={notifDescription}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => void fetchNotifications()}
+              className="rounded-xl p-2 text-steel-400 transition-colors hover:bg-steel-100 hover:text-steel-800"
+              aria-label="Refresh notifications"
+              title="Refresh"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void markAllRead()}
+              disabled={unreadCount === 0}
+              className="rounded-xl px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Mark all read
+            </button>
+          </>
+        }
+      />
+
+      <div className="marketplace-card overflow-hidden">
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-0">
-        <div className="flex gap-0 overflow-x-auto scrollbar-hide -mb-px">
+      <div className="mb-0 border-b border-steel-200/80">
+        <div className="-mb-px flex gap-0 overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => {
             const count = tabCount(tab.id);
             const active = activeTab === tab.id;
@@ -472,6 +472,7 @@ export default function NotificationsPage() {
               ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -18,9 +18,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
-import { callTool, extractId } from "@/lib/api";
+import { callTool, extractId, getUser } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ function SaleModeBadge({ mode }: { mode: SaleMode }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-        mode === "fixed" && "bg-blue-50 text-blue-700 ring-blue-600/20",
+        mode === "fixed" && "bg-brand-50 text-brand-700 ring-brand-600/20",
         mode === "bidding" && "bg-amber-50 text-amber-700 ring-amber-600/20",
         mode === "auction" && "bg-purple-50 text-purple-700 ring-purple-600/20"
       )}
@@ -227,7 +228,7 @@ function ListingCardItem({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/listings/${listing.listing_id}`}
-            className="text-sm font-semibold text-slate-800 hover:text-blue-600 transition-colors leading-snug line-clamp-2 flex-1"
+            className="text-sm font-semibold text-slate-800 hover:text-brand-600 transition-colors leading-snug line-clamp-2 flex-1"
           >
             {listing.title}
           </Link>
@@ -366,7 +367,7 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
   const stats = [
     { label: "Active", value: active, color: "text-emerald-600" },
     { label: "Drafts", value: draft, color: "text-slate-600" },
-    { label: "Sold", value: sold, color: "text-blue-600" },
+    { label: "Sold", value: sold, color: "text-brand-600" },
     { label: "Total views", value: totalViews, color: "text-purple-600" },
   ];
 
@@ -427,12 +428,10 @@ export default function MyListingsPage() {
     try {
       const res = await callTool<{ listings: ListingCard[] }>(
         "listing.get_my_listings",
-        {}
+        { seller_id: getUser()?.userId ?? "" }
       );
-      const raw =
-        res.data?.listings ??
-        (res.data as unknown as ListingCard[]) ??
-        [];
+      const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+      const raw = (upData?.listings ?? res.data?.listings ?? []) as ListingCard[];
       setListings(Array.isArray(raw) ? raw : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load listings");
@@ -476,31 +475,25 @@ export default function MyListingsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Page header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">My Listings</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Manage and track your materials on the marketplace
-          </p>
-        </div>
-        <Button
-          onClick={() => router.push("/listings/create")}
-          className="gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Create listing</span>
-          <span className="sm:hidden">Create</span>
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="My Listings"
+        description="Manage and track your materials on the marketplace"
+        actions={
+          <Button onClick={() => router.push("/listings/create")} className="shrink-0 gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Create listing</span>
+            <span className="sm:hidden">Create</span>
+          </Button>
+        }
+      />
 
       {/* Stats */}
       {!loading && listings.length > 0 && <SummaryStats listings={listings} />}
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 mb-6">
+        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
           <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
           <p className="text-sm text-red-700">{error}</p>
           <button
@@ -513,7 +506,7 @@ export default function MyListingsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
+      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-steel-200">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -521,8 +514,8 @@ export default function MyListingsPage() {
             className={clsx(
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
               activeTab === tab.id
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                ? "border-brand-600 text-brand-600"
+                : "border-transparent text-steel-500 hover:border-steel-300 hover:text-steel-800"
             )}
           >
             {tab.label}
@@ -531,8 +524,8 @@ export default function MyListingsPage() {
                 className={clsx(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold min-w-[18px] text-center",
                   activeTab === tab.id
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-slate-100 text-slate-500"
+                    ? "bg-brand-100 text-brand-700"
+                    : "bg-steel-100 text-steel-600"
                 )}
               >
                 {tabCounts[tab.id]}

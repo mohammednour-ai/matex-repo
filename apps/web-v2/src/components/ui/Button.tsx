@@ -5,20 +5,22 @@ import clsx from "clsx";
 import { Spinner } from "./Spinner";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: "primary" | "secondary" | "accent" | "danger" | "ghost";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
 };
 
 const variantClasses: Record<NonNullable<ButtonProps["variant"]>, string> = {
   primary:
-    "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 disabled:bg-blue-300",
+    "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 disabled:bg-brand-300 shadow-sm hover:shadow-glow-brand",
   secondary:
-    "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-400 disabled:text-slate-400",
+    "bg-white text-steel-700 border border-steel-200 hover:bg-surface-100 hover:border-steel-300 focus-visible:ring-steel-400 disabled:text-steel-400",
+  accent:
+    "bg-accent-500 text-white hover:bg-accent-600 focus-visible:ring-accent-400 disabled:bg-accent-300 shadow-sm hover:shadow-glow-accent",
   danger:
-    "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 disabled:bg-red-300",
+    "bg-danger-600 text-white hover:bg-danger-700 focus-visible:ring-danger-500 disabled:bg-danger-300",
   ghost:
-    "bg-transparent text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-400 disabled:text-slate-400",
+    "bg-transparent text-steel-600 hover:bg-steel-100 focus-visible:ring-steel-400 disabled:text-steel-400",
 };
 
 const sizeClasses: Record<NonNullable<ButtonProps["size"]>, string> = {
@@ -45,8 +47,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={clsx(
-          "inline-flex items-center justify-center font-medium rounded-lg",
-          "transition-colors duration-150",
+          "inline-flex items-center justify-center font-semibold rounded-xl",
+          "transition-all duration-150",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed",
           variantClasses[variant],

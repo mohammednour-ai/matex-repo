@@ -17,6 +17,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 type InspectionStatus = "scheduled" | "in_progress" | "completed" | "cancelled" | "failed";
 type InspectionType = "pre_shipment" | "delivery" | "weight_verification" | "quality_grading" | "lab_sample";
@@ -163,31 +164,33 @@ export default function InspectionPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Inspections</h1>
-          <p className="mt-1 text-sm text-slate-500">Track weight certification and quality grading for your orders.</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setView("list")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              view === "list" ? "bg-blue-600 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <List className="h-4 w-4" /> List
-          </button>
-          <button
-            onClick={() => setView("calendar")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              view === "calendar" ? "bg-blue-600 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Calendar className="h-4 w-4" /> Week
-          </button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <AppPageHeader
+        title="Inspections"
+        description="Track weight certification and quality grading for your orders."
+        actions={
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setView("list")}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                view === "list" ? "bg-brand-600 text-white shadow-sm" : "border border-steel-300 text-steel-600 hover:bg-steel-50"
+              }`}
+            >
+              <List className="h-4 w-4" /> List
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("calendar")}
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                view === "calendar" ? "bg-brand-600 text-white shadow-sm" : "border border-steel-300 text-steel-600 hover:bg-steel-50"
+              }`}
+            >
+              <Calendar className="h-4 w-4" /> Week
+            </button>
+          </div>
+        }
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -197,7 +200,7 @@ export default function InspectionPage() {
           { label: "Completed", value: inspections.filter((i) => i.status === "completed").length, color: "text-emerald-600" },
           { label: "Failed", value: inspections.filter((i) => i.status === "failed").length, color: "text-red-600" },
         ].map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div key={c.label} className="marketplace-card p-4">
             <p className="text-xs text-slate-500">{c.label}</p>
             <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
           </div>
@@ -207,7 +210,7 @@ export default function InspectionPage() {
       {view === "calendar" ? (
         <CalendarView inspections={inspections} />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="marketplace-card overflow-hidden">
           <div className="divide-y divide-slate-100">
             {inspections.map((insp) => (
               <InspectionRow
