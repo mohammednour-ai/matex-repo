@@ -34,7 +34,8 @@ interface ToolResult {
   error?: { code: string; message: string };
 }
 
-const PORT = Number(process.env.MCP_GATEWAY_PORT ?? 3001);
+/** Railway / Render set `PORT`; local dev can use `MCP_GATEWAY_PORT` or default 3001. */
+const PORT = Number(process.env.PORT ?? process.env.MCP_GATEWAY_PORT ?? 3001);
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = Number(process.env.GATEWAY_RATE_LIMIT_MAX ?? 120);
