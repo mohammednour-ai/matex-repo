@@ -965,6 +965,10 @@ importers:
       ioredis:
         specifier: ^5.3.0
         version: 5.10.0
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.4.5
 
 packages:
 

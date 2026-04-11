@@ -1,1 +1,19 @@
-{"name":"@matex/utils","version":"0.1.0","private":true,"main":"src/index.ts","dependencies":{"@matex/types":"workspace:*","ioredis":"^5.3.0"}}
+{
+  "name": "@matex/utils",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@matex/types": "workspace:*",
+    "ioredis": "^5.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
+
