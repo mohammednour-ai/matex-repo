@@ -750,7 +750,7 @@ export default function LoginPage() {
             style={loginRevealDelay(0)}
           >
             <Image
-              src="/LogoOrange.png"
+              src="/LogoOrangeTrns.png"
               alt="Matex — Industrial Materials Exchange"
               width={220}
               height={75}
