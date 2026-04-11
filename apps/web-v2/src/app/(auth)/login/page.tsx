@@ -628,6 +628,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState<Tab>("login");
   const [showAllCaps, setShowAllCaps] = useState(false);
   const [bgVideoIndex, setBgVideoIndex] = useState(0);
+  const [bgVideoBroken, setBgVideoBroken] = useState(false);
   const [introReady, setIntroReady] = useState(false);
   const [loaderDone, setLoaderDone] = useState(false);
   const [loaderLine, setLoaderLine] = useState(0);
@@ -664,19 +665,29 @@ export default function LoginPage() {
       aria-busy={loaderDone ? undefined : true}
     >
       {/* Full-page video background — login-bg3 then login-bg2, repeating */}
-      <video
-        key={bgVideoIndex}
-        autoPlay
-        muted
-        playsInline
-        onEnded={() =>
-          setBgVideoIndex((i) => (i + 1) % LOGIN_BG_VIDEOS.length)
-        }
-        className="absolute inset-0 h-full min-h-full w-full object-cover"
-        aria-hidden
-      >
-        <source src={LOGIN_BG_VIDEOS[bgVideoIndex]} type="video/mp4" />
-      </video>
+      {bgVideoBroken ? (
+        <div
+          className="absolute inset-0 h-full min-h-full w-full bg-gradient-to-br from-zinc-950 via-slate-900 to-orange-950/35 bg-cover bg-center"
+          style={{ backgroundImage: "url('/login-bg.png')" }}
+          aria-hidden
+        />
+      ) : (
+        <video
+          key={bgVideoIndex}
+          autoPlay
+          muted
+          playsInline
+          poster="/login-bg.png"
+          onEnded={() =>
+            setBgVideoIndex((i) => (i + 1) % LOGIN_BG_VIDEOS.length)
+          }
+          onError={() => setBgVideoBroken(true)}
+          className="absolute inset-0 h-full min-h-full w-full object-cover"
+          aria-hidden
+        >
+          <source src={LOGIN_BG_VIDEOS[bgVideoIndex]} type="video/mp4" />
+        </video>
+      )}
       {/* Readability overlay */}
       <div
         className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-zinc-900/85"
@@ -739,7 +750,7 @@ export default function LoginPage() {
             style={loginRevealDelay(0)}
           >
             <Image
-              src="/LogoOrangeTrns.png"
+              src="/LogoOrange.png"
               alt="Matex — Industrial Materials Exchange"
               width={220}
               height={75}

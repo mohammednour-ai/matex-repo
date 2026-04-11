@@ -48,11 +48,16 @@ coverage/
 NUL
 apps/web-v2/NUL
 
-# Large binary files at root
+# Large binaries (default: ignore everywhere)
 *.mp4
 *.jpg
 *.png
 *.gif
+# Allow committed Next.js static assets (otherwise production 404s /login-bg*.mp4, logos, etc.)
+!apps/web-v2/public/**/*.mp4
+!apps/web-v2/public/**/*.jpg
+!apps/web-v2/public/**/*.png
+!apps/web-v2/public/**/*.gif
 
 # Supabase CLI workdir
 supabase/
