@@ -4,9 +4,11 @@
 
 ### 1. MCP Gateway
 - **Source path:** `apps/mcp-gateway`
-- **Start command:** `npx tsx src/index.ts`
-- **Port:** `3001` (set `MCP_GATEWAY_PORT=3001`)
+- **Start command:** `pnpm start` (after `pnpm build`) or `npx tsx src/index.ts` in dev
+- **Port:** `3001` inside the container (`MCP_GATEWAY_PORT=3001`); public URL is HTTPS on 443 via Railway
 - **Health check:** `GET /health`
+- **Production example (public base URL):** `https://matexmcp-gateway-production.up.railway.app`  
+  Set **`NEXT_PUBLIC_GATEWAY_URL`** on the web app to that origin (not `...:3001` unless you deliberately exposed it).
 
 ### 2. HTTP Adapters (all domains in one process)
 - **Source path:** root (uses `scripts/start-http-adapters.ts`)

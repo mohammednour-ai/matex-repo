@@ -14,7 +14,7 @@
 - [ ] `DATABASE_URL` set on Railway (both services)
 - [ ] `JWT_SECRET` set (min 32 chars, same value on gateway + adapters)
 - [ ] `REDIS_URL` set (Upstash Redis for event bus)
-- [ ] `NEXT_PUBLIC_GATEWAY_URL` set to `https://api.matexhub.ca` on Vercel
+- [ ] `NEXT_PUBLIC_GATEWAY_URL` set on the web app (e.g. `https://api.matexhub.ca` or interim Railway URL `https://matexmcp-gateway-production.up.railway.app` — no `:3001` on the public HTTPS origin)
 - [ ] `NEXT_PUBLIC_APP_URL` set to `https://matexhub.ca` on Vercel
 - [ ] `MCP_DOMAIN_ENDPOINTS_JSON` set on gateway with Railway internal URLs
 - [ ] `STRIPE_SECRET_KEY` set (live key for payments)
