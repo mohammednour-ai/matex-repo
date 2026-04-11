@@ -1,5 +1,3 @@
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? "http://localhost:3001";
-
 export type MCPResponse<T = Record<string, unknown>> = {
   success: boolean;
   data?: T & { upstream_response?: { data?: Record<string, unknown> } };

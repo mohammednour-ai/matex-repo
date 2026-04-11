@@ -19,7 +19,7 @@ For **local** web-v2 production-style runs on 3002: `PORT=3002 pnpm start` (or s
 - **Port:** Set Railway port to **`3001`** (or any value — must match **`PORT`**). Optional: `MCP_GATEWAY_PORT=3001` for local/docs; production uses **`PORT`** from Railway.
 - **Health check:** `GET /health`
 - **Production example (public base URL):** `https://matexmcp-gateway-production.up.railway.app`  
-  Set **`NEXT_PUBLIC_GATEWAY_URL`** on the web app to that origin (not `...:3001` unless you deliberately exposed it).
+  On **web-v2**, set **`MCP_GATEWAY_URL`** to that origin (server `/api/mcp` proxy; no rebuild needed). Optionally also set **`NEXT_PUBLIC_GATEWAY_URL`** to the same value for consistency (not `...:3001` on the public URL unless you exposed it).
 
 ### 2. HTTP Adapters (all domains in one process)
 - **Source path:** root (uses `scripts/start-http-adapters.ts`)
