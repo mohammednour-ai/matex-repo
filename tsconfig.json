@@ -19,12 +19,10 @@
       "@matex/utils": ["packages/shared/utils/src"]
     }
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    ".next",
-    "apps/web/**/*",
-    "apps/web-v2/**/*",
-    "apps/mobile/**/*"
-  ]
+  "include": [
+    "apps/mcp-gateway/**/*.ts",
+    "packages/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", ".next"]
 }

@@ -1,0 +1,10 @@
+# Include shared monorepo paths so changes outside apps/web-v2 still trigger deploys.
+[build]
+watchPatterns = [
+  "apps/web-v2/**",
+  "packages/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+]
