@@ -1,4 +1,8 @@
-import { test as base, type Page } from "@playwright/test";
+import {
+  test as base,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
 const GATEWAY = "http://localhost:3001";
 const BASE = "http://localhost:3002";
@@ -63,18 +67,18 @@ export async function seedAuth(page: Page): Promise<AuthContext> {
 }
 
 export async function apiRegister(
-  request: typeof base extends base.ExtendedTest<infer _T, infer _W> ? never : unknown,
+  request: APIRequestContext,
 ): Promise<{ userId: string; email: string; token: string }> {
   const email = uniqueEmail();
   const password = "TestPassword123!";
 
-  const regRes = await (request as any).post(`${GATEWAY}/tool`, {
+  const regRes = await request.post(`${GATEWAY}/tool`, {
     data: { tool: "auth.register", args: { email, phone: "+14165550199", password, account_type: "both" } },
   });
   const regJson = await regRes.json();
   const userId = regJson.data?.user_id ?? "";
 
-  const loginRes = await (request as any).post(`${GATEWAY}/tool`, {
+  const loginRes = await request.post(`${GATEWAY}/tool`, {
     data: { tool: "auth.login", args: { email, password } },
   });
   const loginJson = await loginRes.json();
