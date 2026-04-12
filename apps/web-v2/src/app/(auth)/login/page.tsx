@@ -736,17 +736,17 @@ export default function LoginPage() {
 
       <div
         className={clsx(
-          "relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col-reverse gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-8 sm:pt-8 lg:grid lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12 lg:gap-y-5 lg:px-10 lg:py-10 xl:gap-x-16",
+          "relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col-reverse gap-8 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-8 sm:pt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12 lg:gap-y-5 lg:px-10 lg:py-10 xl:gap-x-16",
           introReady && "login-reveal-active"
         )}
       >
-        {/* Hero: logo row 1 col 2; body row 2 col 2 (aligned with login card top) */}
+        {/* Hero: left column — logo row 1; body row 2 (aligned with login card top) */}
         <section
           className="flex min-w-0 flex-1 flex-col items-start text-left text-white lg:contents"
           aria-labelledby="login-hero-heading"
         >
           <div
-            className="login-reveal-item mb-4 flex flex-col items-start sm:mb-5 lg:col-start-2 lg:row-start-1 lg:mb-0"
+            className="login-reveal-item mb-4 flex flex-col items-start sm:mb-5 lg:col-start-1 lg:row-start-1 lg:mb-0"
             style={loginRevealDelay(0)}
           >
             <Image
@@ -758,7 +758,7 @@ export default function LoginPage() {
               priority
             />
           </div>
-          <div className="flex min-w-0 w-full flex-1 flex-col items-start text-left lg:col-start-2 lg:row-start-2 lg:max-w-xl lg:pb-8 xl:max-w-2xl">
+          <div className="flex min-w-0 w-full flex-1 flex-col items-start text-left lg:col-start-1 lg:row-start-2 lg:max-w-xl lg:pb-8 xl:max-w-2xl">
           <h1
             id="login-hero-heading"
             className="login-reveal-item mb-4 text-balance text-4xl font-black leading-[1.08] drop-shadow-md sm:mb-5 sm:text-5xl xl:text-6xl"
@@ -847,9 +847,9 @@ export default function LoginPage() {
           </div>
         </section>
 
-        {/* Sign-in — col 1 row 2; fixed max height with scroll for long register flow */}
+        {/* Sign-in — right column; fixed max height with scroll for long register flow */}
         <div
-          className="login-reveal-item flex w-full shrink-0 flex-col lg:col-start-1 lg:row-start-2 lg:sticky lg:top-8 lg:max-w-[420px] lg:self-start lg:pr-2"
+          className="login-reveal-item flex w-full shrink-0 flex-col lg:col-start-2 lg:row-start-2 lg:sticky lg:top-8 lg:max-w-[420px] lg:self-start lg:pl-2 lg:pr-0"
           style={loginRevealDelay(340)}
         >
           <div className="flex max-h-[min(78dvh,680px)] flex-col overflow-hidden rounded-2xl border border-slate-500/50 bg-slate-900/45 shadow-2xl backdrop-blur-2xl sm:max-h-[min(82dvh,720px)] sm:rounded-3xl">
