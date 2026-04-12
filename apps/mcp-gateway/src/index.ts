@@ -34,16 +34,31 @@ interface ToolResult {
   error?: { code: string; message: string };
 }
 
-/** Railway / Render set `PORT`; local dev can use `MCP_GATEWAY_PORT` or default 3001. */
-const PORT = Number(process.env.PORT ?? process.env.MCP_GATEWAY_PORT ?? 3001);
+/** Railway / Render set `PORT`. Empty string must not become 0 (listen would break routing). */
+function listenPort(): number {
+  const raw = (process.env.PORT || process.env.MCP_GATEWAY_PORT || "").trim();
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 3001;
+}
+const PORT = listenPort();
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = Number(process.env.GATEWAY_RATE_LIMIT_MAX ?? 120);
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL ?? process.env.REDIS_URL;
 const EVENT_STREAM = process.env.GATEWAY_EVENT_STREAM ?? "matex.events";
 const FORWARD_TIMEOUT_MS = Number(process.env.GATEWAY_FORWARD_TIMEOUT_MS ?? 10_000);
 
-const redis = REDIS_URL ? new Redis(REDIS_URL) : null;
+/** ioredis needs `redis://` or `rediss://`, not Upstash HTTPS REST URLs. */
+function createRedisClient(): Redis | null {
+  for (const key of ["REDIS_URL", "UPSTASH_REDIS_URL"] as const) {
+    const raw = process.env[key]?.trim();
+    if (raw && (raw.startsWith("redis://") || raw.startsWith("rediss://"))) {
+      return new Redis(raw);
+    }
+  }
+  return null;
+}
+
+const redis = createRedisClient();
 const requestLog = new Map<string, number[]>();
 const domainEndpoints = parseDomainEndpoints(process.env.MCP_DOMAIN_ENDPOINTS_JSON);
 
@@ -840,7 +855,13 @@ const server = createServer(async (req, res) => {
   writeJson(res, 404, { success: false, error: { code: "NOT_FOUND", message: "Route not found" } });
 });
 
-server.listen(PORT, () => {
+server.on("error", (err) => {
+  console.error("[mcp-gateway] server error:", err);
+  process.exit(1);
+});
+
+// Bind all interfaces so Railway / Docker can route traffic (not only loopback).
+server.listen(PORT, "0.0.0.0", () => {
   seedDevUserFromEnv();
-  console.log(`MCP Gateway listening on http://localhost:${PORT}`);
+  console.log(`MCP Gateway listening on 0.0.0.0:${PORT}`);
 });

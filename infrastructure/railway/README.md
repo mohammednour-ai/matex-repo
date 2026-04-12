@@ -18,6 +18,8 @@ For **local** web-v2 production-style runs on 3002: `PORT=3002 pnpm start` (or s
 - **Start command:** `pnpm start` (after `pnpm build`) or `npx tsx src/index.ts` in dev
 - **Port:** Set Railway port to **`3001`** (or any value — must match **`PORT`**). Optional: `MCP_GATEWAY_PORT=3001` for local/docs; production uses **`PORT`** from Railway.
 - **Health check:** `GET /health`
+- **Listen address:** binds **`0.0.0.0`** (required for Railway routing).
+- **Redis:** use **`REDIS_URL`** = Upstash **`rediss://...`** (TCP). Do **not** use the HTTPS REST URL for the gateway — that breaks `ioredis` and can prevent a healthy start.
 - **Production example (public base URL):** `https://matexmcp-gateway-production.up.railway.app`  
   On **web-v2**, set **`MCP_GATEWAY_URL`** to that origin (server `/api/mcp` proxy; no rebuild needed). Optionally also set **`NEXT_PUBLIC_GATEWAY_URL`** to the same value for consistency (not `...:3001` on the public URL unless you exposed it).
 
