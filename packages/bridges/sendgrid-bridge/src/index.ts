@@ -6,6 +6,7 @@ const SERVER_NAME = "sendgrid-bridge";
 const SERVER_VERSION = "0.1.0";
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? "noreply@matex.ca";
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME ?? "Matex";
 const SENDGRID_API = "https://api.sendgrid.com/v3";
 const isLive = Boolean(SENDGRID_API_KEY);
 
@@ -53,7 +54,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (isLive) {
       const result = await sgPost("/mail/send", {
         personalizations: [{ to: [{ email: to }] }],
-        from: { email: SENDGRID_FROM_EMAIL },
+        from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
         subject,
         content: [{ type: "text/plain", value: body }],
       });
@@ -68,7 +69,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (isLive) {
       const result = await sgPost("/mail/send", {
         personalizations: [{ to: [{ email: to }], dynamic_template_data: args.dynamic_data ?? {} }],
-        from: { email: SENDGRID_FROM_EMAIL },
+        from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
         template_id: templateId,
       });
       return ok({ sent: result.status === 202, status_code: result.status, to, template_id: templateId });

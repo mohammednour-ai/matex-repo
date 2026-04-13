@@ -11,6 +11,26 @@ import {
 } from "../../utils/src/operational-rules";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
+const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
+
+function parseExpirySeconds(value: string, fallbackSeconds: number): number {
+  const raw = value.trim();
+  const num = Number(raw);
+  if (Number.isFinite(num) && num > 0) return Math.floor(num);
+  const m = raw.match(/^(\d+)([smhd])$/i);
+  if (!m) return fallbackSeconds;
+  const amount = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === "s") return amount;
+  if (unit === "m") return amount * 60;
+  if (unit === "h") return amount * 3600;
+  if (unit === "d") return amount * 86400;
+  return fallbackSeconds;
+}
+
+const ACCESS_TOKEN_TTL_SEC = parseExpirySeconds(JWT_ACCESS_TOKEN_EXPIRY, 900);
+const REFRESH_TOKEN_TTL_SEC = parseExpirySeconds(JWT_REFRESH_TOKEN_EXPIRY, 604800);
 
 function signJwt(payload: Record<string, string | number>, expiresInSec: number): string {
   return jwt.sign(payload, JWT_SECRET as jwt.Secret, { expiresIn: expiresInSec });
@@ -252,8 +272,8 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
       return err("AUTH_ERROR", "Invalid credentials.");
     }
     const userId = String(user.user_id);
-    const accessToken = signJwt({ sub: userId, scope: "access" }, 900);
-    const refreshToken = signJwt({ sub: userId, scope: "refresh" }, 604800);
+    const accessToken = signJwt({ sub: userId, scope: "access" }, ACCESS_TOKEN_TTL_SEC);
+    const refreshToken = signJwt({ sub: userId, scope: "refresh" }, REFRESH_TOKEN_TTL_SEC);
     let is_platform_admin = false;
     const auxOk = await ensureMatexAuxTables(pool);
     if (auxOk) {
@@ -265,7 +285,7 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
       account_type: String(user.account_type ?? "individual"),
       account_status: String(user.account_status ?? "pending_review"),
       is_platform_admin,
-      tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: 900 },
+      tokens: { access_token: accessToken, refresh_token: refreshToken, expires_in: ACCESS_TOKEN_TTL_SEC },
     });
   }
 
@@ -1020,7 +1040,7 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ verified: true });
   }
   if (tool === "auth.refresh_token") {
-    return ok({ access_token: `ui-token-${String(args.user_id ?? randomUUID())}`, expires_in: 900 });
+    return ok({ access_token: `ui-token-${String(args.user_id ?? randomUUID())}`, expires_in: ACCESS_TOKEN_TTL_SEC });
   }
 
   // ── missing profile tools ──

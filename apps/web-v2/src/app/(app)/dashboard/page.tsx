@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Package,
   Wallet,
@@ -20,6 +21,9 @@ import {
   Recycle,
   ArrowUpRight,
   RefreshCw,
+  CircleAlert,
+  ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
@@ -52,6 +56,7 @@ type QuickAction = {
   icon: typeof Plus;
   color: string;
   glow: string;
+  note: string;
   /** Full-page /chat; layout FAB opens the same Copilot panel — both entry points. */
   copilotNote?: boolean;
 };
@@ -63,6 +68,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Plus,
     color: "from-brand-500 to-brand-700 text-white",
     glow: "shadow-brand-500/20",
+    note: "Publish a new industrial offering with pricing and logistics details.",
   },
   {
     label: "Search Materials",
@@ -70,6 +76,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Search,
     color: "from-steel-600 to-steel-800 text-white",
     glow: "shadow-steel-500/20",
+    note: "Browse verified inventory, compare offers, and source with confidence.",
   },
   {
     label: "Live Auctions",
@@ -77,6 +84,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Gavel,
     color: "from-accent-500 to-accent-700 text-white",
     glow: "shadow-accent-500/20",
+    note: "Track active bids and act on time-sensitive market opportunities.",
   },
   {
     label: "Check Escrow",
@@ -84,6 +92,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Lock,
     color: "from-emerald-500 to-emerald-700 text-white",
     glow: "shadow-emerald-500/20",
+    note: "Review protected funds, milestones, and transaction readiness.",
   },
   {
     label: "Logistics",
@@ -91,6 +100,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Truck,
     color: "from-violet-500 to-violet-700 text-white",
     glow: "shadow-violet-500/20",
+    note: "Coordinate shipments, delivery progress, and operational follow-through.",
   },
   {
     label: "AI Copilot",
@@ -98,6 +108,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     icon: Bot,
     color: "from-steel-600 to-steel-800 text-white",
     glow: "shadow-steel-500/20",
+    note: "Get assistance preparing listings, replies, and platform workflows.",
     copilotNote: true,
   },
 ];
@@ -200,17 +211,17 @@ function DashboardSkeleton() {
   const pulse = "animate-pulse rounded-lg bg-steel-200/80";
   return (
     <div className="space-y-6" data-dashboard-skeleton aria-busy="true">
-      <div className={clsx("h-36 rounded-2xl", pulse)} />
+      <div className={clsx("h-56 rounded-[2rem]", pulse)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={clsx("h-28 rounded-xl border border-steel-100", pulse)} />
+          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-steel-100", pulse)} />
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className={clsx("h-64 rounded-xl border border-steel-100 lg:col-span-1", pulse)} />
-        <div className={clsx("h-64 rounded-xl border border-steel-100 lg:col-span-2", pulse)} />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(300px,0.95fr)_minmax(0,1.45fr)]">
+        <div className={clsx("h-72 rounded-[1.75rem] border border-steel-100", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-steel-100", pulse)} />
       </div>
-      <div className={clsx("h-40 rounded-xl border border-steel-100", pulse)} />
+      <div className={clsx("h-56 rounded-[1.75rem] border border-steel-100", pulse)} />
     </div>
   );
 }
@@ -400,9 +411,31 @@ export default function DashboardPage() {
         ? "Your seller workspace — listings, escrow, and logistics in one place."
         : "Your marketplace overview";
 
+  const displayName = user?.email?.split("@")[0] ?? "Welcome back";
+
   const ordersPending = stats?.orders_pending_action ?? 0;
   const ordersTransit = stats?.orders_in_transit ?? 0;
   const showOrdersStrip = ordersPending > 0 || ordersTransit > 0;
+  const operationalHighlights = [
+    {
+      label: "Open orders",
+      value: showOrdersStrip ? ordersPending + ordersTransit : 0,
+      note:
+        showOrdersStrip
+          ? `${ordersPending} need action, ${ordersTransit} in transit`
+          : "No active order exceptions right now",
+    },
+    {
+      label: "Unread inbox",
+      value: sectionErrors.unread ? "—" : unreadCount,
+      note: sectionErrors.unread ?? "Stay ahead of negotiation and shipment updates",
+    },
+    {
+      label: "KYC status",
+      value: kycBadge.label,
+      note: kycLevel < 2 ? "Advance verification to unlock larger trade capacity" : "Your account is ready for higher trust workflows",
+    },
+  ];
 
   if (initialLoad) {
     return <DashboardSkeleton />;
@@ -410,82 +443,87 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero greeting bar */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-steel-950 via-steel-900 to-steel-950 p-6 shadow-xl shadow-steel-950/20 sm:p-8">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          aria-hidden
-        >
-          <div className="metal-texture absolute inset-0" />
-        </div>
-        <div className="absolute top-0 right-0 h-72 w-72 rounded-full bg-brand-500/5 blur-[80px]" />
-        <div className="absolute bottom-0 left-0 h-48 w-48 rounded-full bg-accent-500/5 blur-[60px]" />
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-steel-400">{getGreeting()},</p>
-            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-white sm:text-3xl">
-              {user?.email?.split("@")[0] ?? "Welcome back"}
-            </h1>
-            <p className="mt-1 flex items-center gap-2 text-sm text-steel-400">
+      <div className="dashboard-hero">
+        <div className="dashboard-hero-grid">
+          <div className="min-w-0">
+            <span className="dashboard-eyebrow">
               <Recycle className="h-3.5 w-3.5" />
-              {heroSubtitle}
+              Matex operations overview
+            </span>
+            <p className="mt-4 text-sm font-medium text-steel-500">{getGreeting()}, {displayName}</p>
+            <h1 className="dashboard-hero-title">Run your industrial marketplace from one elegant workspace.</h1>
+            <p className="dashboard-hero-copy">
+              {heroSubtitle} Track listings, funds, operational activity, and upcoming trade events from a
+              dashboard shaped for a cleaner Matex experience.
             </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void load(true)}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-            >
-              <RefreshCw className={clsx("h-4 w-4", refreshing && "animate-spin")} />
-              Refresh
-            </button>
-            <Badge variant={kycBadge.variant} className="px-3 py-1.5 text-sm">
-              {kycBadge.label}
-            </Badge>
-            {accountType === "buyer" ? (
-              <Link
-                href="/search"
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-brand-500/30"
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void load(true)}
+                disabled={refreshing}
+                className="btn-primary rounded-2xl px-5 py-3"
               >
-                <Search className="h-4 w-4" />
-                Search materials
-              </Link>
-            ) : accountType === "seller" ? (
-              <Link
-                href="/listings/create"
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-brand-500/30"
-              >
-                <Plus className="h-4 w-4" />
-                New listing
-              </Link>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/search"
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/15"
-                >
+                <RefreshCw className={clsx("h-4 w-4", refreshing && "animate-spin")} />
+                Refresh workspace
+              </button>
+              {accountType === "buyer" ? (
+                <Link href="/search" className="btn-secondary rounded-2xl px-5 py-3">
                   <Search className="h-4 w-4" />
-                  Search
+                  Search materials
                 </Link>
-                <Link
-                  href="/listings/create"
-                  className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700"
-                >
+              ) : accountType === "seller" ? (
+                <Link href="/listings/create" className="btn-secondary rounded-2xl px-5 py-3">
                   <Plus className="h-4 w-4" />
                   New listing
                 </Link>
-              </div>
-            )}
+              ) : (
+                <>
+                  <Link href="/search" className="btn-secondary rounded-2xl px-5 py-3">
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Link>
+                  <Link href="/listings/create" className="btn-secondary rounded-2xl px-5 py-3">
+                    <Plus className="h-4 w-4" />
+                    New listing
+                  </Link>
+                </>
+              )}
+              <Badge variant={kycBadge.variant} className="px-3 py-1.5 text-sm">
+                {kycBadge.label}
+              </Badge>
+            </div>
+
+            <div className="dashboard-hero-kpis">
+              {operationalHighlights.map((item) => (
+                <div key={item.label} className="dashboard-mini-kpi">
+                  <p className="dashboard-mini-kpi-label">{item.label}</p>
+                  <p className="dashboard-mini-kpi-value">{item.value}</p>
+                  <p className="mt-2 text-xs leading-5 text-steel-500">{item.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="dashboard-hero-media min-h-[320px]">
+            <Image
+              src="/dashadv.png"
+              alt="Matex dashboard hero artwork"
+              fill
+              className="object-cover"
+              priority
+            />
           </div>
         </div>
       </div>
 
       {kycLevel < 2 && (
-        <div className="rounded-xl border border-brand-200 bg-brand-50/80 px-4 py-3 text-sm text-steel-800">
-          <strong className="text-brand-800">Complete verification</strong> — Higher KYC levels unlock
-          larger trades and faster payouts.{" "}
+        <div className="dashboard-status-strip border-brand-200 bg-brand-50/80 text-sm text-steel-800">
+          <CircleAlert className="h-4 w-4 text-brand-700" />
+          <span>
+            <strong className="text-brand-800">Complete verification</strong> — Higher KYC levels unlock
+            larger trades and faster payouts.
+          </span>
           <Link href="/settings" className="font-semibold text-brand-700 underline-offset-2 hover:underline">
             Continue in Settings
           </Link>
@@ -493,7 +531,7 @@ export default function DashboardPage() {
       )}
 
       {showOrdersStrip && (
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-steel-200 bg-white px-4 py-3 text-sm shadow-card">
+        <div className="dashboard-status-strip text-sm">
           <span className="font-semibold text-steel-700">Open orders</span>
           {ordersPending > 0 && (
             <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-semibold text-warning-800">
@@ -508,9 +546,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Live Auction Alert */}
       {(stats?.active_auctions ?? 0) > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border-2 border-accent-300/80 bg-gradient-to-r from-accent-50 to-accent-100/50 px-5 py-4 shadow-md shadow-accent-500/10">
+        <div className="dashboard-alert">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500 shadow-lg shadow-accent-500/20">
               <Gavel className="h-5 w-5 text-white" />
@@ -537,7 +574,7 @@ export default function DashboardPage() {
       )}
 
       {Object.keys(sectionErrors).length > 0 && (
-        <p className="text-xs text-danger-600">
+        <p className="rounded-2xl border border-danger-100 bg-danger-50/80 px-4 py-3 text-xs text-danger-600">
           Some sections could not be refreshed.{" "}
           {sectionErrors.stats && "Stats "}
           {sectionErrors.wallet && "Wallet "}
@@ -549,13 +586,9 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {/* Stat Cards — trends only when server sends listings_change_pct */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((card) => (
-          <div
-            key={card.label}
-            className="group marketplace-card p-5 transition-all hover:shadow-card-hover"
-          >
+          <div key={card.label} className="dashboard-stat-card">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-steel-500">
@@ -576,7 +609,7 @@ export default function DashboardPage() {
               </div>
               <span
                 className={clsx(
-                  "rounded-xl bg-gradient-to-br p-3 shadow-lg transition-transform group-hover:scale-105",
+                  "dashboard-stat-icon",
                   card.gradient,
                   statIconShadow(card.gradient)
                 )}
@@ -588,35 +621,45 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <AppSectionCard title="Quick Actions" className="lg:col-span-1" bodyClassName="p-0">
-          <div className="grid grid-cols-2 gap-2.5">
+      <div className="dashboard-module-grid">
+        <AppSectionCard
+          title="Quick Actions"
+          className="overflow-hidden"
+          bodyClassName="space-y-4 p-0"
+        >
+          <div className="rounded-[1.5rem] border border-brand-100 bg-gradient-to-r from-brand-50 via-white to-surface-50 px-4 py-4">
+            <p className="text-sm font-semibold text-steel-900">Fast, familiar, and workflow-first</p>
+            <p className="mt-1 text-xs leading-5 text-steel-500">
+              The actions below are prioritized for your current account profile and remain aligned with
+              the existing Matex routes.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {quickActions.map((action) => (
               <Link
                 key={action.label}
                 href={action.href}
                 title={action.copilotNote ? "Opens full-page Copilot (FAB also available)" : undefined}
-                className="group flex flex-col items-center gap-2.5 rounded-xl border border-steel-100/90 bg-surface-50/50 p-4 text-center transition-all hover:border-steel-200 hover:shadow-card"
+                className="dashboard-action-card"
               >
                 <span
                   className={clsx(
-                    "rounded-xl bg-gradient-to-br p-2.5 shadow-lg transition-transform group-hover:scale-105",
+                    "dashboard-stat-icon w-fit",
                     action.color,
                     action.glow
                   )}
                 >
                   <action.icon className="h-4 w-4" />
                 </span>
-                <span className="text-xs font-semibold text-steel-600 group-hover:text-steel-800">
-                  {action.label}
-                </span>
+                <span className="dashboard-action-label">{action.label}</span>
+                <span className="dashboard-action-note">{action.note}</span>
               </Link>
             ))}
           </div>
         </AppSectionCard>
 
         <AppSectionCard
-          className="lg:col-span-2"
+          className="overflow-hidden"
           title="Recent Activity"
           action={
             <Link
@@ -631,7 +674,7 @@ export default function DashboardPage() {
             <p className="mb-2 text-xs text-danger-600">{sectionErrors.notifications}</p>
           )}
           {notifications.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-12 text-steel-400">
+            <div className="dashboard-empty-state text-steel-400">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-steel-100">
                 <Bell className="h-6 w-6 text-steel-300" />
               </div>
@@ -639,7 +682,7 @@ export default function DashboardPage() {
               <p className="text-xs text-steel-400">Activity will show up here as you trade</p>
             </div>
           ) : (
-            <ol className="relative space-y-0 border-l-2 border-steel-100 pl-5">
+            <ol className="relative space-y-0 border-l-2 border-brand-100 pl-5">
               {notifications.map((n) => {
                 const href = notificationHref(n);
                 const onActivate = () => {
@@ -663,7 +706,7 @@ export default function DashboardPage() {
                       <Link
                         href={href}
                         onClick={onActivate}
-                        className="block rounded-md py-0.5 outline-none ring-brand-500/30 hover:bg-steel-50 focus-visible:ring-2"
+                        className="block rounded-2xl border border-transparent px-3 py-3 outline-none ring-brand-500/30 transition-colors hover:border-steel-100 hover:bg-surface-50 focus-visible:ring-2"
                       >
                         {inner}
                       </Link>
@@ -676,7 +719,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={onActivate}
-                      className="w-full rounded-md py-0.5 text-left outline-none ring-brand-500/30 hover:bg-steel-50 focus-visible:ring-2"
+                      className="w-full rounded-2xl border border-transparent px-3 py-3 text-left outline-none ring-brand-500/30 transition-colors hover:border-steel-100 hover:bg-surface-50 focus-visible:ring-2"
                     >
                       {inner}
                     </button>
@@ -688,7 +731,6 @@ export default function DashboardPage() {
         </AppSectionCard>
       </div>
 
-      {/* Upcoming Events — always visible; empty state links to inspections */}
       <AppSectionCard
         title={
           <span className="flex items-center gap-2">
@@ -709,16 +751,19 @@ export default function DashboardPage() {
           <p className="mb-2 text-xs text-danger-600">{sectionErrors.bookings}</p>
         )}
         {bookings.length === 0 ? (
-          <div className="py-8 text-center text-sm text-steel-500">
+          <div className="dashboard-empty-state text-sm text-steel-500">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
+              <CheckCircle2 className="h-6 w-6 text-brand-400" />
+            </div>
             <p className="font-medium text-steel-700">No visits or inspections scheduled</p>
-            <p className="mt-1 text-xs text-steel-500">
+            <p className="text-xs text-steel-500">
               Book on-site visits and inspections from your listings and orders.
             </p>
             <Link
               href="/inspection"
-              className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700"
             >
-              Go to Inspections <ChevronRight className="h-4 w-4" />
+              Go to Inspections <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         ) : (
@@ -726,7 +771,7 @@ export default function DashboardPage() {
             {bookings.map((b) => (
               <div
                 key={b.booking_id}
-                className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-500/15">

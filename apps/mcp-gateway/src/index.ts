@@ -42,6 +42,8 @@ function listenPort(): number {
 }
 const PORT = listenPort();
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
+const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = Number(process.env.GATEWAY_RATE_LIMIT_MAX ?? 120);
 const EVENT_STREAM = process.env.GATEWAY_EVENT_STREAM ?? "matex.events";
@@ -89,6 +91,23 @@ const ROUTE_MAP: Record<string, string> = {
   log: "@matex/log-mcp",
   credit: "@matex/credit-mcp",
 };
+
+function expiryToSeconds(value: string, fallbackSeconds: number): number {
+  const raw = value.trim();
+  const pureNum = Number(raw);
+  if (Number.isFinite(pureNum) && pureNum > 0) return Math.floor(pureNum);
+  const m = raw.match(/^(\d+)([smhd])$/i);
+  if (!m) return fallbackSeconds;
+  const amount = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  if (unit === "s") return amount;
+  if (unit === "m") return amount * 60;
+  if (unit === "h") return amount * 3600;
+  if (unit === "d") return amount * 86400;
+  return fallbackSeconds;
+}
+
+const ACCESS_EXP_SECONDS = expiryToSeconds(JWT_ACCESS_TOKEN_EXPIRY, 900);
 
 function parseDomainEndpoints(raw?: string): Record<string, string> {
   if (!raw) return {};
@@ -211,6 +230,8 @@ const devListings = new Map<string, DevListing>();
 const devThreads = new Map<string, { thread_id: string; participants: string[]; subject: string; messages: Array<{ sender_id: string; content: string; created_at: string }> }>();
 const devPlatformConfig = new Map<string, string>();
 const devPlatformAdminIds = new Set<string>();
+/** Keyed by user_id — stores profile + search_prefs from extended registration. */
+const devProfiles = new Map<string, Record<string, JsonValue>>();
 
 /**
  * Dev-only: users live in memory and are wiped every time the gateway process restarts.
@@ -251,9 +272,9 @@ function devIsPlatformAdmin(userId: string, email: string): boolean {
 
 function devBuildTokens(userId: string, email?: string): { access_token: string; refresh_token: string; expires_in: number } {
   return {
-    access_token: jwt.sign({ sub: userId, scope: "access", email: email ?? "" }, JWT_SECRET as jwt.Secret, { expiresIn: "15m" }),
-    refresh_token: jwt.sign({ sub: userId, scope: "refresh" }, JWT_SECRET as jwt.Secret, { expiresIn: "7d" }),
-    expires_in: 900,
+    access_token: jwt.sign({ sub: userId, scope: "access", email: email ?? "" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_ACCESS_TOKEN_EXPIRY }),
+    refresh_token: jwt.sign({ sub: userId, scope: "refresh" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_REFRESH_TOKEN_EXPIRY }),
+    expires_in: ACCESS_EXP_SECONDS,
   };
 }
 
@@ -297,7 +318,10 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     try {
       const decoded = jwt.verify(String(args.refresh_token ?? ""), JWT_SECRET) as { sub: string; scope: string };
       if (decoded.scope !== "refresh") return fail("AUTH_ERROR", "Invalid token scope.");
-      return ok({ access_token: jwt.sign({ sub: decoded.sub, scope: "access" }, JWT_SECRET as jwt.Secret, { expiresIn: "15m" }), expires_in: 900 });
+      return ok({
+        access_token: jwt.sign({ sub: decoded.sub, scope: "access" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_ACCESS_TOKEN_EXPIRY }),
+        expires_in: ACCESS_EXP_SECONDS,
+      });
     } catch { return fail("AUTH_ERROR", "Invalid refresh token."); }
   }
 
@@ -499,8 +523,32 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   if (tool === "inspection.evaluate_discrepancy") { return ok({ delta_pct: 0, exceeded_tolerance: false }); }
 
   // ── Profile ──
-  if (tool === "profile.get_profile") { return ok({ profile: { user_id: userId, display_name: "", bio: "" } }); }
-  if (tool === "profile.update_profile") { return ok({ user_id: userId, updated: true }); }
+  if (tool === "profile.get_profile") {
+    const stored = devProfiles.get(userId) ?? {};
+    return ok({
+      profile: {
+        user_id: userId,
+        display_name: stored.display_name ?? "",
+        first_name: stored.first_name ?? "",
+        last_name: stored.last_name ?? "",
+        bio: stored.bio ?? "",
+        search_prefs: stored.search_prefs ?? {},
+        ...stored,
+      },
+    });
+  }
+  if (tool === "profile.update_profile") {
+    const existing = devProfiles.get(userId) ?? {};
+    if (args.first_name !== undefined) existing.first_name = args.first_name;
+    if (args.last_name !== undefined) existing.last_name = args.last_name;
+    if (args.display_name !== undefined) existing.display_name = args.display_name;
+    if (args.bio !== undefined) existing.bio = args.bio;
+    if (args.search_prefs !== undefined) existing.search_prefs = args.search_prefs;
+    if (args.province !== undefined) existing.province = args.province;
+    if (args.country !== undefined) existing.country = args.country;
+    devProfiles.set(userId, existing);
+    return ok({ user_id: userId, updated: true, profile: existing });
+  }
   if (tool === "profile.update_company") { return ok({ user_id: userId, updated: true }); }
 
   // ── Contracts ──

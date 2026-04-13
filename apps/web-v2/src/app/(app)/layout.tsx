@@ -22,6 +22,8 @@ import {
   Menu,
   X,
   UserCog,
+  LogOut,
+  Sparkles,
 } from "lucide-react";
 import { getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
@@ -37,6 +39,8 @@ type NavSection = {
   heading?: string;
   items: NavItem[];
 };
+
+type CurrentUser = ReturnType<typeof getUser>;
 
 const iconSize = 18;
 
@@ -113,6 +117,90 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 const COLLAPSED_W = 68;
 const EXPANDED_W = 256;
 
+function getPageMeta(pathname: string): { title: string; subtitle: string; eyebrow: string } {
+  const segment = pathname.split("/")[1] || "dashboard";
+  switch (segment) {
+    case "dashboard":
+      return {
+        title: "Overview",
+        subtitle: "Stay on top of marketplace activity, execution, and next actions.",
+        eyebrow: "Control Center",
+      };
+    case "listings":
+      return {
+        title: "Listings",
+        subtitle: "Manage inventory, visibility, and buyer-ready supply.",
+        eyebrow: "Sell",
+      };
+    case "search":
+      return {
+        title: "Search",
+        subtitle: "Source verified materials with industrial-grade confidence.",
+        eyebrow: "Buy",
+      };
+    case "auction":
+      return {
+        title: "Auctions",
+        subtitle: "Track live bidding opportunities and market movement.",
+        eyebrow: "Market",
+      };
+    case "messages":
+      return {
+        title: "Messages",
+        subtitle: "Keep negotiations, approvals, and buyer conversations moving.",
+        eyebrow: "Inbox",
+      };
+    case "checkout":
+      return {
+        title: "Checkout",
+        subtitle: "Monitor deal execution, payment, and order progression.",
+        eyebrow: "Orders",
+      };
+    case "escrow":
+      return {
+        title: "Escrow",
+        subtitle: "Review protected transactions and secure payment milestones.",
+        eyebrow: "Operations",
+      };
+    case "logistics":
+      return {
+        title: "Logistics",
+        subtitle: "Coordinate dispatch, transport, and delivery readiness.",
+        eyebrow: "Operations",
+      };
+    case "inspection":
+      return {
+        title: "Inspections",
+        subtitle: "Plan visits, checks, and technical verification events.",
+        eyebrow: "Operations",
+      };
+    case "contracts":
+      return {
+        title: "Contracts",
+        subtitle: "Centralize commercial paperwork and trading terms.",
+        eyebrow: "Governance",
+      };
+    case "settings":
+      return {
+        title: "Settings",
+        subtitle: "Manage company identity, KYC, and platform preferences.",
+        eyebrow: "Account",
+      };
+    case "admin":
+      return {
+        title: "Platform admin",
+        subtitle: "Configure internal controls and platform-wide oversight.",
+        eyebrow: "Admin",
+      };
+    default:
+      return {
+        title: segment.charAt(0).toUpperCase() + segment.slice(1),
+        subtitle: "Operate faster with a clean, unified Matex workspace.",
+        eyebrow: "Workspace",
+      };
+  }
+}
+
 function Sidebar({
   collapsed,
   onToggle,
@@ -126,29 +214,50 @@ function Sidebar({
 }) {
   const pathname = usePathname();
   const [showAdminNav, setShowAdminNav] = useState(false);
+  const [user, setUser] = useState<CurrentUser>(null);
   useEffect(() => {
     setShowAdminNav(Boolean(getUser()?.isPlatformAdmin));
+    setUser(getUser());
   }, [pathname]);
   const width = collapsed ? COLLAPSED_W : EXPANDED_W;
+  const accountLabel =
+    user?.accountType === "buyer"
+      ? "Buyer workspace"
+      : user?.accountType === "seller"
+        ? "Seller workspace"
+        : "Marketplace workspace";
+  const emailLabel = user?.email ?? "Industrial materials exchange";
 
   const logo = (
     <Link
       href="/dashboard"
-      className="flex min-w-0 flex-shrink-0 items-center"
+      className="flex min-w-0 flex-shrink-0 items-center gap-3"
       onClick={onMobileClose}
     >
-      <Image
-        src="/MatexLogo.png"
-        alt="Matex"
-        width={200}
-        height={64}
-        className={
-          collapsed
-            ? "h-9 w-9 rounded-md object-cover object-left drop-shadow-md"
-            : "h-10 w-auto max-w-[11rem] object-contain object-left drop-shadow-md"
-        }
-        priority
-      />
+      <span className="app-sidebar-logo-badge">
+        <Image
+          src="/MatexLogo.png"
+          alt="Matex"
+          width={200}
+          height={64}
+          className={
+            collapsed
+              ? "h-9 w-9 rounded-md object-cover object-left drop-shadow-md"
+              : "h-10 w-auto max-w-[11rem] object-contain object-left drop-shadow-md"
+          }
+          priority
+        />
+      </span>
+      {!collapsed && (
+        <span className="min-w-0">
+          <span className="block text-[10px] font-bold uppercase tracking-[0.26em] text-brand-300">
+            Matex Platform
+          </span>
+          <span className="mt-0.5 block truncate text-sm font-semibold text-steel-200">
+            Industrial Exchange
+          </span>
+        </span>
+      )}
       <span className="sr-only">Matex — Industrial Materials Exchange</span>
     </Link>
   );
@@ -158,44 +267,42 @@ function Sidebar({
       {NAV_SECTIONS.map((section, si) => (
         <div key={si} className="mb-1">
           {section.heading && !collapsed && !isMobile && (
-            <p className="px-4 mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.15em] text-steel-500">
+            <p className="app-nav-heading">
               {section.heading}
             </p>
           )}
           {section.heading && isMobile && (
-            <p className="px-4 mb-2 mt-4 text-[10px] font-bold uppercase tracking-[0.15em] text-steel-500">
+            <p className="app-nav-heading">
               {section.heading}
             </p>
           )}
           {section.items.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={collapsed && !isMobile ? item.label : undefined}
-              onClick={onMobileClose}
-              className={[
-                "flex items-center gap-3 mx-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                active
-                  ? "bg-brand-600/20 text-brand-400 shadow-sm"
-                  : item.accent
-                  ? "text-accent-400 hover:bg-accent-500/10 hover:text-accent-300"
-                  : "text-steel-400 hover:bg-white/5 hover:text-steel-200",
-              ].join(" ")}
-            >
-              <span className="flex-shrink-0">{item.icon}</span>
-              {(isMobile || !collapsed) && (
-                <span className="truncate whitespace-nowrap">{item.label}</span>
-              )}
-              {active && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />
-              )}
-            </Link>
-          );
-        })}
+            const active =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={collapsed && !isMobile ? item.label : undefined}
+                onClick={onMobileClose}
+                className={[
+                  "app-nav-link",
+                  active
+                    ? "app-nav-link-active"
+                    : item.accent
+                      ? "app-nav-link-accent"
+                      : "",
+                ].join(" ")}
+              >
+                <span className="app-nav-icon-wrap">{item.icon}</span>
+                {(isMobile || !collapsed) && (
+                  <span className="truncate whitespace-nowrap">{item.label}</span>
+                )}
+                {active && <span className="app-nav-dot" />}
+              </Link>
+            );
+          })}
         </div>
       ))}
       {showAdminNav && (
@@ -210,17 +317,13 @@ function Sidebar({
                 title={collapsed && !isMobile ? item.label : undefined}
                 onClick={onMobileClose}
                 className={[
-                  "flex items-center gap-3 mx-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                  active
-                    ? "bg-brand-600/20 text-brand-400 shadow-sm"
-                    : item.accent
-                    ? "text-accent-400 hover:bg-accent-500/10 hover:text-accent-300"
-                    : "text-steel-400 hover:bg-white/5 hover:text-steel-200",
+                  "app-nav-link",
+                  active ? "app-nav-link-active" : item.accent ? "app-nav-link-accent" : "",
                 ].join(" ")}
               >
-                <span className="flex-shrink-0">{item.icon}</span>
+                <span className="app-nav-icon-wrap">{item.icon}</span>
                 {(isMobile || !collapsed) && <span className="truncate whitespace-nowrap">{item.label}</span>}
-                {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400" />}
+                {active && <span className="app-nav-dot" />}
               </Link>
             );
           })()}
@@ -231,28 +334,53 @@ function Sidebar({
 
   const sidebarContent = (
     <div
-      className="flex flex-col h-full bg-steel-950 transition-all duration-200 ease-in-out overflow-hidden"
+      className="app-shell-sidebar transition-all duration-200 ease-in-out"
       style={{ width }}
     >
-      <div
-        className="flex items-center h-16 px-4 border-b border-white/5 flex-shrink-0"
-        style={{ minWidth: width }}
-      >
-        {logo}
-      </div>
-
-      <nav className="flex-1 py-3 overflow-y-auto overflow-x-hidden">
-        {navLinks(false)}
-      </nav>
-
-      <div className="hidden md:flex justify-end p-2 border-t border-white/5 flex-shrink-0">
-        <button
-          onClick={onToggle}
-          className="p-1.5 rounded-md text-steel-500 hover:text-steel-300 hover:bg-white/5 transition-colors"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      <div className="app-shell-sidebar-content">
+        <div
+          className="app-sidebar-logo-wrap flex-shrink-0"
+          style={{ minWidth: width }}
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
+          {logo}
+        </div>
+
+        {!collapsed && (
+          <div className="px-3 pt-4">
+            <div className="app-sidebar-meta">
+              <p className="app-sidebar-meta-label">Workspace</p>
+              <p className="app-sidebar-meta-value">{accountLabel}</p>
+              <p className="mt-1 truncate text-xs text-steel-400">{emailLabel}</p>
+            </div>
+          </div>
+        )}
+
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+          {navLinks(false)}
+        </nav>
+
+        <div className="hidden flex-shrink-0 border-t border-white/5 p-3 md:block">
+          <div className={collapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-500">
+                  Experience
+                </p>
+                <p className="mt-1 text-xs text-steel-300">Premium hybrid industrial UI</p>
+              </div>
+            )}
+            <button
+              onClick={onToggle}
+              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 transition-colors hover:text-white hover:bg-white/[0.08]"
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden>
+        <div className="metal-texture absolute inset-0" />
       </div>
     </div>
   );
@@ -274,28 +402,50 @@ function Sidebar({
             aria-hidden
           />
           <aside className="relative flex flex-col z-50" style={{ width: EXPANDED_W }}>
-            <div className="flex flex-col h-full bg-steel-950">
-              <div className="flex items-center justify-between h-16 px-4 border-b border-white/5">
-                <Link href="/dashboard" className="flex items-center" onClick={onMobileClose}>
-                  <Image
-                    src="/MatexLogo.png"
-                    alt="Matex"
-                    width={200}
-                    height={64}
-                    className="h-9 w-auto max-w-[10rem] object-contain object-left drop-shadow-md"
-                    priority
-                  />
-                </Link>
-                <button
-                  onClick={onMobileClose}
-                  className="p-1.5 rounded-md text-steel-400 hover:text-white hover:bg-white/10"
-                >
-                  <X size={18} />
-                </button>
+            <div className="app-shell-sidebar">
+              <div className="app-shell-sidebar-content">
+                <div className="app-sidebar-logo-wrap flex items-center justify-between">
+                  <Link href="/dashboard" className="flex items-center gap-3" onClick={onMobileClose}>
+                    <span className="app-sidebar-logo-badge">
+                      <Image
+                        src="/MatexLogo.png"
+                        alt="Matex"
+                        width={200}
+                        height={64}
+                        className="h-9 w-auto max-w-[10rem] object-contain object-left drop-shadow-md"
+                        priority
+                      />
+                    </span>
+                    <span>
+                      <span className="block text-[10px] font-bold uppercase tracking-[0.26em] text-brand-300">
+                        Matex Platform
+                      </span>
+                      <span className="block text-sm font-semibold text-steel-200">
+                        Industrial Exchange
+                      </span>
+                    </span>
+                  </Link>
+                  <button
+                    onClick={onMobileClose}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="px-3 pt-4">
+                  <div className="app-sidebar-meta">
+                    <p className="app-sidebar-meta-label">Workspace</p>
+                    <p className="app-sidebar-meta-value">{accountLabel}</p>
+                    <p className="mt-1 truncate text-xs text-steel-400">{emailLabel}</p>
+                  </div>
+                </div>
+                <nav className="flex-1 py-3 overflow-y-auto">
+                  {navLinks(true)}
+                </nav>
               </div>
-              <nav className="flex-1 py-3 overflow-y-auto">
-                {navLinks(true)}
-              </nav>
+              <div className="pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden>
+                <div className="metal-texture absolute inset-0" />
+              </div>
             </div>
           </aside>
         </div>
@@ -313,66 +463,93 @@ function Header({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [user, setUser] = useState<CurrentUser>(null);
+  const pageMeta = getPageMeta(pathname);
 
-  const pageTitle = (() => {
-    const segment = pathname.split("/")[1];
-    if (!segment) return "Overview";
-    return segment.charAt(0).toUpperCase() + segment.slice(1);
-  })();
+  useEffect(() => {
+    setUser(getUser());
+  }, [pathname]);
 
   function handleSignOut() {
     localStorage.removeItem("matex_token");
     router.replace("/login");
   }
 
+  const userInitial = user?.email?.charAt(0).toUpperCase() ?? "M";
+  const companyLabel = user?.accountType === "buyer" ? "Buyer" : user?.accountType === "seller" ? "Seller" : "Hybrid";
+
   return (
     <header
-      className="app-glass-header fixed top-0 right-0 z-20 flex h-16 items-center gap-4 px-4 transition-all duration-200 sm:px-6"
+      className="app-glass-header fixed top-0 right-0 z-20 h-20 transition-all duration-200"
       style={{ left: sidebarWidth }}
     >
-      <button
-        className="rounded-xl p-1.5 text-steel-400 transition-colors hover:bg-white/10 hover:text-white md:hidden"
-        onClick={onMobileMenuOpen}
-        aria-label="Open navigation"
-      >
-        <Menu size={20} />
-      </button>
+      <div className="app-header-surface">
+        <button
+          className="rounded-2xl border border-white/10 bg-white/[0.06] p-2.5 text-steel-300 transition-colors hover:bg-white/[0.1] hover:text-white md:hidden"
+          onClick={onMobileMenuOpen}
+          aria-label="Open navigation"
+        >
+          <Menu size={20} />
+        </button>
 
-      <h1 className="app-page-title hidden sm:block">{pageTitle}</h1>
-
-      <div className="ml-2 hidden max-w-sm flex-1 sm:block">
-        <div className="relative">
-          <Search
-            size={15}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel-500"
-          />
-          <input
-            type="search"
-            placeholder="Search materials, orders..."
-            className="app-header-search"
-            aria-label="Search materials and orders"
-          />
+        <div className="min-w-0">
+          <div className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-brand-300 sm:block">
+            {pageMeta.eyebrow}
+          </div>
+          <h1 className="app-page-title truncate">{pageMeta.title}</h1>
+          <p className="app-page-sub hidden truncate sm:block">{pageMeta.subtitle}</p>
         </div>
-      </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        <button
-          type="button"
-          className="relative rounded-xl p-2 text-steel-400 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Notifications"
-        >
-          <Bell size={18} />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-500 ring-2 ring-steel-950" />
-        </button>
+        <div className="ml-2 hidden max-w-md flex-1 xl:block">
+          <div className="relative">
+            <Search
+              size={15}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-steel-500"
+            />
+            <input
+              type="search"
+              placeholder="Search materials, listings, orders..."
+              className="app-header-search"
+              aria-label="Search materials and orders"
+            />
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          title="Sign out"
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white shadow-md shadow-brand-900/30 transition-all hover:from-brand-600 hover:to-brand-800"
-        >
-          M
-        </button>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="app-header-chip">
+            <Sparkles className="h-3.5 w-3.5 text-brand-300" />
+            Matex {companyLabel}
+          </div>
+
+          <button
+            type="button"
+            className="app-header-icon-button"
+            aria-label="Notifications"
+          >
+            <Bell size={18} />
+            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent-400 ring-2 ring-steel-950" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title="Sign out"
+            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2 text-left text-white transition-all hover:border-white/20 hover:bg-white/[0.1]"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-black text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.75)]">
+              {userInitial}
+            </span>
+            <span className="hidden min-w-0 sm:block">
+              <span className="block truncate text-sm font-semibold text-steel-100">
+                {user?.email?.split("@")[0] ?? "Matex user"}
+              </span>
+              <span className="flex items-center gap-1 text-xs text-steel-400">
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
     </header>
   );
@@ -399,13 +576,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       />
 
       <main
-        className="app-shell-canvas min-h-screen pt-16 transition-all duration-200"
+        className="app-shell-canvas min-h-screen pt-20 transition-all duration-200"
         style={{ marginLeft: sidebarWidth }}
       >
         <div className="app-shell-canvas-texture" aria-hidden>
           <div className="metal-texture absolute inset-0" />
         </div>
-        <div className="relative mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10">
+        <div className="app-content-frame">
           {children}
         </div>
       </main>
