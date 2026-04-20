@@ -59,37 +59,36 @@ type AuctionDetail = {
   terms_url?: string;
 };
 
-const MOCK_AUCTION: AuctionDetail = {
-  auction_id: "auc-001",
-  title: "Industrial Metal Scrap — Q2 Lot Sale",
-  organizer: "Ontario Metal Works",
-  description:
-    "Quarterly clearance of ferrous and non-ferrous scrap from certified industrial facilities. All material is pre-graded per ISRI standards. Winning bids are subject to re-weigh at pickup.",
-  status: "live",
-  start_time: new Date(Date.now() - 3600000).toISOString(),
-  end_time: new Date(Date.now() + 7200000).toISOString(),
-  participant_count: 34,
-  terms_url: "#",
-  lots: [
-    { lot_id: "l1", lot_number: 1, title: "HMS #1 Scrap Steel — 22 MT", description: "Heavy melting steel, no. 1 grade, minimal contamination.", image_url: "", opening_bid: 18000, current_bid: 27400, bid_count: 11, status: "sold", winner_label: "Buyer #2" },
-    { lot_id: "l2", lot_number: 2, title: "Shredded Aluminum — 8 MT", description: "Post-consumer shredded aluminum, mixed alloy.", image_url: "", opening_bid: 12000, current_bid: 19800, bid_count: 7, status: "sold", winner_label: "Buyer #7" },
-    { lot_id: "l3", lot_number: 3, title: "HMS #1 Scrap Steel — 18 MT", description: "Heavy melting steel, no. 1 grade.", image_url: "", opening_bid: 15000, current_bid: 28500, bid_count: 14, status: "active" },
-    { lot_id: "l4", lot_number: 4, title: "Copper Birch — 3 MT", description: "Bare bright copper wire, clean, uncoated.", image_url: "", opening_bid: 22000, current_bid: 22000, bid_count: 0, status: "upcoming" },
-    { lot_id: "l5", lot_number: 5, title: "Lead-Acid Batteries — 5 MT", description: "Whole lead-acid batteries. Hazmat class 8.", image_url: "", opening_bid: 4200, current_bid: 4200, bid_count: 0, status: "upcoming" },
-    { lot_id: "l6", lot_number: 6, title: "304 Stainless Steel Turnings", description: "304 grade stainless turning chips, dry, clean.", image_url: "", opening_bid: 9000, current_bid: 9000, bid_count: 0, status: "upcoming" },
-    { lot_id: "l7", lot_number: 7, title: "Mixed E-Waste — CPU / PCB", description: "Mixed electronic scrap, precious metal bearing.", image_url: "", opening_bid: 31000, current_bid: 31000, bid_count: 0, status: "upcoming" },
-  ],
-};
+type RawLot = Partial<Lot> & { lot_id: string; lot_number?: number };
 
-const INITIAL_BIDS: BidEntry[] = [
-  { bid_id: "b1", bidder: "Buyer #9", amount: 28500, timestamp: new Date(Date.now() - 42000).toISOString() },
-  { bid_id: "b2", bidder: "Buyer #3", amount: 27000, timestamp: new Date(Date.now() - 95000).toISOString() },
-  { bid_id: "b3", bidder: "Buyer #12", amount: 25500, timestamp: new Date(Date.now() - 183000).toISOString() },
-  { bid_id: "b4", bidder: "Buyer #9", amount: 24000, timestamp: new Date(Date.now() - 281000).toISOString() },
-  { bid_id: "b5", bidder: "Buyer #7", amount: 22000, timestamp: new Date(Date.now() - 392000).toISOString() },
-  { bid_id: "b6", bidder: "Buyer #3", amount: 20000, timestamp: new Date(Date.now() - 541000).toISOString() },
-  { bid_id: "b7", bidder: "Buyer #12", amount: 18500, timestamp: new Date(Date.now() - 678000).toISOString() },
-];
+function normalizeLot(raw: RawLot, idx: number): Lot {
+  const statusRaw = String(raw.status ?? "").toLowerCase();
+  const status: LotStatus =
+    statusRaw === "sold" || statusRaw === "unsold" || statusRaw === "active" || statusRaw === "upcoming"
+      ? statusRaw
+      : "upcoming";
+  return {
+    lot_id: raw.lot_id,
+    lot_number: Number(raw.lot_number ?? idx + 1),
+    title: raw.title ?? `Lot ${idx + 1}`,
+    description: raw.description ?? "",
+    image_url: raw.image_url ?? "",
+    opening_bid: Number(raw.opening_bid ?? 0),
+    current_bid: Number(raw.current_bid ?? raw.opening_bid ?? 0),
+    bid_count: Number(raw.bid_count ?? 0),
+    status,
+    winner_label: raw.winner_label,
+  };
+}
+
+function deriveAuctionStatus(startIso: string, endIso: string): AuctionStatus {
+  const now = Date.now();
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (now < start) return "scheduled";
+  if (now > end) return "completed";
+  return "live";
+}
 
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
@@ -108,27 +107,73 @@ export default function AuctionRoomPage() {
   const router = useRouter();
   const user = getUser();
 
-  const [auction, setAuction] = useState<AuctionDetail>(MOCK_AUCTION);
-  const [loading, setLoading] = useState(false);
-  const [activeLot, setActiveLot] = useState<Lot>(MOCK_AUCTION.lots.find((l) => l.status === "active")!);
-  const [bids, setBids] = useState<BidEntry[]>(INITIAL_BIDS);
+  const [auction, setAuction] = useState<AuctionDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [activeLot, setActiveLot] = useState<Lot | null>(null);
+  const [bids, setBids] = useState<BidEntry[]>([]);
   const [customBid, setCustomBid] = useState("");
   const [bidLoading, setBidLoading] = useState(false);
   const [bidError, setBidError] = useState("");
   const [bidSuccess, setBidSuccess] = useState(false);
-  const [isRegistered, setIsRegistered] = useState(true);
-  const [wonLots, setWonLots] = useState<Lot[]>([]);
-  const [showSoldOverlay, setShowSoldOverlay] = useState(false);
-  const [soldInfo, setSoldInfo] = useState<{ amount: number; winner: string } | null>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [wonLots] = useState<Lot[]>([]);
   const bidStreamRef = useRef<HTMLDivElement>(null);
 
-  const lotEnd = new Date(Date.now() + 185000).toISOString();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadError("");
+      const res = await callTool("auction.get_auction", { auction_id: params.id });
+      if (cancelled) return;
+      if (res.success) {
+        const d = res.data as unknown as {
+          auction?: Partial<AuctionDetail> & { start_time?: string; end_time?: string };
+          lots?: RawLot[];
+        };
+        const a = d?.auction;
+        if (!a) {
+          setLoadError("Auction not found.");
+          setLoading(false);
+          return;
+        }
+        const lots = Array.isArray(d?.lots) ? d.lots.map(normalizeLot) : [];
+        const start = a.start_time ?? new Date().toISOString();
+        const end = a.end_time ?? new Date().toISOString();
+        const detail: AuctionDetail = {
+          auction_id: a.auction_id ?? params.id,
+          title: a.title ?? "Auction",
+          organizer: a.organizer ?? "Organizer",
+          description: a.description ?? "",
+          status: (a.status as AuctionStatus) ?? deriveAuctionStatus(start, end),
+          start_time: start,
+          end_time: end,
+          participant_count: Number(a.participant_count ?? 0),
+          lots,
+          terms_url: a.terms_url,
+        };
+        setAuction(detail);
+        const active = lots.find((l) => l.status === "active") ?? lots[0] ?? null;
+        setActiveLot(active);
+      } else {
+        setLoadError(res.error?.message ?? "Could not load auction.");
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
+
+  const lotEnd = auction?.end_time ?? new Date().toISOString();
   const totalSecondsLeft = Math.max(0, Math.floor((new Date(lotEnd).getTime() - Date.now()) / 1000));
   const isUrgent = totalSecondsLeft < 60;
 
   const quickBidAmounts = [500, 1000, 5000];
 
   async function handlePlaceBid(amount: number): Promise<void> {
+    if (!activeLot) return;
     setBidLoading(true);
     setBidError("");
     setBidSuccess(false);
@@ -136,19 +181,15 @@ export default function AuctionRoomPage() {
       lot_id: activeLot.lot_id,
       amount,
     });
-    if (res.success || true) {
+    if (res.success) {
       const newBid: BidEntry = {
-        bid_id: `b-${Date.now()}`,
+        bid_id: extractId(res, "bid_id") || `b-${Date.now()}`,
         bidder: user?.email?.split("@")[0] ?? "You",
         amount,
         timestamp: new Date().toISOString(),
       };
       setBids((prev) => [newBid, ...prev]);
-      setActiveLot((prev) => ({
-        ...prev,
-        current_bid: amount,
-        bid_count: prev.bid_count + 1,
-      }));
+      setActiveLot((prev) => (prev ? { ...prev, current_bid: amount, bid_count: prev.bid_count + 1 } : prev));
       setBidSuccess(true);
       setCustomBid("");
       setTimeout(() => setBidSuccess(false), 3000);
@@ -156,6 +197,39 @@ export default function AuctionRoomPage() {
       setBidError(res.error?.message ?? "Failed to place bid.");
     }
     setBidLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Spinner className="h-6 w-6 text-brand-500" />
+      </div>
+    );
+  }
+
+  if (loadError || !auction) {
+    return (
+      <div className="mx-auto max-w-xl py-16 text-center">
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+        <h2 className="text-lg font-semibold text-slate-900">{loadError || "Auction not found"}</h2>
+        <p className="mt-2 text-sm text-slate-500">Go back to the auctions list and try another event.</p>
+        <Link href="/auction" className="mt-5 inline-block">
+          <Button size="sm" variant="secondary">Back to auctions</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (!activeLot) {
+    return (
+      <div className="mx-auto max-w-xl py-16 text-center">
+        <Gavel className="mx-auto mb-3 h-10 w-10 text-slate-400" />
+        <h2 className="text-lg font-semibold text-slate-900">No lots in this auction yet</h2>
+        <Link href="/auction" className="mt-5 inline-block">
+          <Button size="sm" variant="secondary">Back to auctions</Button>
+        </Link>
+      </div>
+    );
   }
 
   if (auction.status === "scheduled") {

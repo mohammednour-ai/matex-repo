@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/Button";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
-import { callTool, extractId, getUser } from "@/lib/api";
+import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
+import { callTool, getUser } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -76,11 +77,15 @@ function formatDate(iso: string): string {
 // ─── Sale mode badge ──────────────────────────────────────────────────────────
 
 function SaleModeBadge({ mode }: { mode: SaleMode }) {
-  const config = {
+  const config = ({
     fixed: { label: "Fixed Price", variant: "info" as const, icon: DollarSign },
     bidding: { label: "Bidding", variant: "warning" as const, icon: TrendingUp },
     auction: { label: "Auction", variant: "info" as const, icon: Gavel },
-  }[mode];
+  } as Record<string, { label: string; variant: "info" | "warning"; icon: typeof DollarSign }>)[mode] ?? {
+    label: mode ?? "Unknown",
+    variant: "info" as const,
+    icon: DollarSign,
+  };
   const Icon = config.icon;
   return (
     <span
@@ -206,7 +211,11 @@ function ListingCardItem({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={listing.thumbnail_url}
-            alt={listing.title}
+            alt={
+              listing.category
+                ? `${listing.title} — ${listing.category}`
+                : listing.title
+            }
             className="w-full h-full object-cover"
           />
         ) : (
@@ -307,52 +316,58 @@ function ListingCardItem({
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyState({
+const EMPTY_BY_TAB: Record<
+  Tab,
+  { image: string; title: string; description: string; showCreate: boolean }
+> = {
+  all: {
+    image: "/illustrations/empty-listings.png",
+    title: "No listings yet",
+    description: "Create your first listing to start selling recycled materials on Matex.",
+    showCreate: true,
+  },
+  active: {
+    image: "/illustrations/empty-active-listings.png",
+    title: "No active listings",
+    description: "Publish a draft listing or create a new one to start receiving offers.",
+    showCreate: true,
+  },
+  draft: {
+    image: "/illustrations/empty-listings.png",
+    title: "No drafts",
+    description: "Save a listing as draft to continue editing it later.",
+    showCreate: true,
+  },
+  sold: {
+    image: "/illustrations/empty-sold.png",
+    title: "No sold listings",
+    description: "Listings you've completed will appear here.",
+    showCreate: false,
+  },
+  ended: {
+    image: "/illustrations/empty-active-listings.png",
+    title: "No ended listings",
+    description: "Expired or closed listings will appear here.",
+    showCreate: false,
+  },
+};
+
+function ListingsEmptyState({
   tab,
   onCreate,
 }: {
   tab: Tab;
   onCreate: () => void;
 }) {
-  const messages: Record<Tab, { title: string; desc: string }> = {
-    all: {
-      title: "No listings yet",
-      desc: "Create your first listing to start selling recycled materials on Matex.",
-    },
-    active: {
-      title: "No active listings",
-      desc: "Publish a draft listing or create a new one to start receiving offers.",
-    },
-    draft: {
-      title: "No drafts",
-      desc: "Save a listing as draft to continue editing it later.",
-    },
-    sold: {
-      title: "No sold listings",
-      desc: "Listings you've completed will appear here.",
-    },
-    ended: {
-      title: "No ended listings",
-      desc: "Expired or closed listings will appear here.",
-    },
-  };
-
-  const { title, desc } = messages[tab];
-
+  const config = EMPTY_BY_TAB[tab];
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-        <Package className="w-8 h-8 text-slate-300" />
-      </div>
-      <h3 className="text-base font-semibold text-slate-700 mb-1">{title}</h3>
-      <p className="text-sm text-slate-400 max-w-xs mb-6">{desc}</p>
-      {(tab === "all" || tab === "draft") && (
-        <Button onClick={onCreate} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Create listing
-        </Button>
-      )}
-    </div>
+    <EmptyIllustration
+      image={config.image}
+      title={config.title}
+      description={config.description}
+      cta={config.showCreate ? { label: "Create listing", onClick: onCreate } : undefined}
+      size="lg"
+    />
   );
 }
 
@@ -447,14 +462,17 @@ export default function MyListingsPage() {
   const handleArchive = async (listingId: string) => {
     setArchiving(listingId);
     try {
-      await callTool("listing.archive_listing", { listing_id: listingId });
+      const res = await callTool("listing.archive_listing", { listing_id: listingId });
+      if (!res.success) {
+        throw new Error(res.error?.message ?? "Could not archive listing.");
+      }
       setListings((prev) =>
         prev.map((l) =>
           l.listing_id === listingId ? { ...l, status: "archived" as ListingStatus } : l
         )
       );
-    } catch {
-      /* soft fail */
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not archive listing.");
     } finally {
       setArchiving(null);
     }
@@ -543,7 +561,7 @@ export default function MyListingsPage() {
           ))}
         </div>
       ) : filteredListings.length === 0 ? (
-        <EmptyState
+        <ListingsEmptyState
           tab={activeTab}
           onCreate={() => router.push("/listings/create")}
         />

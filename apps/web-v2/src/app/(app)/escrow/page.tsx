@@ -14,11 +14,12 @@ import {
   MessageSquareWarning,
   DollarSign,
 } from "lucide-react";
-import { callTool, getUser, extractId } from "@/lib/api";
+import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type EscrowStatus = "created" | "funds_held" | "released" | "frozen" | "refunded" | "disputed";
 type Tab = "active" | "pending_release" | "released" | "frozen";
@@ -41,73 +42,6 @@ type EscrowRecord = {
   created_at: string;
   release_conditions: ReleaseCondition[];
 };
-
-const MOCK_ESCROWS: EscrowRecord[] = [
-  {
-    escrow_id: "esc-001",
-    order_id: "ord-001",
-    order_title: "HMS #1 Scrap Steel — 18 MT",
-    buyer: "Acme Smelting Inc.",
-    seller: "Ontario Metal Works",
-    amount: 28500,
-    commission: 997.5,
-    status: "funds_held",
-    created_at: new Date(Date.now() - 172800000).toISOString(),
-    release_conditions: [
-      { key: "inspection_approved", label: "Inspection approved", met: true },
-      { key: "delivery_confirmed", label: "Delivery confirmed (POD uploaded)", met: false },
-      { key: "dispute_resolved", label: "No open disputes", met: true },
-    ],
-  },
-  {
-    escrow_id: "esc-002",
-    order_id: "ord-002",
-    order_title: "Copper Birch — 3 MT",
-    buyer: "Great Lakes Copper LLC",
-    seller: "WestCan Recycling",
-    amount: 19800,
-    commission: 693,
-    status: "funds_held",
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    release_conditions: [
-      { key: "inspection_approved", label: "Inspection approved", met: false },
-      { key: "delivery_confirmed", label: "Delivery confirmed (POD uploaded)", met: false },
-      { key: "dispute_resolved", label: "No open disputes", met: true },
-    ],
-  },
-  {
-    escrow_id: "esc-003",
-    order_id: "ord-003",
-    order_title: "Shredded Aluminum — 8 MT",
-    buyer: "Pacific Alloys Corp.",
-    seller: "GreenCycle Solutions",
-    amount: 14200,
-    commission: 497,
-    status: "released",
-    created_at: new Date(Date.now() - 604800000).toISOString(),
-    release_conditions: [
-      { key: "inspection_approved", label: "Inspection approved", met: true },
-      { key: "delivery_confirmed", label: "Delivery confirmed (POD uploaded)", met: true },
-      { key: "dispute_resolved", label: "No open disputes", met: true },
-    ],
-  },
-  {
-    escrow_id: "esc-004",
-    order_id: "ord-004",
-    order_title: "Lead-Acid Batteries — 5 MT",
-    buyer: "Maritime Battery Recycling",
-    seller: "Atlantic Steel Co.",
-    amount: 6400,
-    commission: 224,
-    status: "frozen",
-    created_at: new Date(Date.now() - 259200000).toISOString(),
-    release_conditions: [
-      { key: "inspection_approved", label: "Inspection approved", met: false },
-      { key: "delivery_confirmed", label: "Delivery confirmed (POD uploaded)", met: false },
-      { key: "dispute_resolved", label: "No open disputes", met: false },
-    ],
-  },
-];
 
 const STATUS_TAB_MAP: Record<Tab, EscrowStatus[]> = {
   active: ["created", "funds_held"],
@@ -160,11 +94,90 @@ function timelineStep(status: EscrowStatus): number {
   return map[status] ?? 0;
 }
 
+type RawEscrow = Partial<EscrowRecord> & {
+  escrow_id: string;
+  status?: EscrowStatus | string;
+  held_amount?: number;
+  amount?: number;
+  buyer_id?: string;
+  seller_id?: string;
+};
+
+function normalizeEscrow(raw: RawEscrow): EscrowRecord {
+  return {
+    escrow_id: raw.escrow_id,
+    order_id: raw.order_id ?? "",
+    order_title: raw.order_title ?? `Order ${raw.order_id ?? raw.escrow_id}`,
+    buyer: raw.buyer ?? raw.buyer_id ?? "Buyer",
+    seller: raw.seller ?? raw.seller_id ?? "Seller",
+    amount: Number(raw.amount ?? raw.held_amount ?? 0),
+    commission: Number(raw.commission ?? 0),
+    status: ((raw.status as EscrowStatus) ?? "created"),
+    created_at: raw.created_at ?? new Date().toISOString(),
+    release_conditions: Array.isArray(raw.release_conditions)
+      ? raw.release_conditions
+      : [
+          { key: "inspection_approved", label: "Inspection approved", met: false },
+          { key: "delivery_confirmed", label: "Delivery confirmed (POD uploaded)", met: false },
+          { key: "dispute_resolved", label: "No open disputes", met: true },
+        ],
+  };
+}
+
+const EMPTY_BY_TAB: Record<Tab, { image: string; title: string; description: string }> = {
+  active: {
+    image: "/illustrations/escrow-held.png",
+    title: "No active escrows",
+    description: "New escrows appear here when funds are held against an order.",
+  },
+  pending_release: {
+    image: "/illustrations/escrow-held.png",
+    title: "Nothing pending release",
+    description: "When all release conditions are met, orders show here ready to release.",
+  },
+  released: {
+    image: "/illustrations/escrow-released.png",
+    title: "No released escrows yet",
+    description: "Completed escrow disbursements will appear here.",
+  },
+  frozen: {
+    image: "/illustrations/escrow-frozen.png",
+    title: "No frozen escrows",
+    description: "Frozen or disputed escrows appear here until resolved.",
+  },
+};
+
 export default function EscrowPage() {
   const [tab, setTab] = useState<Tab>("active");
-  const [escrows, setEscrows] = useState<EscrowRecord[]>(MOCK_ESCROWS);
+  const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      const user = getUser();
+      const res = await callTool("escrow.list_escrows", {
+        user_id: user?.userId ?? "",
+      });
+      if (cancelled) return;
+      if (res.success) {
+        const data = res.data as unknown as { escrows?: RawEscrow[] };
+        const list = Array.isArray(data?.escrows) ? data.escrows.map(normalizeEscrow) : [];
+        setEscrows(list);
+      } else {
+        setError(res.error?.message ?? "Could not load escrows.");
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = escrows.filter((e) => {
     if (tab === "active") return ["created", "funds_held"].includes(e.status);
@@ -247,13 +260,27 @@ export default function EscrowPage() {
         ))}
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Table */}
       <div className="marketplace-card overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
-            <Shield className="h-10 w-10 opacity-30" />
-            <p className="text-sm">No escrows in this category.</p>
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Spinner className="h-5 w-5 text-brand-500" />
           </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            image={EMPTY_BY_TAB[tab].image}
+            title={EMPTY_BY_TAB[tab].title}
+            description={EMPTY_BY_TAB[tab].description}
+            cta={tab === "active" ? { label: "Create escrow", href: "/escrow/create" } : undefined}
+            size="lg"
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {filtered.map((escrow) => (

@@ -441,6 +441,23 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     return ok({ thread: thread ?? null });
   }
   if (tool === "messaging.get_messages") { return ok({ messages: [], total: 0 }); }
+  if (tool === "messaging.list_threads") {
+    const list = Array.from(devThreads.values())
+      .filter((t) => t.participants.includes(userId))
+      .map((t) => {
+        const lastMsg = t.messages[t.messages.length - 1];
+        return {
+          thread_id: t.thread_id,
+          subject: t.subject,
+          participants: t.participants,
+          last_message: lastMsg?.content ?? "",
+          last_message_at: lastMsg?.created_at ?? "",
+          unread_count: 0,
+          status: "active" as const,
+        };
+      });
+    return ok({ threads: list, total: list.length });
+  }
 
   // ── Notifications ──
   if (tool === "notifications.get_notifications") { return ok({ notifications: [], total: 0 }); }
@@ -477,6 +494,7 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   if (tool === "logistics.book_shipment") { return ok({ shipment_id: randomUUID(), status: "booked", carrier: String(args.carrier_name ?? "Day & Ross") }); }
   if (tool === "logistics.get_shipment") { return ok({ shipment: { shipment_id: String(args.shipment_id ?? ""), status: "booked", carrier_name: "Day & Ross" } }); }
   if (tool === "logistics.generate_bol") { return ok({ shipment_id: String(args.shipment_id ?? ""), bol_number: `BOL-2026-${randomUUID().slice(0, 8).toUpperCase()}` }); }
+  if (tool === "logistics.list_shipments") { return ok({ shipments: [], total: 0 }); }
 
   // ── Tax ──
   if (tool === "tax.calculate_tax") {
@@ -507,6 +525,8 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   if (tool === "escrow.release_funds") { return ok({ escrow_id: String(args.escrow_id ?? ""), status: "released" }); }
   if (tool === "escrow.freeze_escrow") { return ok({ escrow_id: String(args.escrow_id ?? ""), status: "frozen" }); }
   if (tool === "escrow.get_escrow") { return ok({ escrow: { escrow_id: String(args.escrow_id ?? ""), status: "created", held_amount: 0 }, timeline: [] }); }
+  if (tool === "escrow.list_escrows") { return ok({ escrows: [], total: 0 }); }
+  if (tool === "escrow.refund_escrow") { return ok({ escrow_id: String(args.escrow_id ?? ""), status: "refunded" }); }
 
   // ── Bidding ──
   if (tool === "bidding.place_bid") { return ok({ bid_id: randomUUID(), amount: Number(args.amount ?? 0) }); }
@@ -516,11 +536,16 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   if (tool === "auction.place_auction_bid") { return ok({ bid_id: randomUUID(), lot_id: String(args.lot_id ?? ""), amount: Number(args.amount ?? 0) }); }
   if (tool === "auction.get_lot_state") { return ok({ lot: null }); }
   if (tool === "auction.register_bidder") { return ok({ registered: true, lot_id: String(args.lot_id ?? "") }); }
+  if (tool === "auction.list_auctions") { return ok({ auctions: [], total: 0 }); }
+  if (tool === "auction.get_auction") { return ok({ auction: null, lots: [] }); }
 
   // ── Inspection ──
   if (tool === "inspection.request_inspection") { return ok({ inspection_id: randomUUID(), status: "requested" }); }
   if (tool === "inspection.complete_inspection") { return ok({ inspection_id: String(args.inspection_id ?? ""), status: "completed" }); }
   if (tool === "inspection.evaluate_discrepancy") { return ok({ delta_pct: 0, exceeded_tolerance: false }); }
+  if (tool === "inspection.list_inspections") { return ok({ inspections: [], total: 0 }); }
+  if (tool === "inspection.record_weight") { return ok({ record_id: randomUUID(), weight_point: String(args.weight_point ?? "w1_seller") }); }
+  if (tool === "inspection.get_inspection") { return ok({ inspection: null }); }
 
   // ── Profile ──
   if (tool === "profile.get_profile") {
@@ -555,6 +580,7 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   if (tool === "contracts.create_contract") { return ok({ contract_id: randomUUID(), status: "draft" }); }
   if (tool === "contracts.activate_contract") { return ok({ contract_id: String(args.contract_id ?? ""), status: "active" }); }
   if (tool === "contracts.get_contract") { return ok({ contract: null }); }
+  if (tool === "contracts.list_contracts") { return ok({ contracts: [], total: 0 }); }
 
   // ── Pricing ──
   if (tool === "pricing.get_market_prices") { return ok({ prices: [], total: 0 }); }

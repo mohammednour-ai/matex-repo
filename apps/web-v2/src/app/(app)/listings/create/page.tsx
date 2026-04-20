@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import clsx from "clsx";
 import {
   ChevronRight,
@@ -120,15 +121,15 @@ const DEFAULT_FORM: FormData = {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  "Ferrous Metals",
-  "Non-Ferrous Metals",
-  "Precious Metals",
-  "Plastics",
-  "Electronics",
-  "Paper & Cardboard",
-  "Rubber",
-  "Construction",
+const CATEGORIES: { name: string; icon: string | null }[] = [
+  { name: "Ferrous Metals", icon: "/icons/categories/ferrous-metals.png" },
+  { name: "Non-Ferrous Metals", icon: "/icons/categories/non-ferrous-metals.png" },
+  { name: "Precious Metals", icon: "/icons/categories/precious-metals.png" },
+  { name: "Plastics", icon: "/icons/categories/plastics.png" },
+  { name: "Electronics", icon: "/icons/categories/electronics.png" },
+  { name: "Paper & Cardboard", icon: "/icons/categories/paper-cardboard.png" },
+  { name: "Rubber", icon: "/icons/categories/rubber.png" },
+  { name: "Construction", icon: "/icons/categories/construction.png" },
 ];
 
 const UNITS = [
@@ -344,16 +345,31 @@ function Step1({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <FieldLabel required>Category</FieldLabel>
-          <select
-            className={selectCls}
-            value={data.category}
-            onChange={(e) => onChange({ category: e.target.value })}
-          >
-            <option value="">Select category…</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {CATEGORIES.map((c) => {
+              const active = data.category === c.name;
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => onChange({ category: c.name })}
+                  className={clsx(
+                    "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors",
+                    active
+                      ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50/40",
+                  )}
+                >
+                  {c.icon ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-steel-50 overflow-hidden">
+                      <Image src={c.icon} alt="" width={28} height={28} className="object-contain" />
+                    </span>
+                  ) : null}
+                  <span className="truncate">{c.name}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>

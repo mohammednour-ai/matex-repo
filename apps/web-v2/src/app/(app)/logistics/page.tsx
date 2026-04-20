@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Truck,
   MapPin,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type ShipmentStatus = "pending" | "booked" | "in_transit" | "delivered" | "exception";
 
@@ -46,45 +47,28 @@ type CarrierQuote = {
   recommended?: boolean;
 };
 
-const MOCK_SHIPMENTS: Shipment[] = [
-  {
-    shipment_id: "shp-001",
-    order_title: "HMS #1 Scrap Steel — 18 MT",
-    carrier: "Day & Ross",
-    tracking_number: "DR-2026-748291",
-    origin: "Hamilton, ON",
-    destination: "Montreal, QC",
-    weight_kg: 18150,
-    status: "in_transit",
-    eta: new Date(Date.now() + 172800000).toISOString(),
-    co2_kg: 127.4,
-  },
-  {
-    shipment_id: "shp-002",
-    order_title: "Copper Birch — 3 MT",
-    carrier: "Manitoulin Transport",
-    tracking_number: "MT-2026-391042",
-    origin: "Toronto, ON",
-    destination: "Vancouver, BC",
-    weight_kg: 3020,
-    status: "booked",
-    eta: new Date(Date.now() + 432000000).toISOString(),
-    co2_kg: 48.3,
-  },
-  {
-    shipment_id: "shp-003",
-    order_title: "Shredded Aluminum — 8 MT",
-    carrier: "Purolator Freight",
-    tracking_number: "PF-2026-102847",
-    origin: "Calgary, AB",
-    destination: "Edmonton, AB",
-    weight_kg: 8010,
-    status: "delivered",
-    eta: new Date(Date.now() - 86400000).toISOString(),
-    co2_kg: 22.1,
-    bol_url: "#",
-  },
-];
+type RawShipment = Partial<Shipment> & {
+  shipment_id: string;
+  carrier_name?: string;
+  origin_city?: string;
+  destination_city?: string;
+};
+
+function normalizeShipment(raw: RawShipment): Shipment {
+  return {
+    shipment_id: raw.shipment_id,
+    order_title: raw.order_title ?? `Shipment ${raw.shipment_id.slice(0, 8)}`,
+    carrier: raw.carrier ?? raw.carrier_name ?? "",
+    tracking_number: raw.tracking_number ?? "",
+    origin: raw.origin ?? raw.origin_city ?? "",
+    destination: raw.destination ?? raw.destination_city ?? "",
+    weight_kg: Number(raw.weight_kg ?? 0),
+    status: ((raw.status as ShipmentStatus) ?? "pending"),
+    eta: raw.eta ?? new Date().toISOString(),
+    co2_kg: Number(raw.co2_kg ?? 0),
+    bol_url: raw.bol_url,
+  };
+}
 
 const HAZMAT_CLASSES = [
   { value: "none", label: "None" },
@@ -114,7 +98,9 @@ function formatDate(iso: string): string {
 }
 
 export default function LogisticsPage() {
-  const [shipments, setShipments] = useState<Shipment[]>(MOCK_SHIPMENTS);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [shipmentsLoading, setShipmentsLoading] = useState(true);
+  const [shipmentsError, setShipmentsError] = useState("");
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [weight, setWeight] = useState("");
@@ -127,6 +113,28 @@ export default function LogisticsPage() {
   const [expandedShipment, setExpandedShipment] = useState<string | null>(null);
   const [bookedId, setBookedId] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setShipmentsLoading(true);
+      setShipmentsError("");
+      const res = await callTool("logistics.list_shipments", {
+        user_id: getUser()?.userId ?? "",
+      });
+      if (cancelled) return;
+      if (res.success) {
+        const d = res.data as unknown as { shipments?: RawShipment[] };
+        setShipments(Array.isArray(d?.shipments) ? d.shipments.map(normalizeShipment) : []);
+      } else {
+        setShipmentsError(res.error?.message ?? "Could not load shipments.");
+      }
+      setShipmentsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function handleGetQuotes(): Promise<void> {
     setQuotesLoading(true);
     const res = await callTool("logistics.get_quotes", {
@@ -136,16 +144,9 @@ export default function LogisticsPage() {
       hazmat_class: hazmat,
       user_id: getUser()?.userId ?? "",
     });
-    const mock: CarrierQuote[] = [
-      { carrier: "Day & Ross", price: 2340, transit_days: 3, co2_kg: 94.2, rating: 4.7, recommended: true },
-      { carrier: "Manitoulin Transport", price: 2190, transit_days: 4, co2_kg: 88.7, rating: 4.5 },
-      { carrier: "Purolator Freight", price: 2680, transit_days: 2, co2_kg: 107.1, rating: 4.8 },
-      { carrier: "GoFor Industries", price: 1980, transit_days: 5, co2_kg: 79.3, rating: 4.2 },
-      { carrier: "Canada Cartage", price: 2420, transit_days: 3, co2_kg: 96.8, rating: 4.6 },
-    ];
     const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
     const realQuotes = (upData?.quotes ?? (res.data as unknown as { quotes?: CarrierQuote[] })?.quotes) as CarrierQuote[] | undefined;
-    setQuotes(res.success && realQuotes?.length ? realQuotes : mock);
+    setQuotes(res.success && realQuotes?.length ? realQuotes : []);
     setQuotesLoading(false);
   }
 
@@ -209,11 +210,19 @@ export default function LogisticsPage() {
         <div className="px-5 py-3.5 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-700">Active Shipments</h2>
         </div>
-        {shipments.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-12 text-slate-400">
-            <Truck className="h-10 w-10 opacity-30" />
-            <p className="text-sm">No shipments yet.</p>
+        {shipmentsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Spinner className="h-5 w-5 text-brand-500" />
           </div>
+        ) : shipmentsError ? (
+          <div className="px-5 py-4 text-sm text-red-700">{shipmentsError}</div>
+        ) : shipments.length === 0 ? (
+          <EmptyState
+            image="/illustrations/shipment-tracking.png"
+            title="No shipments yet"
+            description="Book your first load below to start tracking pickup, ETA, and proof of delivery."
+            size="md"
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {shipments.map((sh) => (

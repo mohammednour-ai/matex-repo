@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
+import { callTool } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,11 +147,12 @@ function resolveRoute(n: Notification): string | null {
   if (n.data?.auction_id) return `/auction/${n.data.auction_id}`;
   if (n.data?.escrow_id) return `/escrow`;
   if (n.data?.shipment_id) return `/logistics`;
-  if (n.data?.dispute_id) return `/disputes/${n.data.dispute_id}`;
+  // /disputes/[id] route does not exist yet; route to messages which carries dispute threads
+  if (n.data?.dispute_id) return `/messages`;
   if (n.data?.thread_id) return `/messages`;
-  if (n.data?.order_id) return `/checkout`;
+  if (n.data?.order_id) return `/escrow`;
   if (n.type === "kyc") return `/settings`;
-  if (n.type === "payment") return `/checkout`;
+  if (n.type === "payment") return `/escrow`;
   if (n.type === "contract") return `/contracts`;
   return null;
 }
@@ -214,7 +217,7 @@ function NotificationRow({
 // Empty state
 // ---------------------------------------------------------------------------
 function EmptyState({ tab }: { tab: Tab }) {
-  const messages: Record<Tab, string> = {
+  const titles: Record<Tab, string> = {
     all: "No notifications yet",
     unread: "You're all caught up",
     bid: "No bid notifications",
@@ -224,15 +227,16 @@ function EmptyState({ tab }: { tab: Tab }) {
     system: "No system notifications",
   };
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3 text-gray-400">
-        <Bell size={24} />
-      </div>
-      <p className="font-medium text-gray-600 text-sm">{messages[tab]}</p>
-      <p className="text-xs text-gray-400 mt-1">
-        {tab === "unread" ? "All notifications have been read." : "Check back later."}
-      </p>
-    </div>
+    <EmptyIllustration
+      image="/illustrations/empty-notifications.png"
+      title={titles[tab]}
+      description={
+        tab === "unread"
+          ? "All notifications have been read."
+          : "Activity from bids, escrow, logistics, and messages will show up here."
+      }
+      size="md"
+    />
   );
 }
 
@@ -249,44 +253,25 @@ export default function NotificationsPage() {
   async function fetchNotifications(): Promise<void> {
     setLoading(true);
     setError(null);
-    try {
-      const token = localStorage.getItem("matex_token") ?? undefined;
-      const res = await fetch("/api/mcp", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          tool: "notifications.get_notifications",
-          args: {},
-          token,
-        }),
-      });
-      const data = (await res.json()) as { result?: Notification[]; notifications?: Notification[] };
-      const list = data.result ?? data.notifications ?? [];
+    const res = await callTool("notifications.get_notifications", {});
+    if (res.success) {
+      const d = res.data as unknown as { notifications?: Notification[] };
+      const list = Array.isArray(d?.notifications) ? d.notifications : [];
       setNotifications(list);
-    } catch {
-      setError("Failed to load notifications. Please try again.");
-    } finally {
-      setLoading(false);
+    } else {
+      setError(res.error?.message ?? "Failed to load notifications. Please try again.");
     }
+    setLoading(false);
   }
 
   async function markRead(id: string): Promise<void> {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
-    try {
-      const token = localStorage.getItem("matex_token") ?? undefined;
-      await fetch("/api/mcp", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          tool: "notifications.mark_read",
-          args: { notification_id: id },
-          token,
-        }),
-      });
-    } catch {
-      // Optimistic update already applied; fail silently
+    const res = await callTool("notifications.mark_read", { notification_id: id });
+    if (!res.success) {
+      // eslint-disable-next-line no-console
+      console.warn("Could not mark notification read:", res.error?.message);
     }
   }
 
@@ -294,20 +279,9 @@ export default function NotificationsPage() {
     const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
     if (unreadIds.length === 0) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    try {
-      const token = localStorage.getItem("matex_token") ?? undefined;
-      await fetch("/api/mcp", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          tool: "notifications.mark_all_read",
-          args: { notification_ids: unreadIds },
-          token,
-        }),
-      });
-    } catch {
-      // Optimistic update already applied
-    }
+    await Promise.all(
+      unreadIds.map((id) => callTool("notifications.mark_read", { notification_id: id })),
+    );
   }
 
   useEffect(() => {

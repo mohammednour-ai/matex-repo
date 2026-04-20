@@ -10,8 +10,6 @@ import {
   CheckCircle,
   ArrowRight,
   Copy,
-  Truck,
-  Receipt,
   Shield,
 } from "lucide-react";
 import { callTool, getUser, extractId } from "@/lib/api";
@@ -19,6 +17,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import Image from "next/image";
 
 type Step = 1 | 2 | 3;
 type PaymentMethod = "card" | "wallet" | "credit";
@@ -45,27 +45,22 @@ type OrderItem = {
   material_category: string;
 };
 
-const MOCK_ITEM: OrderItem = {
-  listing_id: "lst-001",
-  title: "HMS #1 Scrap Steel",
-  quantity: "18",
-  unit: "MT",
-  unit_price: 1583.33,
-  total: 28500,
-  material_category: "Ferrous — HMS #1",
-};
-
-const MOCK_TAX: TaxBreakdown = {
-  subtotal: 28500,
-  commission: 997.5,
-  gst: 0,
-  hst: 1299.75,
-  pst: 0,
-  total_tax: 1299.75,
-  grand_total: 30797.25,
-  province_buyer: "ON",
-  province_seller: "ON",
-};
+function fallbackTax(subtotal: number, commission: number, provinceBuyer: string, provinceSeller: string): TaxBreakdown {
+  const hst = provinceBuyer === "ON" ? Math.round(subtotal * 0.13 * 100) / 100 : 0;
+  const gst = provinceBuyer !== "ON" ? Math.round(subtotal * 0.05 * 100) / 100 : 0;
+  const total_tax = Math.round((hst + gst) * 100) / 100;
+  return {
+    subtotal,
+    commission,
+    gst,
+    hst,
+    pst: 0,
+    total_tax,
+    grand_total: Math.round((subtotal + commission + total_tax) * 100) / 100,
+    province_buyer: provinceBuyer,
+    province_seller: provinceSeller,
+  };
+}
 
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
@@ -78,63 +73,179 @@ function generateInvoiceNumber(year: number, seq: number): string {
 export default function CheckoutPage() {
   const router = useRouter();
   const user = getUser();
+  const searchParams = useSearchParams();
+  const listingIdParam = searchParams.get("listing_id") ?? "";
+  const orderIdParam = searchParams.get("order_id") ?? "";
+  const quantityParam = searchParams.get("quantity") ?? "";
+
   const [step, setStep] = useState<Step>(1);
-  const [item] = useState<OrderItem>(MOCK_ITEM);
+  const [item, setItem] = useState<OrderItem | null>(null);
+  const [itemLoading, setItemLoading] = useState(true);
+  const [itemError, setItemError] = useState("");
   const [tax, setTax] = useState<TaxBreakdown | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
-  const [shippingEstimate] = useState(2340);
+  const [shippingEstimate] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
-  const [walletBalance] = useState(12500);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [escrowId, setEscrowId] = useState("");
+  const [, setEscrowId] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // Load listing → order item
   useEffect(() => {
-    async function loadTax(): Promise<void> {
+    if (!listingIdParam) {
+      setItemLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setItemLoading(true);
+      setItemError("");
+      const res = await callTool("listing.get_listing", { listing_id: listingIdParam });
+      if (cancelled) return;
+      if (res.success) {
+        const raw = res.data as unknown as Record<string, unknown>;
+        const qty = quantityParam ? parseFloat(quantityParam) : Number(raw.quantity ?? 1);
+        const unitPrice = Number(raw.price ?? raw.asking_price ?? raw.starting_bid ?? 0);
+        setItem({
+          listing_id: String(raw.listing_id ?? listingIdParam),
+          title: String(raw.title ?? "Material order"),
+          quantity: String(qty),
+          unit: String(raw.unit ?? "unit"),
+          unit_price: unitPrice,
+          total: Math.round(unitPrice * qty * 100) / 100,
+          material_category: String(raw.material_grade ?? raw.category ?? ""),
+        });
+      } else {
+        setItemError(res.error?.message ?? "Could not load listing.");
+      }
+      setItemLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [listingIdParam, quantityParam]);
+
+  // Load wallet for selected payment option
+  useEffect(() => {
+    if (!user?.userId) return;
+    (async () => {
+      const res = await callTool("payments.get_wallet_balance", { user_id: user.userId });
+      if (res.success) {
+        const d = res.data as unknown as { wallet?: { balance?: number }; balance?: number };
+        setWalletBalance(Number(d?.wallet?.balance ?? d?.balance ?? 0));
+      }
+    })();
+  }, [user?.userId]);
+
+  // Load tax once item is known
+  useEffect(() => {
+    if (!item) return;
+    let cancelled = false;
+    (async () => {
       setTaxLoading(true);
+      const provinceBuyer = (user as { province?: string } | null)?.province ?? "ON";
+      const provinceSeller = "ON";
       const res = await callTool("tax.calculate_tax", {
         amount: item.total,
-        province_seller: "ON",
-        province_buyer: "ON",
+        province_seller: provinceSeller,
+        province_buyer: provinceBuyer,
         material_category: item.material_category,
       });
+      if (cancelled) return;
       if (res.success) {
         setTax(res.data as unknown as TaxBreakdown);
       } else {
-        setTax(MOCK_TAX);
+        const commission = Math.round(item.total * 0.035 * 100) / 100;
+        setTax(fallbackTax(item.total, commission, provinceBuyer, provinceSeller));
       }
       setTaxLoading(false);
-    }
-    loadTax();
-  }, []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [item, user]);
 
-  const effectiveTax = tax ?? MOCK_TAX;
-  const grandTotal = effectiveTax.grand_total + shippingEstimate;
+  const effectiveTax = tax ?? (item ? fallbackTax(item.total, 0, "ON", "ON") : null);
+  const grandTotal = (effectiveTax?.grand_total ?? 0) + shippingEstimate;
 
   async function handleConfirm(): Promise<void> {
+    if (!item || !effectiveTax) return;
     setProcessing(true);
 
+    const orderId = orderIdParam || `ord-${Date.now()}`;
     const paymentRes = await callTool("payments.process_payment", {
       amount: grandTotal,
       payment_method: paymentMethod,
-      order_id: "ord-new",
+      order_id: orderId,
     });
+    if (!paymentRes.success) {
+      setProcessing(false);
+      setItemError(paymentRes.error?.message ?? "Payment failed. Please try again.");
+      return;
+    }
 
     const invoiceRes = await callTool("tax.generate_invoice", {
-      order_id: "ord-new",
+      order_id: orderId,
       amount: effectiveTax.subtotal,
       tax_amount: effectiveTax.total_tax,
       province_buyer: effectiveTax.province_buyer,
       province_seller: effectiveTax.province_seller,
     });
-    const inv = extractId(invoiceRes, "invoice_number") || generateInvoiceNumber(new Date().getFullYear(), Math.floor(Math.random() * 999) + 1);
-    const esc = `ESC-${Date.now()}`;
+    const inv =
+      extractId(invoiceRes, "invoice_number") ||
+      generateInvoiceNumber(
+        new Date().getFullYear(),
+        Math.floor(Math.random() * 999) + 1
+      );
+
+    const escrowRes = await callTool("escrow.create_escrow", {
+      order_id: orderId,
+      buyer_id: user?.userId ?? "",
+      amount: grandTotal,
+    });
+    const esc = extractId(escrowRes, "escrow_id") || "";
 
     setInvoiceNumber(inv);
     setEscrowId(esc);
     setStep(3);
     setProcessing(false);
+  }
+
+  if (itemLoading) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-8">
+        <AppPageHeader
+          title="Checkout"
+          description="Review your order, complete payment, and confirm your purchase."
+        />
+        <div className="flex items-center justify-center py-16">
+          <Spinner className="h-6 w-6 text-blue-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!item) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-8">
+        <AppPageHeader
+          title="Checkout"
+          description="Review your order, complete payment, and confirm your purchase."
+        />
+        <EmptyState
+          image="/illustrations/empty-listings.png"
+          title="No order to check out"
+          description={
+            itemError ||
+            "Open a listing and choose Buy now to start a checkout."
+          }
+          cta={{ label: "Browse marketplace", href: "/search" }}
+          size="lg"
+        />
+      </div>
+    );
   }
 
   return (
@@ -143,6 +254,12 @@ export default function CheckoutPage() {
         title="Checkout"
         description="Review your order, complete payment, and confirm your purchase."
       />
+
+      {itemError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {itemError}
+        </div>
+      )}
 
       {/* Step indicator */}
       <div className="flex items-center gap-0">
@@ -288,7 +405,14 @@ export default function CheckoutPage() {
       {step === 3 && (
         <div className="space-y-5">
           <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-7 text-center">
-            <CheckCircle className="mx-auto mb-3 h-12 w-12 text-emerald-600" />
+            <Image
+              src="/illustrations/checkout-success.png"
+              alt=""
+              aria-hidden
+              width={220}
+              height={140}
+              className="mx-auto mb-3 h-auto w-auto max-w-full"
+            />
             <h2 className="text-xl font-bold text-emerald-800">Order Confirmed!</h2>
             <p className="mt-1 text-sm text-emerald-700">Payment processed. Funds are now in escrow.</p>
           </div>

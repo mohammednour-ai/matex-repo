@@ -13,11 +13,13 @@ import {
   RefreshCw,
   PenLine,
 } from "lucide-react";
-import { callTool, getUser, extractId } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { callTool, callCopilot, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type ContractType = "standing" | "volume" | "hybrid" | "index_linked" | "rfq_framework" | "consignment";
 type ContractStatus = "draft" | "pending_signature" | "active" | "suspended" | "expired" | "breached";
@@ -50,78 +52,37 @@ type MarketPrice = {
   updated_at: string;
 };
 
-const MOCK_CONTRACTS: Contract[] = [
-  {
-    contract_id: "con-001",
-    title: "Annual HMS #1 Supply Agreement",
-    type: "volume",
-    buyer: "Great Lakes Copper LLC",
-    seller: "Ontario Metal Works",
-    material: "HMS #1 Scrap Steel",
-    committed_volume: 500,
-    fulfilled_volume: 213,
-    unit: "MT",
-    pricing_model: "Fixed @ $1,600/MT",
-    base_price: 1600,
-    next_order_date: new Date(Date.now() + 1209600000).toISOString(),
-    status: "active",
-    esign_status: "completed",
-  },
-  {
-    contract_id: "con-002",
-    title: "Quarterly Copper Index-Linked Contract",
-    type: "index_linked",
-    buyer: "Pacific Alloys Corp.",
-    seller: "WestCan Recycling",
-    material: "Copper Birch",
-    committed_volume: 120,
-    fulfilled_volume: 45,
-    unit: "MT",
-    pricing_model: "LME Copper ± $50/MT premium",
-    index_name: "LME Copper",
-    premium: 50,
-    next_order_date: new Date(Date.now() + 604800000).toISOString(),
-    status: "active",
-    esign_status: "completed",
-  },
-  {
-    contract_id: "con-003",
-    title: "Aluminum Standing Order — Monthly",
-    type: "standing",
-    buyer: "Maritime Battery Recycling",
-    seller: "Atlantic Steel Co.",
-    material: "Shredded Aluminum",
-    committed_volume: 60,
-    fulfilled_volume: 12,
-    unit: "MT",
-    pricing_model: "LME Aluminum + $30/MT",
-    index_name: "LME Aluminum",
-    premium: 30,
-    next_order_date: new Date(Date.now() + 2592000000).toISOString(),
-    status: "pending_signature",
-    esign_status: "pending",
-  },
-  {
-    contract_id: "con-004",
-    title: "E-Waste Consignment — Ongoing",
-    type: "consignment",
-    buyer: "EcoTech Processors",
-    seller: "GreenCycle Solutions",
-    material: "Mixed E-Waste",
-    committed_volume: 200,
-    fulfilled_volume: 0,
-    unit: "MT",
-    pricing_model: "Monthly reconciliation",
-    next_order_date: new Date(Date.now() + 86400000).toISOString(),
-    status: "draft",
-    esign_status: "not_sent",
-  },
+const DEFAULT_PRICES: MarketPrice[] = [
+  { commodity: "LME Copper", price: 0, currency: "USD", unit: "MT", change_pct: 0, updated_at: new Date().toISOString() },
+  { commodity: "LME Aluminum", price: 0, currency: "USD", unit: "MT", change_pct: 0, updated_at: new Date().toISOString() },
 ];
 
-const MOCK_PRICES: MarketPrice[] = [
-  { commodity: "LME Copper", price: 9842.5, currency: "USD", unit: "MT", change_pct: 1.23, updated_at: new Date().toISOString() },
-  { commodity: "LME Aluminum", price: 2318.0, currency: "USD", unit: "MT", change_pct: -0.45, updated_at: new Date().toISOString() },
-];
+type RawContract = Partial<Contract> & {
+  contract_id: string;
+  buyer_id?: string;
+  seller_id?: string;
+};
+
+function normalizeContract(raw: RawContract): Contract {
+  return {
+    contract_id: raw.contract_id,
+    title: raw.title ?? `Contract ${raw.contract_id.slice(0, 8)}`,
+    type: ((raw.type as ContractType) ?? "volume"),
+    buyer: raw.buyer ?? raw.buyer_id ?? "Buyer",
+    seller: raw.seller ?? raw.seller_id ?? "Seller",
+    material: raw.material ?? "",
+    committed_volume: Number(raw.committed_volume ?? 0),
+    fulfilled_volume: Number(raw.fulfilled_volume ?? 0),
+    unit: raw.unit ?? "MT",
+    pricing_model: raw.pricing_model ?? "",
+    base_price: raw.base_price,
+    index_name: raw.index_name,
+    premium: raw.premium,
+    next_order_date: raw.next_order_date ?? new Date().toISOString(),
+    status: ((raw.status as ContractStatus) ?? "draft"),
+    esign_status: ((raw.esign_status as Contract["esign_status"]) ?? "not_sent"),
+  };
+}
 
 const TYPE_LABELS: Record<ContractType, string> = {
   standing: "Standing",
@@ -169,8 +130,11 @@ const AI_CHIPS = [
 ];
 
 export default function ContractsPage() {
-  const [contracts, setContracts] = useState<Contract[]>(MOCK_CONTRACTS);
-  const [prices, setPrices] = useState<MarketPrice[]>(MOCK_PRICES);
+  const router = useRouter();
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(true);
+  const [contractsError, setContractsError] = useState("");
+  const [prices, setPrices] = useState<MarketPrice[]>(DEFAULT_PRICES);
   const [pricesLoading, setPricesLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [esignLoading, setEsignLoading] = useState<string | null>(null);
@@ -181,7 +145,21 @@ export default function ContractsPage() {
 
   useEffect(() => {
     loadPrices();
+    loadContracts();
   }, []);
+
+  async function loadContracts(): Promise<void> {
+    setContractsLoading(true);
+    setContractsError("");
+    const res = await callTool("contracts.list_contracts", {});
+    if (res.success) {
+      const d = res.data as unknown as { contracts?: RawContract[] };
+      setContracts(Array.isArray(d?.contracts) ? d.contracts.map(normalizeContract) : []);
+    } else {
+      setContractsError(res.error?.message ?? "Could not load contracts.");
+    }
+    setContractsLoading(false);
+  }
 
   async function loadPrices(): Promise<void> {
     setPricesLoading(true);
@@ -219,15 +197,7 @@ export default function ContractsPage() {
   async function handleAiChip(chip: string): Promise<void> {
     setAiMessage(chip);
     setAiLoading(true);
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        message: chip,
-        context: { contract: selectedContract, market_prices: prices },
-      }),
-    });
-    const data = (await res.json()) as { content?: string };
+    const data = await callCopilot(chip, { contract: selectedContract, market_prices: prices });
     setAiResponse(data.content ?? "Unable to get AI response right now.");
     setAiLoading(false);
   }
@@ -235,12 +205,7 @@ export default function ContractsPage() {
   async function handleAiSend(): Promise<void> {
     if (!aiMessage.trim()) return;
     setAiLoading(true);
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: aiMessage, context: { contract: selectedContract } }),
-    });
-    const data = (await res.json()) as { content?: string };
+    const data = await callCopilot(aiMessage, { contract: selectedContract });
     setAiResponse(data.content ?? "Unable to get AI response right now.");
     setAiLoading(false);
   }
@@ -255,7 +220,11 @@ export default function ContractsPage() {
       <AppPageHeader
         title="Supply Contracts"
         description="Manage standing orders, volume agreements, and index-linked pricing."
-        actions={<Button size="sm">+ New Contract</Button>}
+        actions={
+          <Button size="sm" onClick={() => router.push("/contracts/create")}>
+            + New Contract
+          </Button>
+        }
       />
 
       {/* LME Price Widget */}
@@ -293,7 +262,26 @@ export default function ContractsPage() {
         ))}
       </div>
 
+      {contractsError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {contractsError}
+        </div>
+      )}
+
       {/* Table */}
+      {contractsLoading ? (
+        <div className="marketplace-card flex items-center justify-center py-16">
+          <Spinner className="h-5 w-5 text-brand-500" />
+        </div>
+      ) : contracts.length === 0 ? (
+        <EmptyState
+          image="/illustrations/contracts-hero.png"
+          title="No supply contracts yet"
+          description="Create a standing order, volume commitment, or index-linked agreement to lock in supply."
+          cta={{ label: "New contract", onClick: () => router.push("/contracts/create") }}
+          size="lg"
+        />
+      ) : (
       <div className="marketplace-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
@@ -367,6 +355,7 @@ export default function ContractsPage() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Contract detail drawer */}
       {selectedContract && (

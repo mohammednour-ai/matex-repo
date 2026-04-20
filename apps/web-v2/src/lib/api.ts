@@ -4,7 +4,7 @@ export type MCPResponse<T = Record<string, unknown>> = {
   error?: { code: string; message: string };
 };
 
-function getToken(): string {
+export function getToken(): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem("matex_token") ?? "";
 }

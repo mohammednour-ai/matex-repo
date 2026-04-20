@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Search,
   Heart,
@@ -21,6 +22,7 @@ import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,14 +77,16 @@ const CANADIAN_PROVINCES = [
   { code: "YT", name: "Yukon" },
 ];
 
-const MATERIAL_CATEGORIES = [
-  "Ferrous Metals",
-  "Non-Ferrous Metals",
-  "Plastics",
-  "Paper & Cardboard",
-  "E-Waste",
-  "Construction",
-  "Other",
+const MATERIAL_CATEGORIES: { name: string; icon: string | null }[] = [
+  { name: "Ferrous Metals", icon: "/icons/categories/ferrous-metals.png" },
+  { name: "Non-Ferrous Metals", icon: "/icons/categories/non-ferrous-metals.png" },
+  { name: "Precious Metals", icon: "/icons/categories/precious-metals.png" },
+  { name: "Plastics", icon: "/icons/categories/plastics.png" },
+  { name: "Paper & Cardboard", icon: "/icons/categories/paper-cardboard.png" },
+  { name: "E-Waste", icon: "/icons/categories/electronics.png" },
+  { name: "Construction", icon: "/icons/categories/construction.png" },
+  { name: "Rubber", icon: "/icons/categories/rubber.png" },
+  { name: "Other", icon: null },
 ];
 
 const SALE_MODE_CONFIG: Record<SaleMode, { label: string; variant: "success" | "info" | "warning"; color: string }> = {
@@ -360,20 +364,33 @@ function FilterSidebar({
       <div>
         <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Category</label>
         <div className="flex flex-wrap gap-1.5">
-          {MATERIAL_CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => toggleCategory(cat)}
-              className={clsx(
-                "text-xs px-2 py-1 rounded-full border transition-colors",
-                categories.includes(cat)
-                  ? "bg-brand-600 text-white border-brand-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-brand-400"
-              )}
-            >
-              {cat}
-            </button>
-          ))}
+          {MATERIAL_CATEGORIES.map((cat) => {
+            const active = categories.includes(cat.name);
+            return (
+              <button
+                key={cat.name}
+                onClick={() => toggleCategory(cat.name)}
+                className={clsx(
+                  "inline-flex items-center gap-1.5 text-xs pl-1.5 pr-2.5 py-1 rounded-full border transition-colors",
+                  active
+                    ? "bg-brand-600 text-white border-brand-600"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-brand-400",
+                )}
+              >
+                {cat.icon ? (
+                  <span
+                    className={clsx(
+                      "flex h-5 w-5 items-center justify-center rounded-full overflow-hidden",
+                      active ? "bg-white/20" : "bg-steel-50",
+                    )}
+                  >
+                    <Image src={cat.icon} alt="" width={20} height={20} className="object-contain" />
+                  </span>
+                ) : null}
+                {cat.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -611,24 +628,18 @@ function SavedSearchesPanel({
 // ---------------------------------------------------------------------------
 // Empty State
 // ---------------------------------------------------------------------------
-function EmptyState({ query }: { query: string }) {
+function SearchEmptyState({ query }: { query: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-        <Package size={28} className="text-gray-400" />
-      </div>
-      <h3 className="text-base font-semibold text-gray-800 mb-1">No listings found</h3>
-      <p className="text-sm text-gray-500 max-w-xs">
-        {query
+    <EmptyIllustration
+      image="/illustrations/empty-search.png"
+      title="No listings found"
+      description={
+        query
           ? `No results for "${query}". Try adjusting your filters or broadening your search.`
-          : "No materials match your current filters. Try removing some to see more results."}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2 justify-center">
-        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">Try: HMS 1 scrap</span>
-        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">Try: Copper wire</span>
-        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">Try: Mixed plastics</span>
-      </div>
-    </div>
+          : "No materials match your current filters. Try removing some to see more results."
+      }
+      size="lg"
+    />
   );
 }
 
@@ -883,7 +894,7 @@ export default function SearchPage() {
           )}
 
           {/* Empty state */}
-          {!loading && searched && results.length === 0 && <EmptyState query={query} />}
+          {!loading && searched && results.length === 0 && <SearchEmptyState query={query} />}
 
           {/* Initial pre-search */}
           {!loading && !searched && (

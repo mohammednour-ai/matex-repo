@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   RefreshCw,
   Users,
@@ -12,12 +13,12 @@ import {
   CreditCard,
   Settings2,
   ScrollText,
-  AlertTriangle,
 } from "lucide-react";
 import { callTool, getUser, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
@@ -66,6 +67,7 @@ function JsonPreview({ value }: { value: unknown }) {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<TabId>("overview");
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,8 +103,13 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    setAllowed(Boolean(getUser()?.isPlatformAdmin));
-  }, []);
+    const user = getUser();
+    if (!user) {
+      router.replace("/login?next=/admin");
+      return;
+    }
+    setAllowed(Boolean(user.isPlatformAdmin));
+  }, [router]);
 
   const run = useCallback(
     async (fn: () => Promise<void>) => {
@@ -232,15 +239,14 @@ export default function AdminPage() {
 
   if (!allowed) {
     return (
-      <div className="max-w-lg mx-auto rounded-2xl border border-danger-200 bg-danger-50/80 p-6 text-center">
-        <AlertTriangle className="w-10 h-10 text-danger-600 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-steel-900">Platform admin only</h2>
-        <p className="text-sm text-steel-600 mt-2">
-          Your account is not marked as a platform operator. With Postgres, insert your user UUID into{" "}
-          <code className="text-xs bg-white px-1 py-0.5 rounded border">public.matex_admin_operators</code> (created
-          automatically on first config update), then sign in again. In local dev, set{" "}
-          <code className="text-xs bg-white px-1 py-0.5 rounded border">MATEX_DEV_ADMIN_EMAILS</code> on the MCP gateway.
-        </p>
+      <div className="max-w-2xl mx-auto">
+        <EmptyState
+          image="/illustrations/admin-hero.png"
+          title="Platform admin only"
+          description="Your account is not marked as a platform operator. With Postgres, add your user UUID to public.matex_admin_operators, then sign in again. In local dev, set MATEX_DEV_ADMIN_EMAILS on the MCP gateway."
+          cta={{ label: "Back to dashboard", href: "/dashboard" }}
+          size="lg"
+        />
       </div>
     );
   }

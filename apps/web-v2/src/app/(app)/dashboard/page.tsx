@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Package,
   Wallet,
@@ -14,16 +13,11 @@ import {
   Lock,
   Truck,
   Bot,
-  Bell,
   Calendar,
   ChevronRight,
   TrendingUp,
-  Recycle,
   ArrowUpRight,
-  RefreshCw,
   CircleAlert,
-  ArrowRight,
-  CheckCircle2,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
@@ -37,6 +31,7 @@ import type {
 } from "@/types/dashboard";
 import clsx from "clsx";
 import { AppSectionCard } from "@/components/layout/AppSectionCard";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type KycLevel = 0 | 1 | 2 | 3;
 
@@ -183,12 +178,6 @@ function formatEventDate(iso: string): string {
   });
 }
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
 
 function notificationHref(n: DashboardNotification): string | null {
   if (n.action_url) return n.action_url;
@@ -404,38 +393,11 @@ export default function DashboardPage() {
     }));
   }, [stats, wallet, unreadCount, listingsTrend, sectionErrors.unread]);
 
-  const heroSubtitle =
-    accountType === "buyer"
-      ? "Your buying hub — search, bid, and buy with confidence."
-      : accountType === "seller"
-        ? "Your seller workspace — listings, escrow, and logistics in one place."
-        : "Your marketplace overview";
-
-  const displayName = user?.email?.split("@")[0] ?? "Welcome back";
 
   const ordersPending = stats?.orders_pending_action ?? 0;
   const ordersTransit = stats?.orders_in_transit ?? 0;
   const showOrdersStrip = ordersPending > 0 || ordersTransit > 0;
-  const operationalHighlights = [
-    {
-      label: "Open orders",
-      value: showOrdersStrip ? ordersPending + ordersTransit : 0,
-      note:
-        showOrdersStrip
-          ? `${ordersPending} need action, ${ordersTransit} in transit`
-          : "No active order exceptions right now",
-    },
-    {
-      label: "Unread inbox",
-      value: sectionErrors.unread ? "—" : unreadCount,
-      note: sectionErrors.unread ?? "Stay ahead of negotiation and shipment updates",
-    },
-    {
-      label: "KYC status",
-      value: kycBadge.label,
-      note: kycLevel < 2 ? "Advance verification to unlock larger trade capacity" : "Your account is ready for higher trust workflows",
-    },
-  ];
+
 
   if (initialLoad) {
     return <DashboardSkeleton />;
@@ -443,79 +405,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="dashboard-hero">
-        <div className="dashboard-hero-grid">
-          <div className="min-w-0">
-            <span className="dashboard-eyebrow">
-              <Recycle className="h-3.5 w-3.5" />
-              Matex operations overview
-            </span>
-            <p className="mt-4 text-sm font-medium text-steel-500">{getGreeting()}, {displayName}</p>
-            <h1 className="dashboard-hero-title">Run your industrial marketplace from one elegant workspace.</h1>
-            <p className="dashboard-hero-copy">
-              {heroSubtitle} Track listings, funds, operational activity, and upcoming trade events from a
-              dashboard shaped for a cleaner Matex experience.
-            </p>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => void load(true)}
-                disabled={refreshing}
-                className="btn-primary rounded-2xl px-5 py-3"
-              >
-                <RefreshCw className={clsx("h-4 w-4", refreshing && "animate-spin")} />
-                Refresh workspace
-              </button>
-              {accountType === "buyer" ? (
-                <Link href="/search" className="btn-secondary rounded-2xl px-5 py-3">
-                  <Search className="h-4 w-4" />
-                  Search materials
-                </Link>
-              ) : accountType === "seller" ? (
-                <Link href="/listings/create" className="btn-secondary rounded-2xl px-5 py-3">
-                  <Plus className="h-4 w-4" />
-                  New listing
-                </Link>
-              ) : (
-                <>
-                  <Link href="/search" className="btn-secondary rounded-2xl px-5 py-3">
-                    <Search className="h-4 w-4" />
-                    Search
-                  </Link>
-                  <Link href="/listings/create" className="btn-secondary rounded-2xl px-5 py-3">
-                    <Plus className="h-4 w-4" />
-                    New listing
-                  </Link>
-                </>
-              )}
-              <Badge variant={kycBadge.variant} className="px-3 py-1.5 text-sm">
-                {kycBadge.label}
-              </Badge>
-            </div>
-
-            <div className="dashboard-hero-kpis">
-              {operationalHighlights.map((item) => (
-                <div key={item.label} className="dashboard-mini-kpi">
-                  <p className="dashboard-mini-kpi-label">{item.label}</p>
-                  <p className="dashboard-mini-kpi-value">{item.value}</p>
-                  <p className="mt-2 text-xs leading-5 text-steel-500">{item.note}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="dashboard-hero-media min-h-[320px]">
-            <Image
-              src="/dashadv.png"
-              alt="Matex dashboard hero artwork"
-              fill
-              className="object-cover"
-              priority
-            />
-          </div>
-        </div>
-      </div>
 
       {kycLevel < 2 && (
         <div className="dashboard-status-strip border-brand-200 bg-brand-50/80 text-sm text-steel-800">
@@ -674,13 +563,12 @@ export default function DashboardPage() {
             <p className="mb-2 text-xs text-danger-600">{sectionErrors.notifications}</p>
           )}
           {notifications.length === 0 ? (
-            <div className="dashboard-empty-state text-steel-400">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-steel-100">
-                <Bell className="h-6 w-6 text-steel-300" />
-              </div>
-              <p className="text-sm font-medium">No recent notifications</p>
-              <p className="text-xs text-steel-400">Activity will show up here as you trade</p>
-            </div>
+            <EmptyState
+              image="/illustrations/empty-notifications.png"
+              title="No recent notifications"
+              description="Activity will show up here as you trade."
+              size="sm"
+            />
           ) : (
             <ol className="relative space-y-0 border-l-2 border-brand-100 pl-5">
               {notifications.map((n) => {
@@ -751,21 +639,13 @@ export default function DashboardPage() {
           <p className="mb-2 text-xs text-danger-600">{sectionErrors.bookings}</p>
         )}
         {bookings.length === 0 ? (
-          <div className="dashboard-empty-state text-sm text-steel-500">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
-              <CheckCircle2 className="h-6 w-6 text-brand-400" />
-            </div>
-            <p className="font-medium text-steel-700">No visits or inspections scheduled</p>
-            <p className="text-xs text-steel-500">
-              Book on-site visits and inspections from your listings and orders.
-            </p>
-            <Link
-              href="/inspection"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:text-brand-700"
-            >
-              Go to Inspections <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
+          <EmptyState
+            image="/illustrations/empty-bookings.png"
+            title="No visits or inspections scheduled"
+            description="Book on-site visits and inspections from your listings and orders."
+            cta={{ label: "Go to inspections", href: "/inspection" }}
+            size="md"
+          />
         ) : (
           <div className="divide-y divide-steel-100">
             {bookings.map((b) => (

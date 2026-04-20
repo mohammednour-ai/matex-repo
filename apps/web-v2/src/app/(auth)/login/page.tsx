@@ -1,10 +1,10 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Eye, Loader2, EyeOff, ShieldCheck } from "lucide-react";
+import { Eye, Loader2, EyeOff, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 
 // ── types ──────────────────────────────────────────────────────────────
@@ -476,7 +476,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     if (!email.includes("@")) errs.email = "Enter a valid email address.";
     if (!/^\+1\d{10}$/.test(phone.replace(/\s/g, "")))
       errs.phone = "Enter a valid +1 Canadian phone number (e.g. +1 416 555 0100).";
-    if (password.length < 8) errs.password = "Password must be at least 8 characters.";
+    if (password.length < 12) errs.password = "Password must be at least 12 characters.";
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -1004,39 +1004,6 @@ const LOGIN_HERO_TRUST_CHIPS = [
   "Immutable audit trail for each transaction",
 ] as const;
 
-/** PNGs from repo `img/` → served under `public/hero-features/` (names aligned to each card). */
-const LOGIN_FEATURE_CARDS = [
-  {
-    title: "Real-Time Auctions",
-    sub: "Live and timed lots with server-ordered bids and clear pricing",
-    imageSrc: "/hero-features/real-time-auction.png",
-  },
-  {
-    title: "Secure Escrow",
-    sub: "Buyer funds held until delivery and inspection milestones are met",
-    imageSrc: "/hero-features/escrow.png",
-  },
-  {
-    title: "AI agent & copilot",
-    sub: "Natural-language help for listings, logistics context, and tool-driven workflows—aligned with your permissions",
-    imageSrc: "/hero-features/AI.png",
-  },
-  {
-    title: "Web, mobile & email",
-    sub: "One account across the web app, mobile experience, and integrated email alerts so bids, orders, and messages stay in sync",
-    imageSrc: "/hero-features/email-and-mobile.png",
-  },
-  {
-    title: "Auction terms, upfront",
-    sub: "Lot rules, timing, fees, and settlement expectations surfaced before you bid—no fine print buried off-platform",
-    imageSrc: "/hero-features/terms.png",
-  },
-  {
-    title: "Warehouse & listing support",
-    sub: "Matex works with your team on-site to organize yard or warehouse inventory into structured, buyer-ready business listings",
-    imageSrc: "/hero-features/listing-support.png",
-  },
-] as const;
 
 const INTRO_LOAD_MS = 1850;
 const INTRO_FADE_MS = 720;
@@ -1051,47 +1018,23 @@ function loginRevealDelay(ms: number): CSSProperties {
   return { "--login-delay": `${ms}ms` } as CSSProperties;
 }
 
-function FeatureCard({
-  title,
-  sub,
-  imageSrc,
-  className,
-  style,
-}: (typeof LOGIN_FEATURE_CARDS)[number] & {
-  className?: string;
-  style?: CSSProperties;
-}) {
-  return (
-    <div
-      className={clsx(
-        "flex items-start gap-3 rounded-xl border border-white/15 bg-black/25 p-3 backdrop-blur-md sm:gap-4 sm:p-4",
-        className
-      )}
-      style={style}
-    >
-      <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/45 shadow-sm ring-1 ring-white/50 backdrop-blur-md">
-        <Image
-          src={imageSrc}
-          alt=""
-          width={64}
-          height={64}
-          className="h-full w-full object-contain p-1.5"
-        />
-      </div>
-      <div className="min-w-0">
-        <h3 className="mb-0.5 text-sm font-bold text-white">{title}</h3>
-        <p className="text-xs leading-relaxed text-slate-300">{sub}</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Page ───────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const [tab, setTab] = useState<Tab>("login");
-  const [showAllCaps, setShowAllCaps] = useState(false);
-  const [bgVideoIndex, setBgVideoIndex] = useState(0);
   const [bgVideoBroken, setBgVideoBroken] = useState(false);
+  const [activeVideo, setActiveVideo] = useState(0); // 0 or 1 — index into LOGIN_BG_VIDEOS
+  const videoRefs = [useRef<HTMLVideoElement>(null), useRef<HTMLVideoElement>(null)];
+
+  // When active video ends, crossfade to the next one
+  function handleVideoEnded() {
+    const next = (activeVideo + 1) % LOGIN_BG_VIDEOS.length;
+    const nextEl = videoRefs[next].current;
+    if (nextEl) {
+      nextEl.currentTime = 0;
+      void nextEl.play();
+    }
+    setActiveVideo(next);
+  }
   const [introReady, setIntroReady] = useState(false);
   const [loaderDone, setLoaderDone] = useState(false);
   const [loaderLine, setLoaderLine] = useState(0);
@@ -1127,29 +1070,35 @@ export default function LoginPage() {
       data-login-intro={loaderDone ? "done" : "loading"}
       aria-busy={loaderDone ? undefined : true}
     >
-      {/* Full-page video background — login-bg3 then login-bg2, repeating */}
+      {/* Full-page video background — crossfade between login-bg3 and login-bg2 */}
       {bgVideoBroken ? (
         <div
-          className="absolute inset-0 h-full min-h-full w-full bg-gradient-to-br from-zinc-950 via-slate-900 to-orange-950/35 bg-cover bg-center"
+          className="absolute inset-0 h-full min-h-full w-full bg-cover bg-center"
           style={{ backgroundImage: "url('/login-bg.png')" }}
           aria-hidden
         />
       ) : (
-        <video
-          key={bgVideoIndex}
-          autoPlay
-          muted
-          playsInline
-          poster="/login-bg.png"
-          onEnded={() =>
-            setBgVideoIndex((i) => (i + 1) % LOGIN_BG_VIDEOS.length)
-          }
-          onError={() => setBgVideoBroken(true)}
-          className="absolute inset-0 h-full min-h-full w-full object-cover"
-          aria-hidden
-        >
-          <source src={LOGIN_BG_VIDEOS[bgVideoIndex]} type="video/mp4" />
-        </video>
+        <>
+          {LOGIN_BG_VIDEOS.map((src, i) => (
+            <video
+              key={src}
+              ref={videoRefs[i]}
+              autoPlay={i === 0}
+              muted
+              playsInline
+              preload="auto"
+              onEnded={i === activeVideo ? handleVideoEnded : undefined}
+              onError={() => setBgVideoBroken(true)}
+              className={clsx(
+                "absolute inset-0 h-full min-h-full w-full object-cover transition-opacity duration-[2000ms]",
+                i === activeVideo ? "opacity-100" : "opacity-0"
+              )}
+              aria-hidden
+            >
+              <source src={src} type="video/mp4" />
+            </video>
+          ))}
+        </>
       )}
       {/* Readability overlay — lighter so more of the background video shows through */}
       <div
@@ -1268,56 +1217,6 @@ export default function LoginPage() {
             MCP-backed tools your team uses in production.
           </p>
 
-          {/* Desktop: all capability cards */}
-          <div className="mb-6 hidden grid-cols-2 gap-3 lg:grid">
-            {LOGIN_FEATURE_CARDS.map((f, i) => (
-              <FeatureCard
-                key={f.title}
-                {...f}
-                className="login-reveal-item"
-                style={loginRevealDelay(300 + i * 55)}
-              />
-            ))}
-          </div>
-
-          {/* Mobile / tablet: headline capabilities + expand */}
-          <div className="mb-6 space-y-3 lg:hidden">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {LOGIN_FEATURE_CARDS.slice(0, 2).map((f, i) => (
-                <FeatureCard
-                  key={f.title}
-                  {...f}
-                  className="login-reveal-item"
-                  style={loginRevealDelay(300 + i * 60)}
-                />
-              ))}
-            </div>
-            {showAllCaps && (
-              <div className="grid grid-cols-1 gap-3 border-t border-white/10 pt-3 sm:grid-cols-2">
-                {LOGIN_FEATURE_CARDS.slice(2).map((f, i) => (
-                  <FeatureCard
-                    key={f.title}
-                    {...f}
-                    className="login-reveal-item"
-                    style={loginRevealDelay(420 + i * 50)}
-                  />
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowAllCaps((v) => !v)}
-              className="login-reveal-item flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/80"
-              style={loginRevealDelay(400)}
-              aria-expanded={showAllCaps}
-            >
-              {showAllCaps ? "Show fewer capabilities" : `Show ${LOGIN_FEATURE_CARDS.length - 2} more capabilities`}
-              <ChevronDown
-                className={clsx("h-4 w-4 shrink-0 transition-transform", showAllCaps && "rotate-180")}
-                aria-hidden
-              />
-            </button>
-          </div>
 
           <div
             className="login-reveal-item flex w-full max-w-full flex-col items-start gap-3 border-t border-white/10 pt-4 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2 sm:pt-5"

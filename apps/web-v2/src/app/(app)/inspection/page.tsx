@@ -13,11 +13,12 @@ import {
   Clock,
   User,
 } from "lucide-react";
-import { callTool, getUser, extractId } from "@/lib/api";
+import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type InspectionStatus = "scheduled" | "in_progress" | "completed" | "cancelled" | "failed";
 type InspectionType = "pre_shipment" | "delivery" | "weight_verification" | "quality_grading" | "lab_sample";
@@ -41,63 +42,6 @@ type Inspection = {
   weights: WeightRecord;
   notes?: string;
 };
-
-const MOCK_INSPECTIONS: Inspection[] = [
-  {
-    inspection_id: "insp-001",
-    listing_title: "HMS #1 Scrap Steel — 18 MT",
-    order_id: "ord-001",
-    type: "weight_verification",
-    inspector: "CAW Inspector — John Steele",
-    scheduled_at: new Date(Date.now() + 86400000).toISOString(),
-    status: "scheduled",
-    weights: { w1_seller: 18200, w2_carrier: 18150 },
-  },
-  {
-    inspection_id: "insp-002",
-    listing_title: "Copper Birch — 3 MT",
-    order_id: "ord-002",
-    type: "quality_grading",
-    inspector: "Matex Inspector — Sarah Chen",
-    scheduled_at: new Date(Date.now() + 172800000).toISOString(),
-    status: "scheduled",
-    weights: {},
-  },
-  {
-    inspection_id: "insp-003",
-    listing_title: "Shredded Aluminum — 8 MT",
-    order_id: "ord-003",
-    type: "pre_shipment",
-    inspector: "CAW Inspector — Mark Torres",
-    scheduled_at: new Date(Date.now() - 259200000).toISOString(),
-    status: "completed",
-    result: "pass",
-    weights: { w1_seller: 8050, w2_carrier: 8020, w3_buyer: 7995, w4_third_party: 8010 },
-    notes: "Material meets ISRI grade specifications. Minor contamination below threshold.",
-  },
-  {
-    inspection_id: "insp-004",
-    listing_title: "Lead-Acid Batteries — 5 MT",
-    order_id: "ord-004",
-    type: "delivery",
-    inspector: "Third Party — Veritas Labs",
-    scheduled_at: new Date(Date.now() - 86400000).toISOString(),
-    status: "failed",
-    result: "fail",
-    weights: { w1_seller: 5100, w2_carrier: 4800 },
-    notes: "Weight discrepancy of 5.8% exceeds 2% tolerance. Requires re-weigh.",
-  },
-  {
-    inspection_id: "insp-005",
-    listing_title: "304 Stainless Steel Turnings",
-    order_id: "ord-005",
-    type: "lab_sample",
-    inspector: "ALS Metals Lab — Toronto",
-    scheduled_at: new Date(Date.now() + 259200000).toISOString(),
-    status: "scheduled",
-    weights: { w1_seller: 2200 },
-  },
-];
 
 const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
   pre_shipment: "Pre-Shipment",
@@ -137,11 +81,60 @@ function formatDate(iso: string): string {
 
 type ViewMode = "list" | "calendar";
 
+type RawInspection = Partial<Inspection> & {
+  inspection_id: string;
+  scheduled_at?: string;
+  listing_title?: string;
+  listing_id?: string;
+  inspector_name?: string;
+  inspector_id?: string;
+};
+
+function normalizeInspection(raw: RawInspection): Inspection {
+  return {
+    inspection_id: raw.inspection_id,
+    listing_title: raw.listing_title ?? raw.listing_id ?? "Inspection",
+    order_id: raw.order_id ?? "",
+    type: ((raw.type as InspectionType) ?? "weight_verification"),
+    inspector: raw.inspector ?? raw.inspector_name ?? raw.inspector_id ?? "Assigned inspector",
+    scheduled_at: raw.scheduled_at ?? new Date().toISOString(),
+    status: ((raw.status as InspectionStatus) ?? "scheduled"),
+    result: raw.result,
+    weights: raw.weights ?? {},
+    notes: raw.notes,
+  };
+}
+
 export default function InspectionPage() {
   const [view, setView] = useState<ViewMode>("list");
-  const [inspections, setInspections] = useState<Inspection[]>(MOCK_INSPECTIONS);
+  const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      const user = getUser();
+      const res = await callTool("inspection.list_inspections", {
+        user_id: user?.userId ?? "",
+      });
+      if (cancelled) return;
+      if (res.success) {
+        const d = res.data as unknown as { inspections?: RawInspection[] };
+        setInspections(Array.isArray(d?.inspections) ? d.inspections.map(normalizeInspection) : []);
+      } else {
+        setError(res.error?.message ?? "Could not load inspections.");
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleComplete(inspectionId: string): Promise<void> {
     setActionLoading(inspectionId + "complete");
@@ -207,8 +200,25 @@ export default function InspectionPage() {
         ))}
       </div>
 
-      {view === "calendar" ? (
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Spinner className="h-5 w-5 text-brand-500" />
+        </div>
+      ) : view === "calendar" ? (
         <CalendarView inspections={inspections} />
+      ) : inspections.length === 0 ? (
+        <EmptyState
+          image="/illustrations/inspection-pending.png"
+          title="No inspections yet"
+          description="Scheduled CAW weight checks and grading visits will appear here."
+          size="lg"
+        />
       ) : (
         <div className="marketplace-card overflow-hidden">
           <div className="divide-y divide-slate-100">

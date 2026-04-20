@@ -2,14 +2,16 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, X, FileVideo, Image as ImageIcon } from "lucide-react";
+import { UploadCloud, X, FileVideo } from "lucide-react";
 import clsx from "clsx";
 import { Spinner } from "./Spinner";
+import { callTool } from "@/lib/api";
 
 type UploadedFile = {
   id: string;
   file: File;
   preview?: string;
+  publicUrl?: string;
   progress: number;
   status: "pending" | "uploading" | "done" | "error";
   errorMsg?: string;
@@ -29,29 +31,58 @@ const ACCEPTED_TYPES = {
   "video/quicktime": [".mov"],
 };
 
+type SignedUploadEnvelope = {
+  signed_url?: string;
+  public_url?: string;
+  upload_url?: string;
+  url?: string;
+};
+
+function extractSignedUpload(data: unknown): { signed_url: string; public_url: string } | null {
+  if (!data || typeof data !== "object") return null;
+  const root = data as Record<string, unknown>;
+  const candidates: SignedUploadEnvelope[] = [];
+  candidates.push(root as SignedUploadEnvelope);
+  const ur = root.upstream_response as Record<string, unknown> | undefined;
+  if (ur && typeof ur === "object") {
+    candidates.push(ur as SignedUploadEnvelope);
+    const inner = ur.data as Record<string, unknown> | undefined;
+    if (inner && typeof inner === "object") candidates.push(inner as SignedUploadEnvelope);
+  }
+  for (const c of candidates) {
+    const signed = c.signed_url ?? c.upload_url;
+    const pub = c.public_url ?? c.url;
+    if (signed && pub) return { signed_url: signed, public_url: pub };
+  }
+  return null;
+}
+
 async function uploadFile(
   file: File,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
 ): Promise<string> {
-  const res = await fetch("/api/mcp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      tool: "listing.upload_images",
-      input: { filename: file.name, content_type: file.type },
-    }),
+  const res = await callTool("listing.upload_images", {
+    filename: file.name,
+    content_type: file.type,
+    size_bytes: file.size,
   });
-  if (!res.ok) throw new Error("Failed to get upload URL");
-  const { signed_url, public_url } = await res.json();
+  if (!res.success) {
+    throw new Error(res.error?.message ?? "Failed to get upload URL");
+  }
+  const signed = extractSignedUpload(res.data);
+  if (!signed) {
+    throw new Error("Upload service did not return a signed URL");
+  }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
-    xhr.onload = () => (xhr.status < 300 ? resolve(public_url) : reject(new Error("Upload failed")));
+    xhr.onload = () =>
+      xhr.status < 300 ? resolve(signed.public_url) : reject(new Error("Upload failed"));
     xhr.onerror = () => reject(new Error("Network error"));
-    xhr.open("PUT", signed_url);
+    xhr.open("PUT", signed.signed_url);
     xhr.setRequestHeader("Content-Type", file.type);
     xhr.send(file);
   });
@@ -74,13 +105,16 @@ export function MediaUploader({
         const url = await uploadFile(entry.file, (pct) =>
           updateFile(entry.id, { progress: pct })
         );
-        updateFile(entry.id, { status: "done", progress: 100 });
+        updateFile(entry.id, { status: "done", progress: 100, publicUrl: url });
         setFiles((prev) => {
-          const done = prev
-            .filter((f) => f.status === "done")
-            .map((f) => f.preview ?? f.file.name);
-          onUploadComplete?.(done as string[]);
-          return prev;
+          const next = prev.map((f) =>
+            f.id === entry.id ? { ...f, status: "done" as const, progress: 100, publicUrl: url } : f,
+          );
+          const done = next
+            .filter((f) => f.status === "done" && f.publicUrl)
+            .map((f) => f.publicUrl as string);
+          onUploadComplete?.(done);
+          return next;
         });
         return url;
       } catch (e) {

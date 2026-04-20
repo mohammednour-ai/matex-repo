@@ -15,8 +15,8 @@ import {
   BarChart2,
   Shield,
   FileText,
-  Search,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -387,7 +387,7 @@ export default function ChatPage() {
 
       try {
         const token = localStorage.getItem("matex_token") ?? undefined;
-        const res = await fetch("/chat/api", {
+        const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -496,15 +496,12 @@ export default function ChatPage() {
           onClick={handleMessageAreaClick}
         >
           {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mb-4 text-brand-500">
-                <Search size={28} />
-              </div>
-              <h3 className="font-semibold text-gray-700 mb-1">How can I help you today?</h3>
-              <p className="text-sm text-gray-400 max-w-xs">
-                Use the quick actions above or type your question below to get started.
-              </p>
-            </div>
+            <EmptyState
+              image="/illustrations/copilot-empty.png"
+              title="How can I help you today?"
+              description="Use the quick actions above or type your question below to get started."
+              size="md"
+            />
           )}
 
           {messages.map((msg) => (

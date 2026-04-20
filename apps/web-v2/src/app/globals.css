@@ -224,7 +224,7 @@
     @apply pointer-events-none absolute inset-y-0 right-0 w-[38%] bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.18),transparent_68%)];
   }
   .dashboard-hero-grid {
-    @apply relative z-10 grid gap-6 p-6 sm:p-8 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)];
+    @apply relative z-10 p-6 sm:p-8;
   }
   .dashboard-eyebrow {
     @apply inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-700;

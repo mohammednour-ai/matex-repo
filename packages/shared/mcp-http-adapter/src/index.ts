@@ -590,6 +590,20 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const row = (await pool.query(`select * from logistics_mcp.shipments where shipment_id=$1`, [shipmentId])).rows[0];
     return ok({ shipment: row ?? null });
   }
+  if (tool === "logistics.list_shipments") {
+    const userId = String(args.user_id ?? "");
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (userId) {
+      params.push(userId);
+      where.push(`(shipper_id = $${params.length} or receiver_id = $${params.length} or booked_by = $${params.length})`);
+    }
+    params.push(limit);
+    const sql = `select * from logistics_mcp.shipments ${where.length ? `where ${where.join(" and ")}` : ""} order by created_at desc limit $${params.length}`;
+    const rows = (await pool.query(sql, params)).rows;
+    return ok({ shipments: rows, total: rows.length });
+  }
 
   // phase3: contracts
   if (tool === "contracts.create_contract") {
@@ -627,6 +641,20 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const contractId = String(args.contract_id ?? "");
     await pool.query(`update contracts_mcp.contracts set status='terminated',terminated_at=now(),updated_at=now() where contract_id=$1`, [contractId]);
     return ok({ contract_id: contractId, status: "terminated" });
+  }
+  if (tool === "contracts.list_contracts") {
+    const userId = String(args.user_id ?? "");
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (userId) {
+      params.push(userId);
+      where.push(`(buyer_id = $${params.length} or seller_id = $${params.length})`);
+    }
+    params.push(limit);
+    const sql = `select * from contracts_mcp.contracts ${where.length ? `where ${where.join(" and ")}` : ""} order by created_at desc limit $${params.length}`;
+    const rows = (await pool.query(sql, params)).rows;
+    return ok({ contracts: rows, total: rows.length });
   }
 
   // phase3: dispute
@@ -1188,6 +1216,31 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     )).rows[0]?.cnt ?? 0;
     return ok({ total_unread: cnt });
   }
+  if (tool === "messaging.list_threads") {
+    const userId = String(args.user_id ?? "");
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const rows = (await pool.query(
+      `select t.thread_id,
+              t.subject,
+              t.participants,
+              t.listing_id,
+              (select m2.content from messaging_mcp.messages m2
+                where m2.thread_id = t.thread_id
+                order by m2.created_at desc limit 1) as last_message,
+              (select m2.created_at from messaging_mcp.messages m2
+                where m2.thread_id = t.thread_id
+                order by m2.created_at desc limit 1) as last_message_at,
+              (select count(*)::int from messaging_mcp.messages m3
+                where m3.thread_id = t.thread_id
+                  and m3.sender_id != $1) as unread_count
+         from messaging_mcp.threads t
+        where $1 = any(t.participants)
+        order by last_message_at desc nulls last
+        limit $2`,
+      [userId, limit],
+    )).rows;
+    return ok({ threads: rows, total: rows.length });
+  }
 
   // ── missing payments tools ──
   if (tool === "payments.get_wallet_balance") {
@@ -1255,6 +1308,25 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const timeline = (await pool.query(`select * from escrow_mcp.escrow_timeline where escrow_id=$1 order by created_at`, [escrowId])).rows;
     return ok({ escrow: escrow ?? null, timeline });
   }
+  if (tool === "escrow.list_escrows") {
+    const userId = String(args.user_id ?? "");
+    const status = args.status ? String(args.status) : null;
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (userId) {
+      params.push(userId);
+      where.push(`(buyer_id = $${params.length} or seller_id = $${params.length})`);
+    }
+    if (status) {
+      params.push(status);
+      where.push(`status = $${params.length}`);
+    }
+    params.push(limit);
+    const sql = `select * from escrow_mcp.escrows ${where.length ? `where ${where.join(" and ")}` : ""} order by created_at desc limit $${params.length}`;
+    const rows = (await pool.query(sql, params)).rows;
+    return ok({ escrows: rows, total: rows.length });
+  }
 
   // ── missing auction tools ──
   if (tool === "auction.start_auction") {
@@ -1273,6 +1345,29 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   if (tool === "auction.get_lot_state") {
     const row = (await pool.query(`select * from auction_mcp.lots where lot_id=$1`, [String(args.lot_id ?? "")])).rows[0];
     return ok({ lot: row ?? null });
+  }
+  if (tool === "auction.list_auctions") {
+    const status = args.status ? String(args.status) : null;
+    const limit = Math.min(Number(args.limit ?? 100), 500);
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (status) {
+      params.push(status);
+      where.push(`a.status = $${params.length}`);
+    }
+    params.push(limit);
+    const sql = `select a.*, (select count(*)::int from auction_mcp.lots l where l.auction_id = a.auction_id) as lot_count
+                 from auction_mcp.auctions a
+                 ${where.length ? `where ${where.join(" and ")}` : ""}
+                 order by a.start_time desc limit $${params.length}`;
+    const rows = (await pool.query(sql, params)).rows;
+    return ok({ auctions: rows, total: rows.length });
+  }
+  if (tool === "auction.get_auction") {
+    const auctionId = String(args.auction_id ?? "");
+    const auction = (await pool.query(`select * from auction_mcp.auctions where auction_id=$1`, [auctionId])).rows[0];
+    const lots = (await pool.query(`select * from auction_mcp.lots where auction_id=$1 order by created_at`, [auctionId])).rows;
+    return ok({ auction: auction ?? null, lots });
   }
 
   // ── missing bidding tools ──
@@ -1326,6 +1421,20 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const inspectionId = String(args.inspection_id ?? "");
     const insp = (await pool.query(`select * from inspection_mcp.inspections where inspection_id=$1`, [inspectionId])).rows[0];
     return ok({ inspection: insp ?? null });
+  }
+  if (tool === "inspection.list_inspections") {
+    const userId = String(args.user_id ?? "");
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (userId) {
+      params.push(userId);
+      where.push(`(requested_by = $${params.length} or inspector_id = $${params.length})`);
+    }
+    params.push(limit);
+    const sql = `select * from inspection_mcp.inspections ${where.length ? `where ${where.join(" and ")}` : ""} order by scheduled_at desc nulls last limit $${params.length}`;
+    const rows = (await pool.query(sql, params)).rows;
+    return ok({ inspections: rows, total: rows.length });
   }
 
   // ── missing booking tools ──

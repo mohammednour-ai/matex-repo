@@ -65,12 +65,63 @@ function ProfileTab() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function uploadAvatar(file: File): Promise<string | null> {
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const res = await callTool("listing.upload_images", {
+        filename: file.name,
+        content_type: file.type,
+        size_bytes: file.size,
+      });
+      if (!res.success) {
+        setError(res.error?.message ?? "Could not get upload URL");
+        return null;
+      }
+      const root = res.data as Record<string, unknown> | undefined;
+      const ur = (root?.upstream_response as Record<string, unknown> | undefined) ?? root;
+      const inner = (ur?.data as Record<string, unknown> | undefined) ?? ur;
+      const signed =
+        (inner?.signed_url as string | undefined) ??
+        (inner?.upload_url as string | undefined);
+      const pub =
+        (inner?.public_url as string | undefined) ??
+        (inner?.url as string | undefined);
+      if (!signed || !pub) {
+        setError("Upload service did not return a signed URL");
+        return null;
+      }
+      const put = await fetch(signed, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!put.ok) {
+        setError(`Upload failed (HTTP ${put.status})`);
+        return null;
+      }
+      return pub;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Avatar upload failed");
+      return null;
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   const handleSave = async (): Promise<void> => {
     setSaving(true);
-    await callTool("profile.update_profile", { ...form });
+    setError("");
+    const res = await callTool("profile.update_profile", { ...form });
     setSaving(false);
+    if (!res.success) {
+      setError(res.error?.message ?? "Could not save profile");
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -94,20 +145,27 @@ function ProfileTab() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="absolute -bottom-1 -right-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm hover:bg-slate-50 transition-colors"
+            disabled={uploadingAvatar}
+            aria-label="Upload avatar"
+            className="absolute -bottom-1 -right-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
-            <Upload className="h-3 w-3 text-slate-600" />
+            {uploadingAvatar ? (
+              <Spinner className="h-3 w-3 text-slate-600" />
+            ) : (
+              <Upload className="h-3 w-3 text-slate-600" />
+            )}
           </button>
           <input
             ref={fileRef}
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
+            onChange={async (e) => {
               const file = e.target.files?.[0];
-              if (file) {
-                setForm((f) => ({ ...f, avatar_url: URL.createObjectURL(file) }));
-              }
+              if (!file) return;
+              const url = await uploadAvatar(file);
+              if (url) setForm((f) => ({ ...f, avatar_url: url }));
+              e.target.value = "";
             }}
           />
         </div>
@@ -153,6 +211,12 @@ function ProfileTab() {
           ))}
         </select>
       </div>
+
+      {error && (
+        <p className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+          {error}
+        </p>
+      )}
 
       <Button
         onClick={handleSave}
@@ -206,11 +270,17 @@ function CompanyTab() {
   };
 
   const [companySaved, setCompanySaved] = useState(false);
+  const [companyError, setCompanyError] = useState("");
   const handleSave = async (): Promise<void> => {
     if (bnError) return;
     setSaving(true);
-    await callTool("profile.update_company", { ...form });
+    setCompanyError("");
+    const res = await callTool("profile.update_company", { ...form });
     setSaving(false);
+    if (!res.success) {
+      setCompanyError(res.error?.message ?? "Could not save company info");
+      return;
+    }
     setCompanySaved(true);
     setTimeout(() => setCompanySaved(false), 2500);
   };
@@ -290,9 +360,22 @@ function CompanyTab() {
         </select>
       </div>
 
+      {companyError && (
+        <p className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+          {companyError}
+        </p>
+      )}
+
       {!submitted && (
         <Button onClick={handleSave} loading={saving} disabled={!!bnError}>
-          Save Company Info
+          {companySaved ? (
+            <>
+              <CheckCircle2 className="h-4 w-4" />
+              Saved
+            </>
+          ) : (
+            "Save Company Info"
+          )}
         </Button>
       )}
     </div>

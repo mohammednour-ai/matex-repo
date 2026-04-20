@@ -16,7 +16,8 @@
     "test:uiux": "playwright test --project=uiux",
     "test:compliance": "playwright test --project=compliance",
     "test:legacy": "playwright test --project=legacy",
-    "test:report": "tsx e2e/report/generate-report.ts"
+    "test:report": "tsx e2e/report/generate-report.ts",
+    "test:dev-prompts": "tsx e2e/report/generate-dev-prompts.ts"
   },
   "dependencies": {
     "autoprefixer": "^10.4.0",

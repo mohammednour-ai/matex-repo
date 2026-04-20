@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Modal } from "@/components/ui/Modal";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -114,17 +115,17 @@ export default function MessagesPage() {
   useEffect(() => {
     async function loadThreads(): Promise<void> {
       setThreadsLoading(true);
-      const res = await callTool("messaging.get_unread", {});
+      const res = await callTool("messaging.list_threads", { user_id: currentUserId });
       if (res.success) {
         const data = res.data as unknown as { threads?: Thread[] };
-        const list = data?.threads ?? [];
+        const list = Array.isArray(data?.threads) ? data.threads : [];
         setThreads(list);
         if (list.length > 0) setActiveThread(list[0]);
       }
       setThreadsLoading(false);
     }
-    loadThreads();
-  }, []);
+    if (currentUserId) loadThreads();
+  }, [currentUserId]);
 
   // ── Load messages + listing context when active thread changes ────────────
   useEffect(() => {
@@ -215,10 +216,34 @@ export default function MessagesPage() {
     if (!newThreadForm.listing_id.trim() || !newThreadForm.message.trim()) return;
     setCreatingThread(true);
     const userId = getUser()?.userId ?? "";
+
+    // Resolve the listing's seller so the thread has the correct counterparty.
+    let sellerId = "";
+    let listingTitle = `Listing ${newThreadForm.listing_id}`;
+    let sellerName = "Seller";
+    const listingRes = await callTool("listing.get_listing", {
+      listing_id: newThreadForm.listing_id,
+    });
+    if (listingRes.success) {
+      const ldata = listingRes.data as unknown as {
+        seller_id?: string;
+        seller_name?: string;
+        title?: string;
+      };
+      sellerId = ldata?.seller_id ?? "";
+      sellerName = ldata?.seller_name ?? sellerName;
+      listingTitle = ldata?.title ?? listingTitle;
+    }
+
+    if (!sellerId || sellerId === userId) {
+      setCreatingThread(false);
+      return;
+    }
+
     const res = await callTool("messaging.create_thread", {
-      listing_id: newThreadForm.listing_id || undefined,
-      participants: [userId, userId],
-      subject: `Thread about listing ${newThreadForm.listing_id || "general"}`,
+      listing_id: newThreadForm.listing_id,
+      participants: [userId, sellerId],
+      subject: `Inquiry about ${listingTitle}`,
     });
     const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
     const threadId = String(upData?.thread_id ?? (res.data as Record<string,unknown>)?.thread_id ?? "");
@@ -226,16 +251,15 @@ export default function MessagesPage() {
       if (newThreadForm.message.trim()) {
         await callTool("messaging.send_message", {
           thread_id: threadId,
-          sender_id: userId,
           content: newThreadForm.message,
         });
       }
       const newThread: Thread = {
         thread_id: threadId,
-        listing_id: newThreadForm.listing_id || undefined,
-        listing_title: `Listing ${newThreadForm.listing_id || "general"}`,
-        other_user_name: "Seller",
-        other_user_id: userId,
+        listing_id: newThreadForm.listing_id,
+        listing_title: listingTitle,
+        other_user_name: sellerName,
+        other_user_id: sellerId,
         last_message: newThreadForm.message || "Thread created",
         last_message_at: new Date().toISOString(),
         unread_count: 0,
@@ -281,10 +305,12 @@ export default function MessagesPage() {
               <Spinner className="h-5 w-5 text-brand-500" />
             </div>
           ) : threads.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-slate-400">
-              <MessageSquare className="h-8 w-8 opacity-40" />
-              <p className="text-sm">No messages yet</p>
-            </div>
+            <EmptyState
+              image="/illustrations/empty-messages.png"
+              title="No messages yet"
+              description="Start a conversation from a listing or use New to begin a thread."
+              size="sm"
+            />
           ) : (
             threads.map((thread) => {
               const isActive = activeThread?.thread_id === thread.thread_id;
@@ -510,10 +536,12 @@ export default function MessagesPage() {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center gap-2 py-10 text-slate-400">
-              <MessageSquare className="h-8 w-8 opacity-30" />
-              <p className="text-center text-xs">No listing linked to this thread</p>
-            </div>
+            <EmptyState
+              image="/illustrations/no-listing-thread.png"
+              title="No linked listing"
+              description="This thread isn't tied to a listing."
+              size="sm"
+            />
           )}
         </div>
       </aside>

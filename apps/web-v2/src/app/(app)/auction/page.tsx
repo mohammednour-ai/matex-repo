@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Gavel, Search, Users, Package, TrendingUp, Clock } from "lucide-react";
-import { callTool, getUser } from "@/lib/api";
+import { callTool } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type AuctionStatus = "live" | "upcoming" | "completed";
 
@@ -25,74 +25,40 @@ type Auction = {
   registered: boolean;
 };
 
-const MOCK_AUCTIONS: Auction[] = [
-  {
-    auction_id: "auc-001",
-    title: "Industrial Metal Scrap — Q2 Lot Sale",
-    organizer: "Ontario Metal Works",
-    lot_count: 12,
-    start_time: new Date(Date.now() - 3600000).toISOString(),
-    end_time: new Date(Date.now() + 7200000).toISOString(),
-    total_gmv: 284000,
-    status: "live",
-    registered: true,
-  },
-  {
-    auction_id: "auc-002",
-    title: "E-Waste Recovery — Mixed Electronics",
-    organizer: "GreenCycle Solutions",
-    lot_count: 8,
-    start_time: new Date(Date.now() - 1800000).toISOString(),
-    end_time: new Date(Date.now() + 900000).toISOString(),
-    total_gmv: 97500,
-    status: "live",
-    registered: false,
-  },
-  {
-    auction_id: "auc-003",
-    title: "Copper & Aluminum Surplus — Quarterly",
-    organizer: "WestCan Recycling",
-    lot_count: 6,
-    start_time: new Date(Date.now() + 86400000).toISOString(),
-    end_time: new Date(Date.now() + 172800000).toISOString(),
-    total_gmv: 152000,
-    status: "upcoming",
-    registered: false,
-  },
-  {
-    auction_id: "auc-004",
-    title: "Ferrous Scrap — Monthly Clearance",
-    organizer: "Atlantic Steel Co.",
-    lot_count: 15,
-    start_time: new Date(Date.now() + 259200000).toISOString(),
-    end_time: new Date(Date.now() + 345600000).toISOString(),
-    total_gmv: 410000,
-    status: "upcoming",
-    registered: true,
-  },
-  {
-    auction_id: "auc-005",
-    title: "Paper & Cardboard Bales — March Sale",
-    organizer: "Prairie Paper Corp.",
-    lot_count: 20,
-    start_time: new Date(Date.now() - 604800000).toISOString(),
-    end_time: new Date(Date.now() - 518400000).toISOString(),
-    total_gmv: 63200,
-    status: "completed",
-    registered: true,
-  },
-  {
-    auction_id: "auc-006",
-    title: "Plastic Resin Scrap — HDPE / PET Mix",
-    organizer: "Eco Polymers Ltd.",
-    lot_count: 9,
-    start_time: new Date(Date.now() - 1209600000).toISOString(),
-    end_time: new Date(Date.now() - 1123200000).toISOString(),
-    total_gmv: 44800,
-    status: "completed",
-    registered: false,
-  },
-];
+type RawAuction = Partial<Auction> & {
+  auction_id: string;
+  organizer_name?: string;
+  organizer_id?: string;
+  lot_count?: number;
+  status?: AuctionStatus | string;
+};
+
+function deriveStatus(raw: RawAuction): AuctionStatus {
+  const rawStatus = String(raw.status ?? "").toLowerCase();
+  if (rawStatus === "live" || rawStatus === "upcoming" || rawStatus === "completed") {
+    return rawStatus;
+  }
+  const now = Date.now();
+  const start = raw.start_time ? new Date(raw.start_time).getTime() : now;
+  const end = raw.end_time ? new Date(raw.end_time).getTime() : now;
+  if (now < start) return "upcoming";
+  if (now > end) return "completed";
+  return "live";
+}
+
+function normalizeAuction(raw: RawAuction): Auction {
+  return {
+    auction_id: raw.auction_id,
+    title: raw.title ?? `Auction ${raw.auction_id.slice(0, 8)}`,
+    organizer: raw.organizer ?? raw.organizer_name ?? raw.organizer_id ?? "Organizer",
+    lot_count: Number(raw.lot_count ?? 0),
+    start_time: raw.start_time ?? new Date().toISOString(),
+    end_time: raw.end_time ?? new Date().toISOString(),
+    total_gmv: Number(raw.total_gmv ?? 0),
+    status: deriveStatus(raw),
+    registered: Boolean(raw.registered),
+  };
+}
 
 type Tab = "live" | "upcoming" | "completed";
 
@@ -112,24 +78,31 @@ function formatDate(iso: string): string {
 export default function AuctionPage() {
   const [tab, setTab] = useState<Tab>("live");
   const [search, setSearch] = useState("");
-  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function load(): Promise<void> {
-      const res = await callTool("analytics.get_dashboard_stats", {});
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      const res = await callTool("auction.list_auctions", {});
+      if (cancelled) return;
       if (res.success) {
-        const d = res.data as unknown as { active_auctions?: number };
-        setLiveCount(d?.active_auctions ?? MOCK_AUCTIONS.filter((a) => a.status === "live").length);
+        const d = res.data as unknown as { auctions?: RawAuction[] };
+        setAuctions(Array.isArray(d?.auctions) ? d.auctions.map(normalizeAuction) : []);
       } else {
-        setLiveCount(MOCK_AUCTIONS.filter((a) => a.status === "live").length);
+        setError(res.error?.message ?? "Could not load auctions.");
       }
       setLoading(false);
-    }
-    load();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const filtered = MOCK_AUCTIONS.filter(
+  const filtered = auctions.filter(
     (a) =>
       a.status === tab &&
       (search === "" ||
@@ -138,13 +111,9 @@ export default function AuctionPage() {
   );
 
   const TABS: { key: Tab; label: string; count: number }[] = [
-    {
-      key: "live",
-      label: "Live Now",
-      count: liveCount ?? MOCK_AUCTIONS.filter((a) => a.status === "live").length,
-    },
-    { key: "upcoming", label: "Upcoming", count: MOCK_AUCTIONS.filter((a) => a.status === "upcoming").length },
-    { key: "completed", label: "Completed", count: MOCK_AUCTIONS.filter((a) => a.status === "completed").length },
+    { key: "live", label: "Live Now", count: auctions.filter((a) => a.status === "live").length },
+    { key: "upcoming", label: "Upcoming", count: auctions.filter((a) => a.status === "upcoming").length },
+    { key: "completed", label: "Completed", count: auctions.filter((a) => a.status === "completed").length },
   ];
 
   return (
@@ -196,16 +165,30 @@ export default function AuctionPage() {
         ))}
       </div>
 
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Auction cards */}
       {loading ? (
         <div className="flex h-48 items-center justify-center">
           <Spinner className="h-7 w-7 text-blue-500" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 py-16 text-slate-400">
-          <Gavel className="h-10 w-10 opacity-40" />
-          <p className="text-sm">No {tab} auctions found.</p>
-        </div>
+        <EmptyState
+          image={tab === "completed" ? "/illustrations/auction-complete.png" : "/illustrations/auction-lobby.png"}
+          title={`No ${tab} auctions`}
+          description={
+            tab === "live"
+              ? "Nothing is live right now. Check the upcoming tab or come back soon."
+              : tab === "upcoming"
+              ? "No auctions are scheduled yet."
+              : "Completed auctions and results will appear here."
+          }
+          size="lg"
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((auction) => (

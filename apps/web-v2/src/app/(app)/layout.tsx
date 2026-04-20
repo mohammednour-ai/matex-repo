@@ -25,7 +25,7 @@ import {
   LogOut,
   Sparkles,
 } from "lucide-react";
-import { getUser } from "@/lib/api";
+import { callTool, getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
 
 type NavItem = {
@@ -81,18 +81,24 @@ const ADMIN_NAV_ITEM: NavItem = {
 
 function ClientAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [checked, setChecked] = useState(false);
+  // Single `ready` flag, computed synchronously on the first client render so
+  // children mount immediately when a token is present (no spinner flash and
+  // no first-paint race between the spinner and the actual app shell).
+  const [ready, setReady] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(window.localStorage.getItem("matex_token"));
+  });
 
   useEffect(() => {
-    const token = localStorage.getItem("matex_token");
+    const token = window.localStorage.getItem("matex_token");
     if (!token) {
       router.replace("/login");
-    } else {
-      setChecked(true);
+      return;
     }
-  }, [router]);
+    if (!ready) setReady(true);
+  }, [router, ready]);
 
-  if (!checked) {
+  if (!ready) {
     return (
       <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-steel-950 px-6">
         <div
@@ -464,11 +470,48 @@ function Header({
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser>(null);
+  const [searchValue, setSearchValue] = useState("");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const pageMeta = getPageMeta(pathname);
 
   useEffect(() => {
     setUser(getUser());
   }, [pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUnread(): Promise<void> {
+      const u = getUser();
+      if (!u?.userId) return;
+      const res = await callTool("notifications.get_notifications", {
+        user_id: u.userId,
+        unread_only: true,
+        limit: 50,
+      });
+      if (cancelled || !res.success) return;
+      const data = res.data as unknown as {
+        notifications?: { read?: boolean }[];
+        total_unread?: number;
+      };
+      const count = Array.isArray(data?.notifications)
+        ? data.notifications.filter((n) => !n.read).length
+        : Number(data?.total_unread ?? 0);
+      setUnreadNotifications(Number.isFinite(count) ? count : 0);
+    }
+    void loadUnread();
+    const id = window.setInterval(() => void loadUnread(), 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [pathname]);
+
+  function handleSearch(e: React.FormEvent): void {
+    e.preventDefault();
+    const q = searchValue.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+  }
 
   function handleSignOut() {
     localStorage.removeItem("matex_token");
@@ -500,7 +543,7 @@ function Header({
           <p className="app-page-sub hidden truncate sm:block">{pageMeta.subtitle}</p>
         </div>
 
-        <div className="ml-2 hidden max-w-md flex-1 xl:block">
+        <form onSubmit={handleSearch} className="ml-2 hidden max-w-md flex-1 xl:block">
           <div className="relative">
             <Search
               size={15}
@@ -508,12 +551,14 @@ function Header({
             />
             <input
               type="search"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               placeholder="Search materials, listings, orders..."
               className="app-header-search"
               aria-label="Search materials and orders"
             />
           </div>
-        </div>
+        </form>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <div className="app-header-chip">
@@ -523,11 +568,20 @@ function Header({
 
           <button
             type="button"
-            className="app-header-icon-button"
-            aria-label="Notifications"
+            className="app-header-icon-button relative"
+            aria-label={
+              unreadNotifications > 0
+                ? `Notifications (${unreadNotifications} unread)`
+                : "Notifications"
+            }
+            onClick={() => router.push("/notifications")}
           >
             <Bell size={18} />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent-400 ring-2 ring-steel-950" />
+            {unreadNotifications > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-steel-950">
+                {unreadNotifications > 9 ? "9+" : unreadNotifications}
+              </span>
+            )}
           </button>
 
           <button
