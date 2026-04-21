@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// The app is entirely auth-gated / data-driven; skip static prerender so that
+// Next doesn't evaluate client-only code paths at build time (which was
+// surfacing a "useContext of null" error across every route on Railway).
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export const metadata: Metadata = {
   title: "Matex | B2B Recycled Materials Marketplace",
   description:
