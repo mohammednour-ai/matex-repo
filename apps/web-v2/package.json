@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3002",
-    "build": "next build",
-    "start": "next start",
+    "build": "cross-env NODE_ENV=production next build",
+    "start": "cross-env NODE_ENV=production next start",
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:ci": "pnpm run build && playwright test",
@@ -36,6 +36,7 @@
     "@playwright/test": "^1.55.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "cross-env": "^10.1.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }
