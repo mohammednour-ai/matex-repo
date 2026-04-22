@@ -188,6 +188,7 @@ export default function MessagesPage() {
 
     const res = await callTool("messaging.send_message", {
       thread_id: activeThread.thread_id,
+      sender_id: currentUserId,
       content,
     });
 

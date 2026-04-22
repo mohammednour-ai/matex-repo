@@ -18,10 +18,30 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
 import * as jwt from "jsonwebtoken";
-import { randomInt, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import type { AccountType, AuthTokens, User } from "@matex/types";
-import { isValidCanadianPhone, isValidEmail, MatexEventBus, now, sha256 } from "@matex/utils";
+import { isValidCanadianPhone, isValidEmail, MatexEventBus, now } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
+
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  try {
+    const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+    return timingSafeEqual(Buffer.from(hash, "hex"), derived);
+  } catch {
+    return false;
+  }
+}
 
 const SERVER_NAME = "auth-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -30,6 +50,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABAS
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "dev-secret-change-me") {
+  console.error("[auth-mcp] FATAL: JWT_SECRET must be set in production. Refusing to start.");
+  process.exit(1);
+}
 
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
@@ -156,7 +181,7 @@ async function register(args: Record<string, unknown>): Promise<Record<string, u
     throw new Error("Invalid account_type.");
   }
 
-  const passwordHash = sha256(password);
+  const passwordHash = await hashPassword(password);
 
   if (supabase) {
     const { data, error } = await supabase
@@ -217,7 +242,6 @@ async function register(args: Record<string, unknown>): Promise<Record<string, u
 async function login(args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const email = String(args.email ?? "").toLowerCase().trim();
   const password = String(args.password ?? "");
-  const passwordHash = sha256(password);
 
   if (supabase) {
     const { data, error } = await supabase
@@ -226,7 +250,8 @@ async function login(args: Record<string, unknown>): Promise<Record<string, unkn
       .eq("email", email)
       .single();
     if (error || !data) throw new Error("Invalid credentials.");
-    if (data.password_hash !== passwordHash) throw new Error("Invalid credentials.");
+    const valid = await verifyPassword(password, data.password_hash as string);
+    if (!valid) throw new Error("Invalid credentials.");
     if (data.account_status !== "active" && data.account_status !== "pending_review") {
       throw new Error(`Account is ${data.account_status}.`);
     }
@@ -235,7 +260,9 @@ async function login(args: Record<string, unknown>): Promise<Record<string, unkn
   }
 
   const user = users.get(email);
-  if (!user || user.password_hash !== passwordHash) throw new Error("Invalid credentials.");
+  if (!user) throw new Error("Invalid credentials.");
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) throw new Error("Invalid credentials.");
   await emitEvent("auth.user.logged_in", { user_id: user.user_id, email });
   return { user_id: user.user_id, tokens: buildTokens(user.user_id), mfa_required: user.mfa_enabled };
 }

@@ -42,6 +42,12 @@ function listenPort(): number {
 }
 const PORT = listenPort();
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "dev-secret-change-me") {
+  console.error("[mcp-gateway] FATAL: JWT_SECRET must be set in production. Refusing to start.");
+  process.exit(1);
+}
+
 const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
 const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -153,7 +159,16 @@ function validateJwt(req: IncomingMessage): AuthClaims | null {
   }
 }
 
-function applyRateLimit(key: string): boolean {
+async function applyRateLimit(key: string): Promise<boolean> {
+  if (redis) {
+    const redisKey = `rl:${key}`;
+    const count = await redis.incr(redisKey);
+    if (count === 1) {
+      await redis.pexpire(redisKey, RATE_LIMIT_WINDOW_MS);
+    }
+    return count <= RATE_LIMIT_MAX;
+  }
+  // In-memory fallback (single instance only)
   const currentTime = Date.now();
   const bucket = requestLog.get(key) ?? [];
   const recent = bucket.filter((ts) => currentTime - ts < RATE_LIMIT_WINDOW_MS);
@@ -309,7 +324,8 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     });
   }
   if (tool === "auth.request_email_otp" || tool === "auth.request_phone_otp") {
-    return ok({ challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), code: "000000" });
+    const devCode = process.env.NODE_ENV !== "production" ? "000000" : undefined;
+    return ok({ challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), ...(devCode ? { code: devCode } : {}) });
   }
   if (tool === "auth.verify_email" || tool === "auth.verify_phone") {
     return ok({ verified: true });
@@ -864,6 +880,10 @@ async function routeToolRequest(
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
 
+if (process.env.NODE_ENV === "production" && CORS_ORIGIN === "*") {
+  console.warn("[mcp-gateway] WARNING: CORS_ORIGIN is wildcard '*' in production. Set CORS_ORIGIN to your app domain.");
+}
+
 function setCors(res: ServerResponse): void {
   res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -916,7 +936,8 @@ const server = createServer(async (req, res) => {
     }
 
     const rateUser = claims.sub === "anonymous" ? `ip:${ipAddress}:public` : `user:${claims.sub}`;
-    if (!applyRateLimit(`ip:${ipAddress}`) || !applyRateLimit(rateUser)) {
+    const [ipOk, userOk] = await Promise.all([applyRateLimit(`ip:${ipAddress}`), applyRateLimit(rateUser)]);
+    if (!ipOk || !userOk) {
       writeJson(res, 429, { success: false, error: { code: "RATE_LIMITED", message: "Rate limit exceeded" } });
       return;
     }
