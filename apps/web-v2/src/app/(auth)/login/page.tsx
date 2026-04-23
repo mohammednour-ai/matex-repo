@@ -92,7 +92,7 @@ function GlassPasswordInput({
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? "Hide password" : "Show password"}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-white"
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
@@ -220,17 +220,22 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
     }
   };
 
+  const clearErrorOnChange = (setter: (v: string) => void) => (v: string) => {
+    setter(v);
+    if (error) setError(null);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <GlassEmailInput
         id="login-email"
         label="Email Address"
         value={email}
-        onChange={setEmail}
+        onChange={clearErrorOnChange(setEmail)}
         placeholder="Enter your business email"
         required
       />
-      <GlassPasswordInput id="login-password" label="Password" value={password} onChange={setPassword} />
+      <GlassPasswordInput id="login-password" label="Password" value={password} onChange={clearErrorOnChange(setPassword)} />
 
       <div className="flex items-center justify-between gap-2">
         <label className="flex cursor-pointer items-center gap-3">
@@ -253,7 +258,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         </div>
       )}
 
-      <SubmitButton loading={loading}>Access Trading Dashboard</SubmitButton>
+      <SubmitButton loading={loading}>Sign in</SubmitButton>
 
       <p className="text-center text-base text-slate-300">
         New to industrial trading?{" "}

@@ -211,7 +211,7 @@
     @apply hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-steel-300 lg:inline-flex;
   }
   .app-header-icon-button {
-    @apply relative rounded-2xl border border-white/10 bg-white/[0.06] p-2.5 text-steel-300 transition-all hover:border-white/20 hover:bg-white/[0.1] hover:text-white;
+    @apply relative rounded-2xl border border-white/10 bg-white/[0.06] p-2.5 text-steel-300 transition-all hover:border-white/20 hover:bg-white/[0.1] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
   }
   .app-content-frame {
     @apply relative mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10;

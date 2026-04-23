@@ -251,15 +251,19 @@ export default function ContractsPage() {
             </div>
           );
         })}
-        {[
-          { label: "Active Contracts", value: contracts.filter((c) => c.status === "active").length, color: "text-emerald-600" },
-          { label: "Pending Signature", value: contracts.filter((c) => c.esign_status === "pending").length, color: "text-amber-600" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">{s.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
+        {(() => {
+          const activeN = contracts.filter((c) => c.status === "active").length;
+          const pendingN = contracts.filter((c) => c.esign_status === "pending").length;
+          return [
+            { label: "Active Contracts", value: activeN, color: activeN > 0 ? "text-emerald-600" : "text-slate-900" },
+            { label: "Pending Signature", value: pendingN, color: pendingN > 0 ? "text-amber-600" : "text-slate-900" },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-slate-500">{s.label}</p>
+              <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+            </div>
+          ));
+        })()}
       </div>
 
       {contractsError && (

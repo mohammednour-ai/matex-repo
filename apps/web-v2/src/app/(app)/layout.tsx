@@ -50,7 +50,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: "Overview", href: "/dashboard", icon: <LayoutDashboard size={iconSize} /> },
       { label: "Listings", href: "/listings", icon: <Package size={iconSize} /> },
       { label: "Search", href: "/search", icon: <Search size={iconSize} /> },
-      { label: "Auctions", href: "/auction", icon: <Gavel size={iconSize} />, accent: true },
+      { label: "Auctions", href: "/auctions", icon: <Gavel size={iconSize} />, accent: true },
       { label: "Messages", href: "/messages", icon: <MessageSquare size={iconSize} /> },
       { label: "Checkout", href: "/checkout", icon: <ShoppingCart size={iconSize} /> },
     ],
@@ -60,7 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Escrow", href: "/escrow", icon: <Shield size={iconSize} /> },
       { label: "Logistics", href: "/logistics", icon: <Truck size={iconSize} /> },
-      { label: "Inspections", href: "/inspection", icon: <Calendar size={iconSize} /> },
+      { label: "Inspections", href: "/inspections", icon: <Calendar size={iconSize} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={iconSize} /> },
     ],
   },
@@ -81,13 +81,10 @@ const ADMIN_NAV_ITEM: NavItem = {
 
 function ClientAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  // Single `ready` flag, computed synchronously on the first client render so
-  // children mount immediately when a token is present (no spinner flash and
-  // no first-paint race between the spinner and the actual app shell).
-  const [ready, setReady] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(window.localStorage.getItem("matex_token"));
-  });
+  // `ready` starts false on both server and first client render to avoid
+  // hydration mismatch. After mount we read localStorage and either redirect
+  // to /login or flip ready=true to render the app shell.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const token = window.localStorage.getItem("matex_token");
@@ -95,8 +92,8 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/login");
       return;
     }
-    if (!ready) setReady(true);
-  }, [router, ready]);
+    setReady(true);
+  }, [router]);
 
   if (!ready) {
     return (
@@ -144,7 +141,7 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
         subtitle: "Source verified materials with industrial-grade confidence.",
         eyebrow: "Buy",
       };
-    case "auction":
+    case "auctions":
       return {
         title: "Auctions",
         subtitle: "Track live bidding opportunities and market movement.",
@@ -174,7 +171,7 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
         subtitle: "Coordinate dispatch, transport, and delivery readiness.",
         eyebrow: "Operations",
       };
-    case "inspection":
+    case "inspections":
       return {
         title: "Inspections",
         subtitle: "Plan visits, checks, and technical verification events.",
@@ -377,7 +374,7 @@ function Sidebar({
             )}
             <button
               onClick={onToggle}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 transition-colors hover:text-white hover:bg-white/[0.08]"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 transition-colors hover:text-white hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -433,7 +430,8 @@ function Sidebar({
                   </Link>
                   <button
                     onClick={onMobileClose}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 hover:bg-white/[0.08] hover:text-white"
+                    aria-label="Close navigation"
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
                     <X size={18} />
                   </button>
@@ -472,6 +470,7 @@ function Header({
   const [user, setUser] = useState<CurrentUser>(null);
   const [searchValue, setSearchValue] = useState("");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const pageMeta = getPageMeta(pathname);
 
   useEffect(() => {
@@ -584,25 +583,62 @@ function Header({
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            title="Sign out"
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2 text-left text-white transition-all hover:border-white/20 hover:bg-white/[0.1]"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-black text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.75)]">
-              {userInitial}
-            </span>
-            <span className="hidden min-w-0 sm:block">
-              <span className="block truncate text-sm font-semibold text-steel-100">
-                {user?.email?.split("@")[0] ?? "Matex user"}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setAvatarOpen((o) => !o)}
+              aria-label="Account menu"
+              aria-expanded={avatarOpen}
+              aria-haspopup="true"
+              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2 text-left text-white transition-all hover:border-white/20 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-black text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.75)]">
+                {userInitial}
               </span>
-              <span className="flex items-center gap-1 text-xs text-steel-400">
-                <LogOut className="h-3.5 w-3.5" />
-                Sign out
+              <span className="hidden min-w-0 sm:block">
+                <span className="block truncate text-sm font-semibold text-steel-100">
+                  {user?.email?.split("@")[0] ?? "Matex user"}
+                </span>
+                <span className="text-xs text-steel-400">{companyLabel}</span>
               </span>
-            </span>
-          </button>
+            </button>
+
+            {avatarOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setAvatarOpen(false)}
+                  aria-hidden
+                />
+                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-steel-900 py-1 shadow-2xl">
+                  <div className="border-b border-white/5 px-4 py-3">
+                    <p className="truncate text-sm font-semibold text-steel-100">
+                      {user?.email?.split("@")[0] ?? "Matex user"}
+                    </p>
+                    <p className="truncate text-xs text-steel-400">{user?.email}</p>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarOpen(false); router.push("/settings"); }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-steel-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    >
+                      <Settings size={15} />
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAvatarOpen(false); handleSignOut(); }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-steel-300 transition-colors hover:bg-white/[0.06] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                    >
+                      <LogOut size={15} />
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

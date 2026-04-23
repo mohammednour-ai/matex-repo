@@ -229,19 +229,26 @@ export default function EscrowPage() {
         }
       />
 
-      {/* Summary */}
+      {/* Summary — zero values render neutral (no green/red alarm on empty state). */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Held", value: formatCAD(escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0)), color: "text-brand-600" },
-          { label: "Active", value: escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length, color: "text-steel-900" },
-          { label: "Released", value: escrows.filter((e) => e.status === "released").length, color: "text-emerald-600" },
-          { label: "Frozen", value: escrows.filter((e) => e.status === "frozen").length, color: "text-red-600" },
-        ].map((c) => (
-          <div key={c.label} className="marketplace-card p-4">
-            <p className="text-xs text-steel-500">{c.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+        {(() => {
+          const heldAmt = escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0);
+          const activeN = escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length;
+          const releasedN = escrows.filter((e) => e.status === "released").length;
+          const frozenN = escrows.filter((e) => e.status === "frozen").length;
+          const stats: { label: string; value: string | number; color: string }[] = [
+            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-steel-900" },
+            { label: "Active", value: activeN, color: "text-steel-900" },
+            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-steel-900" },
+            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-steel-900" },
+          ];
+          return stats.map((c) => (
+            <div key={c.label} className="marketplace-card p-4">
+              <p className="text-xs text-steel-500">{c.label}</p>
+              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Tabs */}

@@ -75,7 +75,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
   },
   {
     label: "Live Auctions",
-    href: "/auction",
+    href: "/auctions",
     icon: Gavel,
     color: "from-accent-500 to-accent-700 text-white",
     glow: "shadow-accent-500/20",
@@ -227,7 +227,7 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<DashboardBooking[]>([]);
   const [sectionErrors, setSectionErrors] = useState<Partial<Record<SectionKey, string>>>({});
 
-  const load = useCallback(async (isRefresh: boolean) => {
+  const load = useCallback(async (isRefresh: boolean, attempt = 0) => {
     const currentUser = getUser();
     setUser(currentUser);
     const token = typeof window !== "undefined" ? localStorage.getItem("matex_token") : null;
@@ -317,6 +317,13 @@ export default function DashboardPage() {
     setSectionErrors(errs);
     setRefreshing(false);
     setInitialLoad(false);
+
+    // Quiet auto-retry: if any section failed and we haven't retried yet,
+    // try once more after a short backoff. Keep errors hidden from UI until then.
+    if (Object.keys(errs).length > 0 && attempt < 2) {
+      const delay = 1500 * Math.pow(2, attempt);
+      window.setTimeout(() => { void load(false, attempt + 1); }, delay);
+    }
   }, []);
 
   useEffect(() => {
@@ -454,25 +461,12 @@ export default function DashboardPage() {
             </div>
           </div>
           <Link
-            href="/auction"
+            href="/auctions"
             className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-accent-500/20 transition-all hover:bg-accent-600"
           >
             Join Now <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
-      )}
-
-      {Object.keys(sectionErrors).length > 0 && (
-        <p className="rounded-2xl border border-danger-100 bg-danger-50/80 px-4 py-3 text-xs text-danger-600">
-          Some sections could not be refreshed.{" "}
-          {sectionErrors.stats && "Stats "}
-          {sectionErrors.wallet && "Wallet "}
-          {sectionErrors.unread && "Messages "}
-          {sectionErrors.notifications && "Notifications "}
-          {sectionErrors.kyc && "KYC "}
-          {sectionErrors.bookings && "Events "}
-          — try Refresh.
-        </p>
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -491,9 +485,6 @@ export default function DashboardPage() {
                   <p className="mt-1 flex items-center gap-0.5 text-xs font-semibold text-brand-600">
                     <TrendingUp className="h-3 w-3" /> {card.trend}
                   </p>
-                )}
-                {card.errorKey && sectionErrors[card.errorKey] && (
-                  <p className="mt-1 text-xs text-danger-600">{sectionErrors[card.errorKey]}</p>
                 )}
               </div>
               <span
@@ -516,13 +507,6 @@ export default function DashboardPage() {
           className="overflow-hidden"
           bodyClassName="space-y-4 p-0"
         >
-          <div className="rounded-[1.5rem] border border-brand-100 bg-gradient-to-r from-brand-50 via-white to-surface-50 px-4 py-4">
-            <p className="text-sm font-semibold text-steel-900">Fast, familiar, and workflow-first</p>
-            <p className="mt-1 text-xs leading-5 text-steel-500">
-              The actions below are prioritized for your current account profile and remain aligned with
-              the existing Matex routes.
-            </p>
-          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {quickActions.map((action) => (
               <Link
@@ -559,9 +543,6 @@ export default function DashboardPage() {
             </Link>
           }
         >
-          {sectionErrors.notifications && (
-            <p className="mb-2 text-xs text-danger-600">{sectionErrors.notifications}</p>
-          )}
           {notifications.length === 0 ? (
             <EmptyState
               image="/illustrations/empty-notifications.png"
@@ -628,22 +609,19 @@ export default function DashboardPage() {
         }
         action={
           <Link
-            href="/inspection"
+            href="/inspections"
             className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
           >
             View inspections <ChevronRight className="h-3 w-3" />
           </Link>
         }
       >
-        {sectionErrors.bookings && (
-          <p className="mb-2 text-xs text-danger-600">{sectionErrors.bookings}</p>
-        )}
         {bookings.length === 0 ? (
           <EmptyState
             image="/illustrations/empty-bookings.png"
             title="No visits or inspections scheduled"
             description="Book on-site visits and inspections from your listings and orders."
-            cta={{ label: "Go to inspections", href: "/inspection" }}
+            cta={{ label: "Go to inspections", href: "/inspections" }}
             size="md"
           />
         ) : (

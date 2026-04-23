@@ -433,12 +433,26 @@ function KycTab() {
   useEffect(() => {
     callTool("kyc.get_kyc_level", {}).then((res) => {
       if (res.success) {
-        const d = res.data as unknown as { current_level?: number };
-        setKycLevel((d?.current_level ?? 0) as KycLevelNum);
+        const d = res.data as unknown as { current_level?: number | string };
+        const raw = d?.current_level ?? 0;
+        // Accept both numeric (0-3) and string (e.g. "level_2") enum forms.
+        const lvl =
+          typeof raw === "string"
+            ? (parseInt(raw.replace(/\D/g, ""), 10) || 0)
+            : Number(raw) || 0;
+        const clamped = (lvl >= 0 && lvl <= 3 ? lvl : 0) as KycLevelNum;
+        setKycLevel(clamped);
       }
       setLoading(false);
     });
   }, []);
+
+  const KYC_LEVEL_LABELS: Record<KycLevelNum, string> = {
+    0: "Unverified",
+    1: "Level 1 — Individual Identity",
+    2: "Level 2 — Business Verification",
+    3: "Level 3 — Corporate",
+  };
 
   const handleUploadDoc = async (docType: string, file: File): Promise<void> => {
     setUploading(docType);
@@ -483,9 +497,7 @@ function KycTab() {
         <div>
           <p className="text-sm text-slate-500">Current KYC Level</p>
           <Badge variant={kycBadgeVariants[kycLevel]} className="mt-0.5">
-            {kycLevel === 0
-              ? "Unverified"
-              : `Level ${kycLevel}${kycLevel === 3 ? " — Corporate" : ""}`}
+            {KYC_LEVEL_LABELS[kycLevel]}
           </Badge>
         </div>
       </div>
@@ -732,6 +744,98 @@ function NotificationsTab() {
   );
 }
 
+// ─── Profile Completion Bar ──────────────────────────────────────────────────
+
+type CompletionItem = { label: string; done: boolean };
+
+function ProfileCompletionBar() {
+  const [items, setItems] = useState<CompletionItem[]>([
+    { label: "Account created", done: true },
+    { label: "Profile name", done: false },
+    { label: "KYC Level 1", done: false },
+    { label: "Company added", done: false },
+  ]);
+
+  useEffect(() => {
+    async function load() {
+      const [profileRes, kycRes, companyRes] = await Promise.allSettled([
+        callTool("user.get_profile", {}),
+        callTool("kyc.get_kyc_level", {}),
+        callTool("company.get_company_profile", {}),
+      ]);
+
+      setItems([
+        { label: "Account created", done: true },
+        {
+          label: "Profile name",
+          done:
+            profileRes.status === "fulfilled" &&
+            profileRes.value.success &&
+            Boolean(
+              (profileRes.value.data as Record<string, unknown>)?.display_name
+            ),
+        },
+        {
+          label: "KYC Level 1",
+          done: (() => {
+            if (kycRes.status !== "fulfilled" || !kycRes.value.success) return false;
+            const raw = (kycRes.value.data as Record<string, unknown>)?.current_level ?? 0;
+            const lvl = typeof raw === "string" ? parseInt(raw.replace(/\D/g, ""), 10) : Number(raw);
+            return lvl >= 1;
+          })(),
+        },
+        {
+          label: "Company added",
+          done:
+            companyRes.status === "fulfilled" &&
+            companyRes.value.success &&
+            Boolean(
+              (companyRes.value.data as Record<string, unknown>)?.company_name
+            ),
+        },
+      ]);
+    }
+    void load();
+  }, []);
+
+  const done = items.filter((i) => i.done).length;
+  const pct = Math.round((done / items.length) * 100);
+  if (pct === 100) return null;
+
+  return (
+    <div className="rounded-2xl border border-brand-100 bg-brand-50/80 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-semibold text-brand-800">Complete your profile</p>
+        <span className="text-xs font-semibold text-brand-600">{pct}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-brand-100">
+        <div
+          className="h-2 rounded-full bg-brand-500 transition-all duration-700"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+        {items.map((item) => (
+          <span
+            key={item.label}
+            className={clsx(
+              "flex items-center gap-1 text-xs",
+              item.done ? "text-emerald-700" : "text-steel-500"
+            )}
+          >
+            {item.done ? (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            ) : (
+              <Circle className="h-3.5 w-3.5" />
+            )}
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -743,6 +847,8 @@ export default function SettingsPage() {
         title="Settings"
         description="Manage your account, company profile, and preferences."
       />
+
+      <ProfileCompletionBar />
 
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Sidebar nav */}

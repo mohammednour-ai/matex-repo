@@ -1,6 +1,7 @@
 "use client";
 
-import { Bot, ShieldCheck, ClipboardCheck, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bot, ShieldCheck, ClipboardCheck, Sparkles, X } from "lucide-react";
 import { dispatchCopilotPrefill } from "@/lib/copilot-events";
 
 const PILLARS = [
@@ -28,7 +29,22 @@ const COPILOT_CHIPS: { label: string; message: string }[] = [
   { label: "Dashboard stats", message: "dashboard stats" },
 ];
 
+const DISMISSED_KEY = "matex_listing_overview_dismissed";
+
 export function ListingCreateOverview() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!window.localStorage.getItem(DISMISSED_KEY)) setVisible(true);
+  }, []);
+
+  function dismiss() {
+    window.localStorage.setItem(DISMISSED_KEY, "1");
+    setVisible(false);
+  }
+
+  if (!visible) return null;
+
   return (
     <section
       data-testid="listing-create-overview"
@@ -57,6 +73,14 @@ export function ListingCreateOverview() {
               Copilot to the same MCP tools your ops stack uses.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Dismiss panel"
+            className="shrink-0 self-start rounded-xl p-1.5 text-steel-400 transition-colors hover:bg-steel-100 hover:text-steel-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         <ul className="grid gap-3 sm:grid-cols-3">
