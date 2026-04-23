@@ -14,6 +14,20 @@ import * as jwt from "jsonwebtoken";
 import Redis from "ioredis";
 import { now, sha256 } from "@matex/utils";
 import { randomUUID } from "node:crypto";
+import {
+  isDbAvailable,
+  dbFindUserByEmail,
+  dbFindUserById,
+  dbCreateUser,
+  dbUpdatePassword,
+  dbGetProfile,
+  dbUpsertProfile,
+  dbCreateListing,
+  dbGetListingById,
+  dbListListingsBySeller,
+  dbSearchListings,
+  dbGetDashboardStats,
+} from "./db.js";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
@@ -774,6 +788,94 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   return null;
 }
 
+/**
+ * DB-backed tool handler — runs when DATABASE_URL is set.
+ * Returns null if the tool is not handled here (falls through to in-memory).
+ */
+async function handleDbTool(tool: string, args: Record<string, JsonValue>, userId: string): Promise<ToolResult | null> {
+  if (!isDbAvailable()) return null;
+
+  try {
+    // ── Auth ──
+    if (tool === "auth.register") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      const phone = String(args.phone ?? "").trim();
+      const password = String(args.password ?? "");
+      if (!email || !password) return fail("VALIDATION_ERROR", "email, phone, password are required.");
+      const existing = await dbFindUserByEmail(email);
+      if (existing) return fail("DUPLICATE", "An account with this email already exists.");
+      const user = await dbCreateUser({ email, phone, password, account_type: String(args.account_type ?? "individual") });
+      return ok({ user: { user_id: user.user_id, email: user.email, phone: user.phone }, user_id: user.user_id, status: "active" });
+    }
+    if (tool === "auth.login") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      const password = String(args.password ?? "");
+      if (!email || !password) return fail("VALIDATION_ERROR", "email and password are required.");
+      const user = await dbFindUserByEmail(email);
+      if (!user || user.password_hash !== sha256(password)) return fail("AUTH_ERROR", "Invalid credentials.");
+      return ok({
+        user_id: user.user_id,
+        account_type: user.account_type,
+        account_status: user.account_status,
+        is_platform_admin: user.is_platform_admin,
+        tokens: devBuildTokens(user.user_id, email),
+        mfa_required: false,
+      });
+    }
+    if (tool === "auth.confirm_password_reset") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      const newPassword = String(args.new_password ?? "");
+      if (!email || !newPassword) return fail("VALIDATION_ERROR", "email and new_password are required.");
+      await dbUpdatePassword(email, newPassword);
+      return ok({ email, reset: true });
+    }
+
+    // ── Profile ──
+    if (tool === "profile.get_profile") {
+      const profile = await dbGetProfile(userId);
+      return ok({ profile: profile ?? { user_id: userId, display_name: "", first_name: "", last_name: "", bio: "", search_prefs: {} } });
+    }
+    if (tool === "profile.update_profile") {
+      await dbUpsertProfile(userId, args as Record<string, unknown>);
+      const profile = await dbGetProfile(userId);
+      return ok({ user_id: userId, updated: true, profile });
+    }
+
+    // ── Listing ──
+    if (tool === "listing.create_listing") {
+      const listingId = await dbCreateListing({ ...args, seller_id: args.seller_id ?? userId });
+      return ok({ listing_id: listingId, status: "draft" });
+    }
+    if (tool === "listing.get_listing") {
+      const listing = await dbGetListingById(String(args.listing_id ?? ""));
+      return ok({ listing });
+    }
+    if (tool === "listing.get_my_listings") {
+      const listings = await dbListListingsBySeller(String(args.seller_id ?? userId));
+      return ok({ listings, total: listings.length });
+    }
+
+    // ── Search ──
+    if (tool === "search.search_materials") {
+      const results = await dbSearchListings(String(args.query ?? ""), Number(args.limit ?? 20));
+      return ok({ results, total: results.length });
+    }
+
+    // ── Analytics ──
+    if (tool === "analytics.get_dashboard_stats") {
+      const stats = await dbGetDashboardStats();
+      if (stats) return ok(stats as Record<string, unknown>);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Database error";
+    console.error(`[db] handleDbTool ${tool}:`, msg);
+    // Fall through to in-memory handler on any DB error
+    return null;
+  }
+
+  return null;
+}
+
 async function routeToolRequest(
   claims: AuthClaims,
   body: GatewayRequestBody,
@@ -888,7 +990,10 @@ async function routeToolRequest(
     }
   }
 
-  // Dev-mode: handle tools in-memory when no endpoint is configured
+  // Try DB-backed handler first, then fall back to in-memory dev handler
+  const dbResult = await handleDbTool(body.tool, (body.args ?? {}) as Record<string, JsonValue>, claims.sub);
+  if (dbResult) return dbResult;
+
   const devResult = handleDevTool(body.tool, (body.args ?? {}) as Record<string, JsonValue>, claims.sub);
   if (devResult) return devResult;
 
@@ -934,6 +1039,7 @@ const server = createServer(async (req, res) => {
       service: "mcp-gateway",
       timestamp: now(),
       redis: redis ? "configured" : "not_configured",
+      database: isDbAvailable() ? "configured" : "not_configured",
       routes: Object.keys(ROUTE_MAP).length,
     });
     return;
@@ -984,4 +1090,9 @@ server.on("error", (err) => {
 server.listen(PORT, "0.0.0.0", () => {
   seedDevUserFromEnv();
   console.log(`MCP Gateway listening on 0.0.0.0:${PORT}`);
+  if (isDbAvailable()) {
+    console.log("[mcp-gateway] Database: connected via DATABASE_URL (Supabase)");
+  } else {
+    console.log("[mcp-gateway] Database: not configured — using in-memory dev stores");
+  }
 });

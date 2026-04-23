@@ -59,5 +59,6 @@ apps/web-v2/NUL
 !apps/web-v2/public/**/*.png
 !apps/web-v2/public/**/*.gif
 
-# Supabase CLI workdir
-supabase/
+# Supabase CLI workdir — keep migrations and config in git; ignore local dev data
+supabase/.branches/
+supabase/.temp/
