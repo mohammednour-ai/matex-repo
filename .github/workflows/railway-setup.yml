@@ -1,0 +1,162 @@
+name: Railway — Configure Environment Variables
+
+on:
+  workflow_dispatch:
+    inputs:
+      # ── Required: get from Railway dashboard → your project → Settings ─────
+      railway_project_id:
+        description: "Railway project ID (Settings → General → Project ID)"
+        required: true
+      railway_env_id:
+        description: "Railway environment ID (e.g. production env ID)"
+        required: true
+      # ── Service IDs (Settings → Service → ID) ────────────────────────────
+      service_id_backend:
+        description: "Railway service ID for matex-backend (gateway+adapters)"
+        required: true
+      service_id_web:
+        description: "Railway service ID for matex-web (web-v2)"
+        required: true
+      # ── Optional third-party keys (leave blank to skip) ───────────────────
+      stripe_secret_key:
+        description: "Stripe secret key (sk_live_... or sk_test_...)"
+        required: false
+      sendgrid_api_key:
+        description: "SendGrid API key (SG.xxx)"
+        required: false
+      twilio_account_sid:
+        description: "Twilio Account SID"
+        required: false
+      twilio_auth_token:
+        description: "Twilio Auth Token"
+        required: false
+      twilio_phone_number:
+        description: "Twilio phone number (e.g. +15145551234)"
+        required: false
+      supabase_service_role_key:
+        description: "Supabase service_role key (from Dashboard → Settings → API)"
+        required: false
+
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+jobs:
+  set-backend-vars:
+    name: Configure backend service vars
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Verify Railway auth
+        run: railway whoami
+
+      # ── Core infrastructure ────────────────────────────────────────────────
+      - name: Set DATABASE_URL
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            DATABASE_URL="${{ secrets.DATABASE_URL }}"
+
+      - name: Set JWT vars
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            JWT_ACCESS_TOKEN_EXPIRY="15m" \
+            JWT_REFRESH_TOKEN_EXPIRY="7d"
+
+      - name: Set Supabase vars
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            NEXT_PUBLIC_SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" \
+            NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            SUPABASE_SERVICE_ROLE_KEY="${{ inputs.supabase_service_role_key }}"
+
+      - name: Set MCP domain endpoints (adapters on localhost)
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            MCP_DOMAIN_ENDPOINTS_JSON='{"auth":"http://localhost:4101/tool","profile":"http://localhost:4102/tool","listing":"http://localhost:4103/tool","search":"http://localhost:4104/tool","messaging":"http://localhost:4105/tool","payments":"http://localhost:4106/tool","kyc":"http://localhost:4107/tool","escrow":"http://localhost:4108/tool","bidding":"http://localhost:4109/tool","auction":"http://localhost:4110/tool","inspection":"http://localhost:4111/tool","booking":"http://localhost:4112/tool","logistics":"http://localhost:4113/tool","contracts":"http://localhost:4114/tool","dispute":"http://localhost:4115/tool","tax":"http://localhost:4116/tool","notifications":"http://localhost:4117/tool","analytics":"http://localhost:4118/tool","pricing":"http://localhost:4119/tool","credit":"http://localhost:4120/tool","admin":"http://localhost:4121/tool","esign":"http://localhost:4122/tool"}'
+
+      - name: Set Stripe keys (if provided)
+        if: ${{ inputs.stripe_secret_key != '' }}
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            STRIPE_SECRET_KEY="${{ inputs.stripe_secret_key }}"
+
+      - name: Set SendGrid key (if provided)
+        if: ${{ inputs.sendgrid_api_key != '' }}
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            SENDGRID_API_KEY="${{ inputs.sendgrid_api_key }}" \
+            SENDGRID_FROM_EMAIL="noreply@matex.ca" \
+            SENDGRID_FROM_NAME="Matex"
+
+      - name: Set Twilio keys (if provided)
+        if: ${{ inputs.twilio_account_sid != '' }}
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            TWILIO_ACCOUNT_SID="${{ inputs.twilio_account_sid }}" \
+            TWILIO_AUTH_TOKEN="${{ inputs.twilio_auth_token }}" \
+            TWILIO_PHONE_NUMBER="${{ inputs.twilio_phone_number }}"
+
+      - name: Set runtime vars
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_backend }}" \
+            NODE_ENV="production" \
+            LOG_LEVEL="info" \
+            PORT="3001" \
+            CORS_ORIGIN="${{ secrets.RAILWAY_WEB_URL }}"
+
+  set-web-vars:
+    name: Configure web service vars
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Set web Supabase vars
+        run: |
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_web }}" \
+            NEXT_PUBLIC_SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" \
+            NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+
+      - name: Set web gateway URL
+        run: |
+          # NEXT_PUBLIC_GATEWAY_URL will be the Railway public domain of matex-backend
+          # Update this after the backend service generates its Railway domain
+          railway variables set \
+            --project-id "${{ inputs.railway_project_id }}" \
+            --environment-id "${{ inputs.railway_env_id }}" \
+            --service-id "${{ inputs.service_id_web }}" \
+            MCP_GATEWAY_URL="${{ secrets.RAILWAY_BACKEND_URL }}" \
+            NEXT_PUBLIC_GATEWAY_URL="${{ secrets.RAILWAY_BACKEND_URL }}" \
+            NODE_ENV="production" \
+            PORT="3002"
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
