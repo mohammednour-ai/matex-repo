@@ -16,6 +16,7 @@ import {
   Calendar,
   FileText,
   Settings,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   Bell,
@@ -62,6 +63,12 @@ const NAV_SECTIONS: NavSection[] = [
       { label: "Logistics", href: "/logistics", icon: <Truck size={iconSize} /> },
       { label: "Inspections", href: "/inspections", icon: <Calendar size={iconSize} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={iconSize} /> },
+    ],
+  },
+  {
+    heading: "Insights",
+    items: [
+      { label: "Analytics", href: "/analytics", icon: <BarChart3 size={iconSize} /> },
     ],
   },
   {
@@ -182,6 +189,12 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
         title: "Contracts",
         subtitle: "Centralize commercial paperwork and trading terms.",
         eyebrow: "Governance",
+      };
+    case "analytics":
+      return {
+        title: "Analytics",
+        subtitle: "Platform-wide metrics on users, listings, orders, and revenue.",
+        eyebrow: "Insights",
       };
     case "settings":
       return {

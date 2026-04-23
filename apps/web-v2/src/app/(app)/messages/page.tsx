@@ -170,6 +170,24 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ── Real-time polling: fetch new messages every 3 s while the thread is open ──
+  useEffect(() => {
+    if (!activeThread) return;
+    const threadId = activeThread.thread_id;
+    const poll = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      const res = await callTool("messaging.get_messages", { thread_id: threadId, limit: 50 });
+      if (!res.success) return;
+      const data = res.data as unknown as { messages?: Message[] };
+      const fresh = data?.messages ?? [];
+      setMessages((prev) => {
+        if (fresh.length === prev.length) return prev;
+        return fresh;
+      });
+    }, 3000);
+    return () => clearInterval(poll);
+  }, [activeThread?.thread_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Send message ──────────────────────────────────────────────────────────
   const handleSend = async (): Promise<void> => {
     if (!newMessage.trim() || !activeThread) return;
