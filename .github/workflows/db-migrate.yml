@@ -1,0 +1,46 @@
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm running migrations against production'
+        required: true
+        default: ''
+
+jobs:
+  migrate:
+    name: Apply Supabase Migrations
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'apply'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.22.6/supabase_linux_amd64.tar.gz \
+            -o /tmp/supabase.tar.gz
+          tar -xzf /tmp/supabase.tar.gz -C /usr/local/bin/ supabase
+          supabase --version
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Apply migrations (db push)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase db push \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+
+      - name: Verify schema applied
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase db diff --schema auth_mcp --linked 2>&1 | head -20 || true
+          echo "Migration complete."

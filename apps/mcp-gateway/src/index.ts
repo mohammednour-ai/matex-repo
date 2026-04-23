@@ -20,13 +20,55 @@ import {
   dbFindUserById,
   dbCreateUser,
   dbUpdatePassword,
+  dbUpdateUserStatus,
+  dbListUsers,
+  dbCountUsers,
+  dbGetKycLevel,
   dbGetProfile,
   dbUpsertProfile,
   dbCreateListing,
+  dbUpdateListing,
+  dbPublishListing,
   dbGetListingById,
   dbListListingsBySeller,
   dbSearchListings,
+  dbListAllListings,
+  dbUpdateListingStatus,
+  dbCreateThread,
+  dbSendMessage,
+  dbGetThread,
+  dbListThreads,
+  dbGetMessages,
+  dbGetUnreadCount,
+  dbGetNotifications,
+  dbCreateNotification,
+  dbMarkNotificationRead,
+  dbGetWalletBalance,
+  dbGetTransactionHistory,
+  dbCreateTransaction,
+  dbListAllTransactions,
+  dbCreateEscrow,
+  dbUpdateEscrowStatus,
+  dbGetEscrow,
+  dbListEscrows,
+  dbListAllEscrows,
+  dbListAllOrders,
+  dbUpdateOrderStatus,
+  dbPlaceBid,
+  dbGetHighestBid,
+  dbFileDispute,
+  dbGetDispute,
+  dbUpdateDisputeStatus,
+  dbCreateContract,
+  dbGetContract,
+  dbListContracts,
   dbGetDashboardStats,
+  dbGetRevenueReport,
+  dbGetConversionFunnel,
+  dbGrantPlatformAdmin,
+  dbRevokePlatformAdmin,
+  dbGetPlatformConfig,
+  dbSetPlatformConfig,
 } from "./db.js";
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
@@ -830,10 +872,25 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       return ok({ email, reset: true });
     }
 
+    // ── KYC ──
+    if (tool === "kyc.get_kyc_level") {
+      const rec = await dbGetKycLevel(userId);
+      return ok(rec ?? { current_level: "level_0", updated_at: new Date().toISOString() });
+    }
+    if (tool === "kyc.assert_kyc_gate") {
+      const rec = await dbGetKycLevel(userId);
+      const level = rec?.current_level ?? "level_0";
+      const required = String(args.required_level ?? "level_1");
+      const levelNum = (l: string) => parseInt(l.replace("level_", ""), 10);
+      const allowed = levelNum(level) >= levelNum(required);
+      return ok({ allowed, current_level: level, required_level: required });
+    }
+
     // ── Profile ──
     if (tool === "profile.get_profile") {
-      const profile = await dbGetProfile(userId);
-      return ok({ profile: profile ?? { user_id: userId, display_name: "", first_name: "", last_name: "", bio: "", search_prefs: {} } });
+      const targetId = String(args.user_id ?? userId);
+      const profile = await dbGetProfile(targetId);
+      return ok({ profile: profile ?? { user_id: targetId, display_name: "", first_name: "", last_name: "", bio: "", search_prefs: {} } });
     }
     if (tool === "profile.update_profile") {
       await dbUpsertProfile(userId, args as Record<string, unknown>);
@@ -846,6 +903,15 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       const listingId = await dbCreateListing({ ...args, seller_id: args.seller_id ?? userId });
       return ok({ listing_id: listingId, status: "draft" });
     }
+    if (tool === "listing.update_listing") {
+      await dbUpdateListing(String(args.listing_id ?? ""), args as Record<string, unknown>);
+      return ok({ listing_id: String(args.listing_id ?? ""), updated: true });
+    }
+    if (tool === "listing.publish_listing") {
+      const id = String(args.listing_id ?? "");
+      await dbPublishListing(id);
+      return ok({ listing_id: id, status: "active", published_at: new Date().toISOString() });
+    }
     if (tool === "listing.get_listing") {
       const listing = await dbGetListingById(String(args.listing_id ?? ""));
       return ok({ listing });
@@ -854,11 +920,207 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       const listings = await dbListListingsBySeller(String(args.seller_id ?? userId));
       return ok({ listings, total: listings.length });
     }
+    if (tool === "listing.archive_listing") {
+      const id = String(args.listing_id ?? "");
+      await dbUpdateListingStatus(id, "cancelled");
+      return ok({ listing_id: id, status: "cancelled" });
+    }
 
     // ── Search ──
     if (tool === "search.search_materials") {
-      const results = await dbSearchListings(String(args.query ?? ""), Number(args.limit ?? 20));
+      const results = await dbSearchListings(
+        String(args.query ?? ""),
+        Number(args.limit ?? 20),
+        Number(args.offset ?? 0),
+      );
       return ok({ results, total: results.length });
+    }
+
+    // ── Messaging ──
+    if (tool === "messaging.create_thread") {
+      const participants = Array.isArray(args.participants)
+        ? args.participants.map(String)
+        : [userId];
+      if (!participants.includes(userId)) participants.push(userId);
+      const threadId = await dbCreateThread({
+        participants,
+        subject: String(args.subject ?? ""),
+        listing_id: args.listing_id ? String(args.listing_id) : undefined,
+      });
+      return ok({ thread_id: threadId });
+    }
+    if (tool === "messaging.send_message") {
+      const msgId = await dbSendMessage({
+        thread_id: String(args.thread_id ?? ""),
+        sender_id: String(args.sender_id ?? userId),
+        content: String(args.content ?? ""),
+      });
+      return ok({ message_id: msgId });
+    }
+    if (tool === "messaging.get_thread") {
+      const thread = await dbGetThread(String(args.thread_id ?? ""));
+      return ok({ thread });
+    }
+    if (tool === "messaging.list_threads") {
+      const threads = await dbListThreads(userId);
+      return ok({ threads, total: threads.length });
+    }
+    if (tool === "messaging.get_messages") {
+      const messages = await dbGetMessages(
+        String(args.thread_id ?? ""),
+        Number(args.limit ?? 50),
+        Number(args.offset ?? 0),
+      );
+      return ok({ messages, total: messages.length });
+    }
+    if (tool === "messaging.get_unread") {
+      const count = await dbGetUnreadCount(userId);
+      return ok({ total_unread: count, count });
+    }
+
+    // ── Notifications ──
+    if (tool === "notifications.get_notifications") {
+      const notifications = await dbGetNotifications(userId, Number(args.limit ?? 20), Number(args.offset ?? 0));
+      return ok({ notifications, total: notifications.length });
+    }
+    if (tool === "notifications.send_notification") {
+      const id = await dbCreateNotification({
+        user_id: String(args.user_id ?? userId),
+        title: String(args.title ?? ""),
+        body: String(args.body ?? ""),
+        channel: args.channel ? String(args.channel) : "in_app",
+        priority: args.priority ? String(args.priority) : "normal",
+      });
+      return ok({ notification_id: id, channels_sent: [args.channel ?? "in_app"] });
+    }
+    if (tool === "notifications.mark_read") {
+      await dbMarkNotificationRead(String(args.notification_id ?? ""));
+      return ok({ notification_id: String(args.notification_id ?? ""), read: true });
+    }
+
+    // ── Payments ──
+    if (tool === "payments.get_wallet_balance") {
+      const wallet = await dbGetWalletBalance(userId);
+      return ok({ wallet: { user_id: userId, ...wallet } });
+    }
+    if (tool === "payments.get_transaction_history") {
+      const transactions = await dbGetTransactionHistory(userId, Number(args.limit ?? 20), Number(args.offset ?? 0));
+      return ok({ transactions, total: transactions.length });
+    }
+    if (tool === "payments.top_up_wallet") {
+      const amount = Number(args.amount ?? 0);
+      const txId = await dbCreateTransaction({
+        user_id: userId,
+        transaction_type: "wallet_topup",
+        amount,
+        description: "Wallet top-up",
+      });
+      return ok({ transaction_id: txId, user_id: userId, topped_up: amount });
+    }
+    if (tool === "payments.process_payment") {
+      const amount = Number(args.amount ?? 0);
+      const txId = await dbCreateTransaction({
+        user_id: userId,
+        transaction_type: "purchase",
+        amount,
+        reference_id: args.order_id ? String(args.order_id) : undefined,
+        description: "Order payment",
+      });
+      return ok({ transaction: { transaction_id: txId, amount, status: "completed" } });
+    }
+
+    // ── Escrow ──
+    if (tool === "escrow.create_escrow") {
+      const orderId = String(args.order_id ?? randomUUID());
+      const escrowId = await dbCreateEscrow({
+        order_id: orderId,
+        buyer_id: String(args.buyer_id ?? userId),
+        seller_id: String(args.seller_id ?? ""),
+        held_amount: Number(args.amount ?? 0),
+      });
+      return ok({ escrow_id: escrowId, order_id: orderId, status: "created" });
+    }
+    if (tool === "escrow.hold_funds") {
+      await dbUpdateEscrowStatus(String(args.escrow_id ?? ""), "funds_held");
+      return ok({ escrow_id: String(args.escrow_id ?? ""), status: "funds_held" });
+    }
+    if (tool === "escrow.release_funds") {
+      await dbUpdateEscrowStatus(String(args.escrow_id ?? ""), "released");
+      return ok({ escrow_id: String(args.escrow_id ?? ""), status: "released" });
+    }
+    if (tool === "escrow.freeze_escrow") {
+      await dbUpdateEscrowStatus(String(args.escrow_id ?? ""), "frozen");
+      return ok({ escrow_id: String(args.escrow_id ?? ""), status: "frozen" });
+    }
+    if (tool === "escrow.refund_escrow") {
+      await dbUpdateEscrowStatus(String(args.escrow_id ?? ""), "refunded");
+      return ok({ escrow_id: String(args.escrow_id ?? ""), status: "refunded" });
+    }
+    if (tool === "escrow.get_escrow") {
+      const escrow = await dbGetEscrow(String(args.escrow_id ?? ""));
+      return ok({ escrow: escrow ?? null, timeline: [] });
+    }
+    if (tool === "escrow.list_escrows") {
+      const escrows = await dbListEscrows(userId);
+      return ok({ escrows, total: escrows.length });
+    }
+
+    // ── Bidding ──
+    if (tool === "bidding.place_bid") {
+      const bidId = await dbPlaceBid({
+        listing_id: String(args.listing_id ?? ""),
+        bidder_id: userId,
+        amount: Number(args.amount ?? 0),
+        bid_type: args.bid_type ? String(args.bid_type) : "manual",
+      });
+      return ok({ bid_id: bidId, amount: Number(args.amount ?? 0) });
+    }
+    if (tool === "bidding.get_highest_bid") {
+      const bid = await dbGetHighestBid(String(args.listing_id ?? ""));
+      return ok({ highest_bid: bid });
+    }
+
+    // ── Contracts ──
+    if (tool === "contracts.create_contract") {
+      const contractId = await dbCreateContract({
+        buyer_id: String(args.buyer_id ?? userId),
+        seller_id: String(args.seller_id ?? ""),
+        contract_type: args.contract_type ? String(args.contract_type) : "standing",
+        terms: args.terms ? (args.terms as Record<string, unknown>) : {},
+      });
+      return ok({ contract_id: contractId, status: "draft" });
+    }
+    if (tool === "contracts.get_contract") {
+      const contract = await dbGetContract(String(args.contract_id ?? ""));
+      return ok({ contract });
+    }
+    if (tool === "contracts.list_contracts") {
+      const contracts = await dbListContracts(userId);
+      return ok({ contracts, total: contracts.length });
+    }
+
+    // ── Dispute ──
+    if (tool === "dispute.file_dispute") {
+      const disputeId = await dbFileDispute({
+        escrow_id: String(args.escrow_id ?? ""),
+        filed_by: userId,
+        category: String(args.category ?? "quality"),
+        reason: String(args.reason ?? ""),
+        description: args.description ? String(args.description) : undefined,
+      });
+      return ok({ dispute_id: disputeId, escrow_id: String(args.escrow_id ?? ""), status: "open", filed_at: new Date().toISOString() });
+    }
+    if (tool === "dispute.get_dispute") {
+      const dispute = await dbGetDispute(String(args.dispute_id ?? ""));
+      return ok({ dispute });
+    }
+    if (tool === "dispute.resolve_dispute") {
+      await dbUpdateDisputeStatus(String(args.dispute_id ?? ""), "resolved");
+      return ok({ dispute_id: String(args.dispute_id ?? ""), status: "resolved", resolved_at: new Date().toISOString() });
+    }
+    if (tool === "dispute.escalate_dispute") {
+      await dbUpdateDisputeStatus(String(args.dispute_id ?? ""), "escalated", "tier_2_mediation");
+      return ok({ dispute_id: String(args.dispute_id ?? ""), status: "escalated" });
     }
 
     // ── Analytics ──
@@ -866,10 +1128,105 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       const stats = await dbGetDashboardStats();
       if (stats) return ok(stats as Record<string, unknown>);
     }
+    if (tool === "analytics.get_revenue_report") {
+      const report = await dbGetRevenueReport(String(args.period ?? "30d"));
+      return ok(report);
+    }
+    if (tool === "analytics.get_conversion_funnel") {
+      const funnel = await dbGetConversionFunnel();
+      return ok({ funnel });
+    }
+
+    // ── Admin ──
+    if (tool === "admin.list_users") {
+      const limit = Number(args.limit ?? 50);
+      const offset = Number(args.offset ?? 0);
+      const users = await dbListUsers(limit, offset);
+      const total = await dbCountUsers();
+      return ok({ users, total });
+    }
+    if (tool === "admin.update_user") {
+      const uid = String(args.user_id ?? "");
+      if (!uid) return fail("VALIDATION_ERROR", "user_id is required.");
+      if (args.account_status) await dbUpdateUserStatus(uid, String(args.account_status));
+      return ok({ user_id: uid, updated: true });
+    }
+    if (tool === "admin.suspend_user") {
+      const uid = String(args.user_id ?? "");
+      await dbUpdateUserStatus(uid, "suspended");
+      return ok({ user_id: uid, account_status: "suspended", reason: String(args.reason ?? "") });
+    }
+    if (tool === "admin.unsuspend_user") {
+      const uid = String(args.user_id ?? "");
+      await dbUpdateUserStatus(uid, "active");
+      return ok({ user_id: uid, account_status: "active" });
+    }
+    if (tool === "admin.list_listings") {
+      const listings = await dbListAllListings(Number(args.limit ?? 50), Number(args.offset ?? 0));
+      return ok({ listings, total: listings.length });
+    }
+    if (tool === "admin.update_listing_status") {
+      const id = String(args.listing_id ?? "");
+      await dbUpdateListingStatus(id, String(args.status ?? ""));
+      return ok({ listing_id: id, status: String(args.status ?? "") });
+    }
+    if (tool === "admin.moderate_listing") {
+      const id = String(args.listing_id ?? "");
+      const newStatus = String(args.action ?? "remove") === "remove" ? "cancelled" : "suspended";
+      await dbUpdateListingStatus(id, newStatus);
+      return ok({ listing_id: id, status: newStatus });
+    }
+    if (tool === "admin.list_escrows") {
+      const escrows = await dbListAllEscrows(Number(args.limit ?? 50), Number(args.offset ?? 0));
+      return ok({ escrows, total: escrows.length });
+    }
+    if (tool === "admin.list_orders") {
+      const orders = await dbListAllOrders(Number(args.limit ?? 50), Number(args.offset ?? 0));
+      return ok({ orders, total: orders.length });
+    }
+    if (tool === "admin.update_order_status") {
+      await dbUpdateOrderStatus(String(args.order_id ?? ""), String(args.status ?? ""));
+      return ok({ order_id: String(args.order_id ?? ""), status: String(args.status ?? "") });
+    }
+    if (tool === "admin.list_transactions") {
+      const transactions = await dbListAllTransactions(Number(args.limit ?? 50), Number(args.offset ?? 0));
+      return ok({ transactions, total: transactions.length });
+    }
+    if (tool === "admin.grant_platform_admin") {
+      const uid = String(args.user_id ?? "");
+      if (!uid) return fail("VALIDATION_ERROR", "user_id is required.");
+      await dbGrantPlatformAdmin(uid);
+      return ok({ user_id: uid, granted: true });
+    }
+    if (tool === "admin.revoke_platform_admin") {
+      const uid = String(args.user_id ?? "");
+      await dbRevokePlatformAdmin(uid);
+      return ok({ user_id: uid, revoked: true });
+    }
+    if (tool === "admin.list_platform_config") {
+      const entries = await dbGetPlatformConfig();
+      return ok({ entries, total: entries.length });
+    }
+    if (tool === "admin.update_platform_config") {
+      const key = String(args.key ?? "").trim();
+      const value = String(args.value ?? "");
+      if (!key) return fail("VALIDATION_ERROR", "key is required.");
+      await dbSetPlatformConfig(key, value);
+      return ok({ key, value, updated: true });
+    }
+    if (tool === "admin.get_platform_overview") {
+      const stats = await dbGetDashboardStats();
+      return ok({
+        total_users: stats?.total_users ?? 0,
+        total_listings: stats?.total_listings ?? 0,
+        total_orders: stats?.total_orders ?? 0,
+        open_disputes: 0,
+      });
+    }
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Database error";
     console.error(`[db] handleDbTool ${tool}:`, msg);
-    // Fall through to in-memory handler on any DB error
     return null;
   }
 
