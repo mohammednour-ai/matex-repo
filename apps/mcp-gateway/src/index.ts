@@ -194,6 +194,8 @@ function isPublicTool(tool: string): boolean {
     "auth.verify_email",
     "auth.verify_phone",
     "auth.refresh_token",
+    "auth.request_password_reset",
+    "auth.confirm_password_reset",
   ].includes(tool);
 }
 
@@ -329,6 +331,14 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   }
   if (tool === "auth.verify_email" || tool === "auth.verify_phone") {
     return ok({ verified: true });
+  }
+  // In-memory reset token store for dev (gated by email existence)
+  if (tool === "auth.request_password_reset") {
+    const devCode = process.env.NODE_ENV !== "production" ? "000000" : undefined;
+    return ok({ challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), ...(devCode ? { code: devCode } : {}) });
+  }
+  if (tool === "auth.confirm_password_reset") {
+    return ok({ email: String(args.email ?? ""), reset: true });
   }
   if (tool === "auth.refresh_token") {
     try {
@@ -741,6 +751,21 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   }
   if (tool === "admin.get_audit_trail") {
     return ok({ entries: [], total: 0 });
+  }
+
+  // ── Dispute ──
+  if (tool === "dispute.file_dispute") {
+    const disputeId = randomUUID();
+    return ok({ dispute_id: disputeId, escrow_id: String(args.escrow_id ?? ""), status: "open", reason: String(args.reason ?? ""), filed_at: now() });
+  }
+  if (tool === "dispute.get_dispute") {
+    return ok({ dispute: null });
+  }
+  if (tool === "dispute.resolve_dispute") {
+    return ok({ dispute_id: String(args.dispute_id ?? ""), status: "resolved", resolved_at: now() });
+  }
+  if (tool === "dispute.escalate_dispute") {
+    return ok({ dispute_id: String(args.dispute_id ?? ""), status: "escalated" });
   }
 
   // ── Generic ping ──

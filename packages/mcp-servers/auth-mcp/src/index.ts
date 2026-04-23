@@ -63,6 +63,7 @@ const supabase =
 
 const users = new Map<string, User & { password_hash: string }>();
 const otpChallenges = new Map<string, OtpChallenge>();
+const resetTokens = new Map<string, { email: string; code: string; expires_at: number }>();
 const eventBus = EVENT_REDIS_URL ? new MatexEventBus({ redisUrl: EVENT_REDIS_URL }) : null;
 
 interface OtpChallenge {
@@ -278,6 +279,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "verify_email", description: "Verify email using OTP code", inputSchema: { type: "object", properties: { email: { type: "string" }, otp_code: { type: "string" } }, required: ["email", "otp_code"] } },
     { name: "verify_phone", description: "Verify phone using OTP code", inputSchema: { type: "object", properties: { phone: { type: "string" }, otp_code: { type: "string" } }, required: ["phone", "otp_code"] } },
     { name: "refresh_token", description: "Issue a new access token from refresh token", inputSchema: { type: "object", properties: { refresh_token: { type: "string" } }, required: ["refresh_token"] } },
+    { name: "request_password_reset", description: "Send a password reset code to email", inputSchema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] } },
+    { name: "confirm_password_reset", description: "Confirm password reset with code and new password", inputSchema: { type: "object", properties: { email: { type: "string" }, reset_code: { type: "string" }, new_password: { type: "string" } }, required: ["email", "reset_code", "new_password"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -353,6 +356,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const decoded = jwt.verify(refreshToken, JWT_SECRET) as { sub: string; scope: string };
       if (decoded.scope !== "refresh") throw new Error("Invalid token scope.");
       return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { access_token: signToken({ sub: decoded.sub, scope: "access" }, "15m"), expires_in: 900 } }) }] };
+    }
+    if (tool === "request_password_reset") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      if (!isValidEmail(email)) throw new Error("Invalid email format.");
+      const rawCode = String(Math.floor(100000 + Math.random() * 900000));
+      resetTokens.set(email, { email, code: sha256(rawCode), expires_at: Date.now() + 600_000 });
+      await emitEvent("auth.password_reset.requested", { email });
+      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), ...(process.env.NODE_ENV !== "production" ? { code: rawCode } : {}) } }) }] };
+    }
+    if (tool === "confirm_password_reset") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      const resetCode = String(args.reset_code ?? "").trim();
+      const newPassword = String(args.new_password ?? "");
+      if (!isValidEmail(email)) throw new Error("Invalid email format.");
+      if (newPassword.length < 12) throw new Error("New password must be at least 12 characters.");
+      const token = resetTokens.get(email);
+      if (!token || token.expires_at < Date.now()) throw new Error("Reset code expired or not found.");
+      if (token.code !== sha256(resetCode)) throw new Error("Invalid reset code.");
+      resetTokens.delete(email);
+      const newHash = await hashPassword(newPassword);
+      if (supabase) {
+        const { error } = await supabase.from("auth_mcp.users").update({ password_hash: newHash }).eq("email", email);
+        if (error) throw new Error(`Failed to update password: ${error.message}`);
+      } else {
+        const user = users.get(email);
+        if (!user) throw new Error("User not found.");
+        user.password_hash = newHash;
+        users.set(email, user);
+      }
+      await emitEvent("auth.password_reset.completed", { email });
+      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { email, reset: true } }) }] };
     }
   } catch (error) {
     return {
