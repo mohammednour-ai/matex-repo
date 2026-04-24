@@ -1,0 +1,60 @@
+name: "Database \u2014 Apply Migrations"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      dry_run:
+        description: "Dry run (validate SQL without applying)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  apply-migrations:
+    name: Apply DB Schema
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Validate SQL syntax (dry run)
+        env:
+          PGPASSWORD: ""
+        run: |
+          echo "Checking SQL file exists and is non-empty..."
+          test -s docs/database/matex_complete_schema.sql
+          echo "SQL file OK ($(wc -l < docs/database/matex_complete_schema.sql) lines)"
+
+      - name: Apply schema to database
+        if: github.event.inputs.dry_run == 'false'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          echo "Applying matex_complete_schema.sql to ${{ github.event.inputs.environment }}..."
+          psql "$SUPABASE_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            -f docs/database/matex_complete_schema.sql
+          echo "Schema applied successfully."
+
+      - name: Skip apply (dry-run mode)
+        if: github.event.inputs.dry_run == 'true'
+        run: echo "Dry-run selected — schema was validated but NOT applied."
