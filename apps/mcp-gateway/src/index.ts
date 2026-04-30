@@ -170,6 +170,7 @@ function expiryToSeconds(value: string, fallbackSeconds: number): number {
 }
 
 const ACCESS_EXP_SECONDS = expiryToSeconds(JWT_ACCESS_TOKEN_EXPIRY, 900);
+const REFRESH_EXP_SECONDS = expiryToSeconds(JWT_REFRESH_TOKEN_EXPIRY, 604800);
 
 function parseDomainEndpoints(raw?: string): Record<string, string> {
   if (!raw) return {};
@@ -345,8 +346,8 @@ function devIsPlatformAdmin(userId: string, email: string): boolean {
 
 function devBuildTokens(userId: string, email?: string): { access_token: string; refresh_token: string; expires_in: number } {
   return {
-    access_token: jwt.sign({ sub: userId, scope: "access", email: email ?? "" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_ACCESS_TOKEN_EXPIRY }),
-    refresh_token: jwt.sign({ sub: userId, scope: "refresh" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_REFRESH_TOKEN_EXPIRY }),
+    access_token: jwt.sign({ sub: userId, scope: "access", email: email ?? "" }, JWT_SECRET as jwt.Secret, { expiresIn: ACCESS_EXP_SECONDS }),
+    refresh_token: jwt.sign({ sub: userId, scope: "refresh" }, JWT_SECRET as jwt.Secret, { expiresIn: REFRESH_EXP_SECONDS }),
     expires_in: ACCESS_EXP_SECONDS,
   };
 }
@@ -401,7 +402,7 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
       const decoded = jwt.verify(String(args.refresh_token ?? ""), JWT_SECRET) as { sub: string; scope: string };
       if (decoded.scope !== "refresh") return fail("AUTH_ERROR", "Invalid token scope.");
       return ok({
-        access_token: jwt.sign({ sub: decoded.sub, scope: "access" }, JWT_SECRET as jwt.Secret, { expiresIn: JWT_ACCESS_TOKEN_EXPIRY }),
+        access_token: jwt.sign({ sub: decoded.sub, scope: "access" }, JWT_SECRET as jwt.Secret, { expiresIn: ACCESS_EXP_SECONDS }),
         expires_in: ACCESS_EXP_SECONDS,
       });
     } catch { return fail("AUTH_ERROR", "Invalid refresh token."); }
