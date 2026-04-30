@@ -46,6 +46,8 @@ type FormData = {
   certifications: string;
   // Step 2
   uploadedUrls: string[];
+  /** Auction terms PDF / doc uploads (step 3 auction only) — kept separate from material photos. */
+  auctionTermsUrls: string[];
   // Step 3
   saleMode: SaleMode;
   askingPrice: string;
@@ -91,6 +93,7 @@ const DEFAULT_FORM: FormData = {
   permitNumber: "",
   certifications: "",
   uploadedUrls: [],
+  auctionTermsUrls: [],
   saleMode: "",
   askingPrice: "",
   buyNowPrice: "",
@@ -315,7 +318,7 @@ function Step1({
 }: {
   data: FormData;
   onChange: (patch: Partial<FormData>) => void;
-  onSaveDraft: () => Promise<void>;
+  onSaveDraft: () => Promise<string | null>;
   saving: boolean;
   listingId: string;
 }) {
@@ -501,9 +504,11 @@ function Step1({
 function Step2({
   data,
   onChange,
+  listingId,
 }: {
   data: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  listingId: string;
 }) {
   return (
     <div className="space-y-4">
@@ -513,6 +518,7 @@ function Step2({
       <div>
         <FieldLabel>Upload material photos and condition videos</FieldLabel>
         <MediaUploader
+          listingId={listingId || undefined}
           maxFiles={12}
           onUploadComplete={(urls) => onChange({ uploadedUrls: urls })}
         />
@@ -588,9 +594,11 @@ function SaleModeCard({
 function Step3({
   data,
   onChange,
+  listingId,
 }: {
   data: FormData;
   onChange: (patch: Partial<FormData>) => void;
+  listingId: string;
 }) {
   const price =
     data.saleMode === "fixed"
@@ -797,8 +805,9 @@ function Step3({
           <div>
             <FieldLabel>Auction terms (PDF)</FieldLabel>
             <MediaUploader
+              listingId={listingId || undefined}
               maxFiles={1}
-              onUploadComplete={(urls) => onChange({ uploadedUrls: [...(data.uploadedUrls ?? []), ...urls] })}
+              onUploadComplete={(urls) => onChange({ auctionTermsUrls: urls })}
             />
             <FieldHint>Upload a PDF of auction terms and conditions for bidders.</FieldHint>
           </div>
@@ -1395,7 +1404,7 @@ function Step6({
   listingId: string;
   onEdit: (step: number) => void;
   onPublish: () => Promise<void>;
-  onSaveDraft: () => Promise<void>;
+  onSaveDraft: () => Promise<string | null>;
   publishing: boolean;
   saving: boolean;
   publishError: string;
@@ -1469,6 +1478,14 @@ function Step6({
             {data.auctionDate && <ReviewRow label="Auction date" value={data.auctionDate} />}
             <ReviewRow label="Deposit %" value={`${data.depositPct}%`} />
             {data.minLotSize && <ReviewRow label="Min lot size" value={data.minLotSize} />}
+            <ReviewRow
+              label="Auction terms file"
+              value={
+                data.auctionTermsUrls.length > 0
+                  ? `${data.auctionTermsUrls.length} file${data.auctionTermsUrls.length > 1 ? "s" : ""}`
+                  : "None"
+              }
+            />
           </>
         )}
         <ReviewRow
@@ -1532,7 +1549,7 @@ function Step6({
         <Button
           onClick={onPublish}
           loading={publishing}
-          disabled={!listingId || !data.title || !data.category || !data.saleMode}
+          disabled={!data.title || !data.category || !data.saleMode}
           className="sm:flex-1"
           size="lg"
         >
@@ -1638,13 +1655,14 @@ export default function CreateListingPage() {
     router.replace(`/listings/create?${q.toString()}`, { scroll: false });
   }, [currentStep, listingId, router, urlHydrated]);
 
-  const handleSaveDraft = async (): Promise<void> => {
+  const handleSaveDraft = async (): Promise<string | null> => {
     setSaving(true);
     setStepError("");
     try {
       const user = getUser();
       if (listingId) {
-        await callTool("listing.update_listing", {
+        const imageUrls = [...new Set([...formData.uploadedUrls, ...formData.auctionTermsUrls])].filter(Boolean);
+        const res = await callTool("listing.update_listing", {
           listing_id: listingId,
           title: formData.title,
           description: formData.description,
@@ -1656,29 +1674,40 @@ export default function CreateListingPage() {
           quantity: formData.quantity,
           unit: formData.unit,
           status: "draft",
+          ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
         });
-      } else {
-        const res = await callTool("listing.create_listing", {
-          seller_id: user?.userId,
-          title: formData.title,
-          description: formData.description,
-          category: formData.category,
-          material_type: formData.materialType,
-          quality_grade: formData.qualityGrade,
-          contamination_pct: formData.contaminationPct,
-          moisture_pct: formData.moisturePct,
-          quantity: formData.quantity,
-          unit: formData.unit,
-          has_permit: formData.hasPermit,
-          permit_number: formData.hasPermit ? formData.permitNumber : undefined,
-          certifications: formData.certifications,
-          status: "draft",
-        });
-        const id = extractId(res, "listing_id");
-        if (id) setListingId(id);
+        if (!res.success) {
+          setStepError(res.error?.message ?? "Failed to save draft");
+          return null;
+        }
+        return listingId;
       }
+      const res = await callTool("listing.create_listing", {
+        seller_id: user?.userId,
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        material_type: formData.materialType,
+        quality_grade: formData.qualityGrade,
+        contamination_pct: formData.contaminationPct,
+        moisture_pct: formData.moisturePct,
+        quantity: formData.quantity,
+        unit: formData.unit,
+        has_permit: formData.hasPermit,
+        permit_number: formData.hasPermit ? formData.permitNumber : undefined,
+        certifications: formData.certifications,
+        status: "draft",
+      });
+      if (!res.success) {
+        setStepError(res.error?.message ?? "Failed to save draft");
+        return null;
+      }
+      const id = extractId(res, "listing_id");
+      if (id) setListingId(id);
+      return id || null;
     } catch (e) {
       setStepError(e instanceof Error ? e.message : "Failed to save draft");
+      return null;
     } finally {
       setSaving(false);
     }
@@ -1697,7 +1726,11 @@ export default function CreateListingPage() {
       return;
     }
     if (currentStep === 1 && !listingId) {
-      await handleSaveDraft();
+      const id = await handleSaveDraft();
+      if (!id) {
+        setStepError("Save your draft before continuing (check errors above).");
+        return;
+      }
     }
     setCurrentStep((s) => Math.min(s + 1, 6));
   };
@@ -1711,11 +1744,19 @@ export default function CreateListingPage() {
     setPublishing(true);
     setPublishError("");
     try {
-      if (!listingId) {
-        await handleSaveDraft();
+      let publishListingId = listingId;
+      if (!publishListingId) {
+        publishListingId = (await handleSaveDraft()) ?? "";
+      }
+      if (!publishListingId) {
+        setPublishError("Could not save listing draft. Fix errors and try again.");
+        return;
+      }
+      if (publishListingId !== listingId) {
+        setListingId(publishListingId);
       }
       await callTool("listing.publish_listing", {
-        listing_id: listingId,
+        listing_id: publishListingId,
         sale_mode: formData.saleMode,
         asking_price: formData.saleMode === "fixed" ? parseFloat(formData.askingPrice) : undefined,
         buy_now_price: formData.buyNowPrice ? parseFloat(formData.buyNowPrice) : undefined,
@@ -1800,8 +1841,8 @@ export default function CreateListingPage() {
               listingId={listingId}
             />
           )}
-          {currentStep === 2 && <Step2 data={formData} onChange={patch} />}
-          {currentStep === 3 && <Step3 data={formData} onChange={patch} />}
+          {currentStep === 2 && <Step2 data={formData} onChange={patch} listingId={listingId} />}
+          {currentStep === 3 && <Step3 data={formData} onChange={patch} listingId={listingId} />}
           {currentStep === 4 && (
             <Step4 data={formData} onChange={patch} listingId={listingId} />
           )}

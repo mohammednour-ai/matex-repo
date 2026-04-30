@@ -144,7 +144,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
 // ---------------------------------------------------------------------------
 function resolveRoute(n: Notification): string | null {
   if (n.data?.listing_id) return `/listings/${n.data.listing_id}`;
-  if (n.data?.auction_id) return `/auction/${n.data.auction_id}`;
+  if (n.data?.auction_id) return `/auctions/${n.data.auction_id}`;
   if (n.data?.escrow_id) return `/escrow`;
   if (n.data?.shipment_id) return `/logistics`;
   // /disputes/[id] route does not exist yet; route to messages which carries dispute threads

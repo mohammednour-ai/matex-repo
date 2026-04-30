@@ -344,10 +344,15 @@ function devIsPlatformAdmin(userId: string, email: string): boolean {
   return devPlatformAdminIds.has(userId) || devAdminEmailSet().has(email.toLowerCase().trim());
 }
 
-function devBuildTokens(userId: string, email?: string): { access_token: string; refresh_token: string; expires_in: number } {
+function devBuildTokens(userId: string, email?: string, role?: string): { access_token: string; refresh_token: string; expires_in: number } {
+  const r = role && role.length > 0 ? role : "user";
   return {
-    access_token: jwt.sign({ sub: userId, scope: "access", email: email ?? "" }, JWT_SECRET as jwt.Secret, { expiresIn: ACCESS_EXP_SECONDS }),
-    refresh_token: jwt.sign({ sub: userId, scope: "refresh" }, JWT_SECRET as jwt.Secret, { expiresIn: REFRESH_EXP_SECONDS }),
+    access_token: jwt.sign(
+      { sub: userId, scope: "access", email: email ?? "", role: r },
+      JWT_SECRET as jwt.Secret,
+      { expiresIn: ACCESS_EXP_SECONDS },
+    ),
+    refresh_token: jwt.sign({ sub: userId, scope: "refresh", role: r }, JWT_SECRET as jwt.Secret, { expiresIn: REFRESH_EXP_SECONDS }),
     expires_in: ACCESS_EXP_SECONDS,
   };
 }
@@ -373,12 +378,13 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     if (!email || !password) return fail("VALIDATION_ERROR", "email and password are required.");
     const user = devUsers.get(email);
     if (!user || user.password_hash !== sha256(password)) return fail("AUTH_ERROR", "Invalid credentials.");
+    const admin = devIsPlatformAdmin(user.user_id, email);
     return ok({
       user_id: user.user_id,
       account_type: user.account_type,
       account_status: user.account_status,
-      is_platform_admin: devIsPlatformAdmin(user.user_id, email),
-      tokens: devBuildTokens(user.user_id, email),
+      is_platform_admin: admin,
+      tokens: devBuildTokens(user.user_id, email, admin ? "platform_admin" : "user"),
       mfa_required: false,
     });
   }
@@ -399,10 +405,15 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   }
   if (tool === "auth.refresh_token") {
     try {
-      const decoded = jwt.verify(String(args.refresh_token ?? ""), JWT_SECRET) as { sub: string; scope: string };
+      const decoded = jwt.verify(String(args.refresh_token ?? ""), JWT_SECRET) as { sub: string; scope: string; role?: string };
       if (decoded.scope !== "refresh") return fail("AUTH_ERROR", "Invalid token scope.");
+      const role = decoded.role ?? "user";
       return ok({
-        access_token: jwt.sign({ sub: decoded.sub, scope: "access" }, JWT_SECRET as jwt.Secret, { expiresIn: ACCESS_EXP_SECONDS }),
+        access_token: jwt.sign(
+          { sub: decoded.sub, scope: "access", role },
+          JWT_SECRET as jwt.Secret,
+          { expiresIn: ACCESS_EXP_SECONDS },
+        ),
         expires_in: ACCESS_EXP_SECONDS,
       });
     } catch { return fail("AUTH_ERROR", "Invalid refresh token."); }
@@ -432,10 +443,16 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     const listing = devListings.get(id);
     if (listing) {
       if (args.title) listing.title = String(args.title);
-      if (args.description) listing.description = String(args.description);
+      if (args.description !== undefined) listing.description = String(args.description ?? "");
       if (args.category) listing.category = String(args.category);
-      if (args.quantity) listing.quantity = Number(args.quantity);
+      if (args.quantity !== undefined && args.quantity !== null) listing.quantity = Number(args.quantity);
+      if (args.unit) listing.unit = String(args.unit);
+      if (args.quality_grade !== undefined) listing.quality_grade = String(args.quality_grade ?? "");
       if (args.asking_price) listing.asking_price = Number(args.asking_price);
+      const sync = Array.isArray(args.image_urls) ? args.image_urls.map(String).filter(Boolean) : [];
+      if (sync.length > 0) {
+        listing.images = sync.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` }));
+      }
     }
     return ok({ listing_id: id, updated: true });
   }
@@ -456,7 +473,48 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
     return ok({ listings, total: listings.length });
   }
   if (tool === "listing.upload_images") {
-    return ok({ listing_id: String(args.listing_id ?? ""), images_uploaded: true, file_id: randomUUID() });
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
+    const listing = devListings.get(listingId);
+    if (!listing) return fail("NOT_FOUND", "Listing not found.");
+    if (listing.seller_id !== userId) return fail("FORBIDDEN", "You can only modify your own listings.");
+
+    const mergeUrls = (incoming: string[]) => {
+      const prev: string[] = [];
+      const raw = listing.images;
+      if (Array.isArray(raw)) {
+        for (const item of raw) {
+          if (typeof item === "object" && item && "url" in item) prev.push(String((item as { url: string }).url));
+          else if (typeof item === "string") prev.push(item);
+        }
+      }
+      const merged = [...prev];
+      for (const u of incoming) {
+        if (u && !merged.includes(u)) merged.push(u);
+      }
+      listing.images = merged.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` }));
+    };
+
+    const imageUrls = Array.isArray(args.urls) ? args.urls.map(String).filter(Boolean) : [];
+    if (imageUrls.length > 0) {
+      mergeUrls(imageUrls);
+      return ok({ listing_id: listingId, merged: true, image_count: (listing.images as { url: string }[]).length });
+    }
+
+    const fileName = String(args.file_name ?? args.filename ?? "").trim();
+    if (!fileName) return fail("VALIDATION_ERROR", "file_name (or filename) is required for upload, or pass urls to save image URLs.");
+
+    const fileId = randomUUID();
+    const seed = encodeURIComponent(`${listingId}-${fileId}`.slice(0, 48));
+    const publicUrl = `https://picsum.photos/seed/${seed}/800/600`;
+    return ok({
+      listing_id: listingId,
+      file_id: fileId,
+      skip_client_put: true,
+      public_url: publicUrl,
+      dev_placeholder: true,
+      note: "Dev gateway: no object storage; a placeholder image URL is returned and saved when you continue.",
+    });
   }
   if (tool === "listing.archive_listing") {
     const id = String(args.listing_id ?? "");
@@ -568,11 +626,18 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
 
   // ── Logistics ──
   if (tool === "logistics.get_quotes") {
-    return ok({ order_id: randomUUID(), quotes: [
-      { carrier: "Day & Ross", api: "day_ross", price: 1190, transit: "2 days", co2: 124 },
-      { carrier: "Manitoulin Transport", api: "manitoulin", price: 1240, transit: "2 days", co2: 132 },
-      { carrier: "Purolator Freight", api: "purolator", price: 1305, transit: "1 day", co2: 118 },
-    ]});
+    return ok({
+      order_id: randomUUID(),
+      quotes: [
+        { carrier: "Day & Ross", api: "day_ross", price: 1190, transit: "2 days", co2: 124 },
+        { carrier: "Manitoulin Transport", api: "manitoulin", price: 1240, transit: "2 days", co2: 132 },
+        { carrier: "Purolator Freight", api: "purolator", price: 1305, transit: "1 day", co2: 118 },
+        { carrier: "XTL Transport", api: "xtl", price: 1288, transit: "2 days", co2: 128 },
+        { carrier: "Challenger Motor Freight", api: "challenger", price: 1335, transit: "2 days", co2: 130 },
+      ],
+      pricing_model: "synthetic_lane_rates",
+      co2_note: "Illustrative until carrier APIs return emissions.",
+    });
   }
   if (tool === "logistics.book_shipment") { return ok({ shipment_id: randomUUID(), status: "booked", carrier: String(args.carrier_name ?? "Day & Ross") }); }
   if (tool === "logistics.get_shipment") { return ok({ shipment: { shipment_id: String(args.shipment_id ?? ""), status: "booked", carrier_name: "Day & Ross" } }); }
@@ -813,7 +878,13 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
   // ── Dispute ──
   if (tool === "dispute.file_dispute") {
     const disputeId = randomUUID();
-    return ok({ dispute_id: disputeId, escrow_id: String(args.escrow_id ?? ""), status: "open", reason: String(args.reason ?? ""), filed_at: now() });
+    return ok({
+      dispute_id: disputeId,
+      escrow_id: String(args.escrow_id ?? ""),
+      status: "open",
+      reason: String(args.reason ?? ""),
+      filed_at: now(),
+    });
   }
   if (tool === "dispute.get_dispute") {
     return ok({ dispute: null });

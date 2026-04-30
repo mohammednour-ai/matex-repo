@@ -158,12 +158,282 @@ async function ensureMatexAuxTables(pool: pg.Pool): Promise<boolean> {
       CREATE TABLE IF NOT EXISTS public.matex_admin_operators (
         user_id UUID PRIMARY KEY
       );
+      CREATE TABLE IF NOT EXISTS public.matex_otp_challenges (
+        challenge_id UUID PRIMARY KEY,
+        user_id UUID,
+        target_type TEXT NOT NULL,
+        target_value TEXT NOT NULL,
+        otp_hash TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        verified BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_matex_otp_target ON public.matex_otp_challenges (target_type, target_value, created_at DESC);
     `);
     matexAuxTablesEnsured = true;
     return true;
   } catch {
     return false;
   }
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+type AuthContext = { sub: string; role?: string; email?: string };
+
+const HIGH_BID_CAD_KYC_THRESHOLD = 5000;
+
+async function isPlatformAdminUser(pool: pg.Pool, userId: string): Promise<boolean> {
+  const ready = await ensureMatexAuxTables(pool);
+  if (!ready) return false;
+  const r = await pool.query(`select 1 from public.matex_admin_operators where user_id = $1 limit 1`, [userId]);
+  return (r.rowCount ?? 0) > 0;
+}
+
+async function assertListingSeller(
+  pool: pg.Pool,
+  listingId: string,
+  sellerId: string | null,
+): Promise<AdapterResponse | null> {
+  if (!listingId) return err("VALIDATION_ERROR", "listing_id is required.");
+  if (!sellerId) return err("UNAUTHORIZED", "Authentication required.");
+  const row = (await pool.query(`select seller_id from listing_mcp.listings where listing_id = $1`, [listingId])).rows[0];
+  if (!row) return err("NOT_FOUND", "Listing not found.");
+  if (String(row.seller_id) !== sellerId) return err("FORBIDDEN", "You can only modify your own listings.");
+  return null;
+}
+
+async function currentKycLevel(pool: pg.Pool, userId: string): Promise<string> {
+  const row = (await pool.query(`select current_level::text as current_level from kyc_mcp.kyc_levels where user_id = $1`, [userId])).rows[0];
+  return String(row?.current_level ?? "level_0");
+}
+
+async function kycGateHighBid(pool: pg.Pool, bidderId: string, amountCad: number): Promise<AdapterResponse | null> {
+  if (amountCad < HIGH_BID_CAD_KYC_THRESHOLD) return null;
+  const level = await currentKycLevel(pool, bidderId);
+  const rank: Record<string, number> = { level_0: 0, level_1: 1, level_2: 2, level_3: 3 };
+  if ((rank[level] ?? 0) < 2) {
+    return err(
+      "KYC_GATE_BLOCKED",
+      `Bids of CAD ${HIGH_BID_CAD_KYC_THRESHOLD}+ require KYC level_2 or higher (current ${level}).`,
+    );
+  }
+  return null;
+}
+
+async function persistOtpChallenge(
+  pool: pg.Pool,
+  params: { userId: string | null; targetType: string; targetValue: string; code: string },
+): Promise<{ challengeId: string; expiresAt: string; devCode?: string }> {
+  await ensureMatexAuxTables(pool);
+  const challengeId = randomUUID();
+  const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  await pool.query(
+    `insert into public.matex_otp_challenges (challenge_id, user_id, target_type, target_value, otp_hash, expires_at)
+     values ($1,$2,$3,$4,$5,$6::timestamptz)`,
+    [challengeId, params.userId, params.targetType, params.targetValue, sha256Hex(params.code), expiresAt],
+  );
+  const devCode = process.env.NODE_ENV === "production" ? undefined : params.code;
+  return { challengeId, expiresAt, devCode };
+}
+
+async function verifyOtpCode(
+  pool: pg.Pool,
+  targetType: string,
+  targetValue: string,
+  code: string,
+): Promise<{ ok: true; challengeId: string } | { ok: false; message: string }> {
+  await ensureMatexAuxTables(pool);
+  const rows = (
+    await pool.query(
+      `select challenge_id, otp_hash, expires_at, attempts, verified from public.matex_otp_challenges
+       where target_type = $1 and target_value = $2 and verified = false order by created_at desc limit 1`,
+      [targetType, targetValue],
+    )
+  ).rows;
+  const row = rows[0];
+  if (!row) return { ok: false, message: "No OTP challenge found." };
+  if (row.verified) return { ok: false, message: "OTP already used." };
+  if (new Date(String(row.expires_at)).getTime() < Date.now()) return { ok: false, message: "OTP expired." };
+  if (Number(row.attempts) >= 5) return { ok: false, message: "Too many OTP attempts." };
+  if (String(row.otp_hash) !== sha256Hex(code)) {
+    await pool.query(`update public.matex_otp_challenges set attempts = attempts + 1 where challenge_id = $1`, [row.challenge_id]);
+    return { ok: false, message: "Invalid OTP code." };
+  }
+  await pool.query(`update public.matex_otp_challenges set verified = true where challenge_id = $1`, [row.challenge_id]);
+  return { ok: true, challengeId: String(row.challenge_id) };
+}
+
+async function sendEmailOtpExternal(email: string, code: string): Promise<void> {
+  const key = process.env.SENDGRID_API_KEY;
+  const from = process.env.SENDGRID_FROM_EMAIL;
+  if (!key || !from) return;
+  await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email }] }],
+      from: { email: from },
+      subject: "Your Matex verification code",
+      content: [{ type: "text/plain", value: `Your verification code is: ${code}\n\nThis code expires in 10 minutes.` }],
+    }),
+  });
+}
+
+async function sendSmsOtpExternal(phone: string, code: string): Promise<void> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_FROM_PHONE;
+  if (!sid || !token || !from) return;
+  const body = new URLSearchParams({ To: phone, From: from, Body: `Your Matex code is ${code}` });
+  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: "POST",
+    headers: { authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`, "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+}
+
+function generateOtp6(): string {
+  return String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0");
+}
+
+async function appendAuditLog(
+  pool: pg.Pool,
+  params: {
+    tool: string;
+    userId: string | null;
+    action: string;
+    entityType?: string | null;
+    entityId?: string | null;
+    outputSummary?: string;
+    success?: boolean;
+  },
+): Promise<void> {
+  try {
+    const entryHash = sha256Hex(`${params.tool}:${params.action}:${params.userId ?? ""}:${Date.now()}:${randomUUID()}`);
+    await pool.query(
+      `insert into log_mcp.audit_log
+        (category, level, server, tool, user_id, entity_type, entity_id, action, output_summary, success, entry_hash)
+       values ('admin_action'::log_category, 'info'::log_level, 'mcp-http-adapter', $1, $2::uuid, $3, $4::uuid, $5, $6, $7, $8)`,
+      [
+        params.tool,
+        params.userId,
+        params.entityType ?? null,
+        params.entityId ?? null,
+        params.action,
+        params.outputSummary ?? "",
+        params.success !== false,
+        entryHash,
+      ],
+    );
+  } catch {
+    // Non-blocking: partitions or enum types may differ in minimal DBs.
+  }
+}
+
+type MergeAuthResult = { ok: true; args: Record<string, unknown> } | { ok: false; response: AdapterResponse };
+
+async function mergeAuthenticatedIdentity(
+  pool: pg.Pool,
+  tool: string,
+  rawArgs: Record<string, unknown>,
+  authCtx?: AuthContext,
+): Promise<MergeAuthResult> {
+  const sub = authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null;
+  if (!sub) return { ok: true, args: { ...rawArgs } };
+
+  const adminBypass = tool.startsWith("admin.") && (await isPlatformAdminUser(pool, sub));
+  if (adminBypass) return { ok: true, args: { ...rawArgs } };
+
+  const args = { ...rawArgs };
+
+  if (tool === "dispute.file_dispute") {
+    args.filing_party_id = sub;
+  }
+
+  if (tool.startsWith("profile.")) {
+    args.user_id = sub;
+  }
+  if (tool === "listing.get_my_listings") {
+    args.seller_id = sub;
+  }
+  if (tool === "listing.create_listing") {
+    args.seller_id = sub;
+  }
+  if (
+    tool === "payments.get_wallet_balance" ||
+    tool === "payments.top_up_wallet" ||
+    tool === "payments.get_transaction_history" ||
+    tool === "payments.process_payment" ||
+    tool === "payments.manage_payment_methods"
+  ) {
+    args.user_id = sub;
+  }
+  if (tool.startsWith("kyc.") && tool !== "kyc.review_verification") {
+    args.user_id = sub;
+  }
+  if (
+    tool === "notifications.get_notifications" ||
+    tool === "notifications.get_preferences" ||
+    tool === "notifications.update_preferences" ||
+    tool === "notifications.send_notification"
+  ) {
+    args.user_id = sub;
+  }
+  if (tool === "booking.list_user_bookings" || tool === "booking.set_availability" || tool === "booking.create_booking") {
+    args.user_id = sub;
+    if (tool === "booking.create_booking") args.organizer_id = sub;
+  }
+  if (tool === "search.save_search" || tool === "search.get_saved_searches") {
+    args.user_id = sub;
+  }
+  if (tool === "messaging.send_message") {
+    args.sender_id = sub;
+  }
+  if (tool === "messaging.get_unread" || tool === "messaging.list_threads") {
+    args.user_id = sub;
+  }
+  if (tool === "bidding.place_bid") {
+    args.bidder_id = sub;
+  }
+  if (tool === "auction.place_auction_bid") {
+    args.bidder_id = sub;
+  }
+  if (tool === "escrow.list_escrows") {
+    args.user_id = sub;
+  }
+  if (tool === "logistics.list_shipments") {
+    args.user_id = sub;
+  }
+  if (tool === "contracts.list_contracts") {
+    args.user_id = sub;
+  }
+
+  if (tool === "auction.create_auction") {
+    args.organizer_id = sub;
+  }
+  if (tool === "inspection.request_inspection") {
+    args.requested_by = sub;
+    args.requester_id = sub;
+  }
+
+  const idFields = ["user_id", "seller_id", "buyer_id", "bidder_id", "organizer_id", "payer_id"] as const;
+  for (const field of idFields) {
+    const v = args[field];
+    if (v !== undefined && v !== null && String(v).length > 0 && String(v) !== sub) {
+      const allowMismatch =
+        (field === "buyer_id" || field === "seller_id") &&
+        (tool.startsWith("escrow.") || tool.startsWith("contracts.") || tool.startsWith("messaging."));
+      if (!allowMismatch) {
+        return { ok: false, response: err("FORBIDDEN", `Argument ${field} must match the authenticated user.`) };
+      }
+    }
+  }
+
+  return { ok: true, args };
 }
 
 const VALID_ACCOUNT_STATUS = new Set(["active", "suspended", "pending_review", "deactivated", "banned"]);
@@ -304,7 +574,15 @@ async function ensureOrder(pool: pg.Pool, orderId: string, userId: string): Prom
   return orderId;
 }
 
-async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unknown>): Promise<AdapterResponse> {
+async function handleTool(
+  pool: pg.Pool,
+  tool: string,
+  rawArgs: Record<string, unknown>,
+  authCtx?: AuthContext,
+): Promise<AdapterResponse> {
+  const merged = await mergeAuthenticatedIdentity(pool, tool, rawArgs, authCtx);
+  if (!merged.ok) return merged.response;
+  const args = merged.args;
   // auth
   if (tool === "auth.register") {
     const email = String(args.email ?? "").toLowerCase().trim();
@@ -312,11 +590,12 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const password = String(args.password ?? "");
     if (!email || !phone || !password) return err("VALIDATION_ERROR", "email, phone, password are required.");
     const userId = randomUUID();
+    const passwordHash = sha256Hex(password);
     await pool.query(
       `insert into auth_mcp.users
         (user_id,email,phone,password_hash,account_type,account_status,email_verified,phone_verified,mfa_enabled)
        values ($1,$2,$3,$4,'individual','pending_review',false,false,false)`,
-      [userId, email, phone, password],
+      [userId, email, phone, passwordHash],
     );
     return ok({ user: { user_id: userId, email, phone }, status: "pending_review" });
   }
@@ -325,24 +604,32 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const password = String(args.password ?? "");
     if (!email || !password) return err("VALIDATION_ERROR", "email and password are required.");
     const row = await pool.query(
-      `select user_id, password_hash, account_type::text as account_type, account_status::text as account_status
+      `select user_id, email, password_hash, account_type::text as account_type, account_status::text as account_status
        from auth_mcp.users where email = $1 limit 1`,
       [email],
     );
     const user = row.rows[0];
     if (!user) return err("AUTH_ERROR", "Invalid credentials.");
-    if (user.password_hash !== password && user.password_hash !== createHash("sha256").update(password).digest("hex")) {
-      return err("AUTH_ERROR", "Invalid credentials.");
+    const hash = sha256Hex(password);
+    const legacyPlain = user.password_hash === password;
+    const hashMatch = user.password_hash === hash;
+    if (!hashMatch && !legacyPlain) return err("AUTH_ERROR", "Invalid credentials.");
+    if (legacyPlain && !hashMatch) {
+      await pool.query(`update auth_mcp.users set password_hash = $2 where user_id = $1`, [user.user_id, hash]);
     }
     const userId = String(user.user_id);
-    const accessToken = signJwt({ sub: userId, scope: "access" }, ACCESS_TOKEN_TTL_SEC);
-    const refreshToken = signJwt({ sub: userId, scope: "refresh" }, REFRESH_TOKEN_TTL_SEC);
     let is_platform_admin = false;
     const auxOk = await ensureMatexAuxTables(pool);
     if (auxOk) {
       const adm = await pool.query(`select 1 from public.matex_admin_operators where user_id = $1 limit 1`, [userId]);
       is_platform_admin = (adm.rowCount ?? 0) > 0;
     }
+    const role = is_platform_admin ? "platform_admin" : "user";
+    const accessToken = signJwt(
+      { sub: userId, scope: "access", email: String(user.email ?? ""), role },
+      ACCESS_TOKEN_TTL_SEC,
+    );
+    const refreshToken = signJwt({ sub: userId, scope: "refresh" }, REFRESH_TOKEN_TTL_SEC);
     return ok({
       user_id: userId,
       account_type: String(user.account_type ?? "individual"),
@@ -369,6 +656,13 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     }
     const listingId = randomUUID();
     let categoryId = String(args.category_id ?? "");
+    if (!categoryId && args.category && String(args.category).trim() !== "") {
+      const byName = await pool.query(
+        `select category_id from listing_mcp.categories where lower(trim(name)) = lower(trim($1)) limit 1`,
+        [String(args.category)],
+      );
+      categoryId = String(byName.rows[0]?.category_id ?? "");
+    }
     if (!categoryId) {
       categoryId = String(
         (await pool.query(`select category_id from listing_mcp.categories order by created_at asc limit 1`)).rows[0]
@@ -404,8 +698,16 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ listing_id: listingId, status: "draft" });
   }
   if (tool === "listing.publish_listing") {
+    const sellerSelf = authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null;
+    if (!sellerSelf) return err("UNAUTHORIZED", "Authentication required.");
+    const denied = await assertListingSeller(pool, String(args.listing_id ?? ""), sellerSelf);
+    if (denied) return denied;
     const result = await pool.query(
-      `update listing_mcp.listings set status='active',published_at=now() where listing_id=$1 returning listing_id,status,published_at`,
+      `update listing_mcp.listings set status='active',published_at=now(),updated_at=now() where listing_id=$1 returning listing_id,status,published_at`,
+      [String(args.listing_id ?? "")],
+    );
+    await pool.query(
+      `update listing_mcp.listings set search_vector = to_tsvector('english', coalesce(title,'') || ' ' || coalesce(description,'') || ' ' || coalesce(quality_grade::text,'')) where listing_id = $1`,
       [String(args.listing_id ?? "")],
     );
     return ok(result.rows[0] ?? {});
@@ -423,7 +725,7 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
        limit 100`,
       [q, pattern],
     );
-    const rows = result.rows.map((row) => mapListingRowForSearch(row as Record<string, unknown>));
+    const rows = result.rows.map((row: Record<string, unknown>) => mapListingRowForSearch(row));
     return ok({ results: rows, total: rows.length });
   }
 
@@ -579,17 +881,20 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     if (expected !== null && expected !== currentHighest) return err("OPTIMISTIC_CONCURRENCY_CONFLICT", `Expected highest ${expected}, current ${currentHighest}.`);
     const bidId = randomUUID();
     const amount = Number(args.amount ?? 0);
+    const bidderId = String(args.bidder_id ?? "");
+    const kycBlock = await kycGateHighBid(pool, bidderId, amount);
+    if (kycBlock) return kycBlock;
     await pool.query(
       `insert into bidding_mcp.bids (bid_id,listing_id,bidder_id,amount,bid_type,status,server_timestamp)
        values ($1,$2,$3,$4,'manual','active',now())`,
-      [bidId, String(lot.listing_id), String(args.bidder_id ?? ""), amount],
+      [bidId, String(lot.listing_id), bidderId, amount],
     );
     const updated = await pool.query(
       `update auction_mcp.lots
        set current_highest_bid=$2,highest_bidder_id=$3,total_bids=total_bids+1
        where lot_id=$1 and current_highest_bid is not distinct from $4
        returning lot_id`,
-      [lotId, amount, String(args.bidder_id ?? ""), lot.current_highest_bid ?? null],
+      [lotId, amount, bidderId, lot.current_highest_bid ?? null],
     );
     if (!updated.rows[0]) return err("OPTIMISTIC_CONCURRENCY_CONFLICT", "Lot changed, retry.");
     return ok({ bid_id: bidId, lot_id: lotId, amount });
@@ -641,9 +946,9 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     // Rate model: base + per-km + per-tonne, seeded deterministically from order
     const baseSeed = (distanceKm * 2.1 + weightKg * 0.85);
     const carriers = [
-      { name: "Day & Ross", carrier: "day_ross", multiplier: 1.00, transit: Math.max(1, Math.ceil(distanceKm / 600)), co2_kg_per_tonne: 0.124 },
+      { name: "Day & Ross", carrier: "day_ross", multiplier: 1.0, transit: Math.max(1, Math.ceil(distanceKm / 600)), co2_kg_per_tonne: 0.124 },
       { name: "Manitoulin Transport", carrier: "manitoulin", multiplier: 1.04, transit: Math.max(1, Math.ceil(distanceKm / 580)), co2_kg_per_tonne: 0.132 },
-      { name: "Purolator Freight", carrier: "purolator", multiplier: 1.10, transit: Math.max(1, Math.ceil(distanceKm / 700)), co2_kg_per_tonne: 0.118 },
+      { name: "Purolator Freight", carrier: "purolator", multiplier: 1.1, transit: Math.max(1, Math.ceil(distanceKm / 700)), co2_kg_per_tonne: 0.118 },
       { name: "XTL Transport", carrier: "xtl", multiplier: 0.97, transit: Math.max(1, Math.ceil(distanceKm / 560)), co2_kg_per_tonne: 0.138 },
       { name: "Challenger Motor Freight", carrier: "challenger", multiplier: 1.06, transit: Math.max(1, Math.ceil(distanceKm / 620)), co2_kg_per_tonne: 0.121 },
     ].map((c) => {
@@ -651,7 +956,6 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
       const co2 = Math.round((weightKg / 1000) * c.co2_kg_per_tonne * distanceKm * 10) / 10;
       return { name: c.name, carrier: c.carrier, price, currency: "CAD", transit_days: c.transit, co2_kg: co2 };
     });
-
     for (const c of carriers) {
       const quoteId = randomUUID();
       await pool.query(
@@ -661,7 +965,12 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
         [quoteId, orderId, c.name, c.carrier, c.price, c.transit_days],
       );
     }
-    return ok({ order_id: orderId, quotes: carriers });
+    return ok({
+      order_id: orderId,
+      quotes: carriers,
+      pricing_model: "synthetic_lane_rates",
+      co2_note: "CO2_kg is illustrative per-lane heuristic until carrier APIs return emissions data.",
+    });
   }
   if (tool === "logistics.book_shipment") {
     const userId = String(args.user_id ?? args.buyer_id ?? "");
@@ -1025,11 +1334,27 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const userId = String(args.user_id ?? "");
     const reason = String(args.reason ?? "admin action");
     await pool.query(`update auth_mcp.users set account_status='suspended' where user_id=$1`, [userId]);
+    await appendAuditLog(pool, {
+      tool,
+      userId: authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null,
+      action: "suspend_user",
+      entityType: "user",
+      entityId: userId,
+      outputSummary: reason,
+    });
     return ok({ user_id: userId, account_status: "suspended", reason });
   }
   if (tool === "admin.unsuspend_user") {
     const userId = String(args.user_id ?? "");
     await pool.query(`update auth_mcp.users set account_status='active' where user_id=$1`, [userId]);
+    await appendAuditLog(pool, {
+      tool,
+      userId: authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null,
+      action: "unsuspend_user",
+      entityType: "user",
+      entityId: userId,
+      outputSummary: "reactivated",
+    });
     return ok({ user_id: userId, account_status: "active" });
   }
   if (tool === "admin.moderate_listing") {
@@ -1037,6 +1362,14 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const action = String(args.action ?? "remove");
     const newStatus = action === "remove" ? "cancelled" : action === "flag" ? "suspended" : "suspended";
     await pool.query(`update listing_mcp.listings set status=$2::listing_status,updated_at=now() where listing_id=$1`, [listingId, newStatus]);
+    await appendAuditLog(pool, {
+      tool,
+      userId: authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null,
+      action: "moderate_listing",
+      entityType: "listing",
+      entityId: listingId,
+      outputSummary: `${action} -> ${newStatus}`,
+    });
     return ok({ listing_id: listingId, status: newStatus });
   }
   if (tool === "admin.list_users") {
@@ -1163,6 +1496,14 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const ready = await ensureMatexAuxTables(pool);
     if (!ready) return err("CONFIG_ERROR", "Could not ensure matex_admin_operators table.");
     await pool.query(`insert into public.matex_admin_operators (user_id) values ($1) on conflict (user_id) do nothing`, [targetId]);
+    await appendAuditLog(pool, {
+      tool,
+      userId: authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null,
+      action: "grant_platform_admin",
+      entityType: "user",
+      entityId: targetId,
+      outputSummary: "granted platform admin",
+    });
     return ok({ user_id: targetId, granted: true });
   }
   if (tool === "admin.revoke_platform_admin") {
@@ -1170,6 +1511,14 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     if (!targetId) return err("VALIDATION_ERROR", "user_id is required.");
     await ensureMatexAuxTables(pool);
     await pool.query(`delete from public.matex_admin_operators where user_id = $1`, [targetId]);
+    await appendAuditLog(pool, {
+      tool,
+      userId: authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null,
+      action: "revoke_platform_admin",
+      entityType: "user",
+      entityId: targetId,
+      outputSummary: "revoked platform admin",
+    });
     return ok({ user_id: targetId, revoked: true });
   }
 
@@ -1181,12 +1530,16 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const toEmail = String(args.email ?? "");
 
     // Store challenge in DB for later verification
-    await pool.query(
-      `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
+    await pool
+      .query(
+        `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
        values ($1, $2, encode(digest($3,'sha256'),'hex'), 'email', $4)
        on conflict do nothing`,
-      [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
-    ).catch(() => { /* table may not exist yet — non-blocking */ });
+        [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+      )
+      .catch(() => {
+        /* table may not exist yet — non-blocking */
+      });
 
     if (SENDGRID_API_KEY && toEmail) {
       await sgSend(
@@ -1212,18 +1565,19 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const toPhone = String(args.phone ?? "");
 
-    await pool.query(
-      `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
+    await pool
+      .query(
+        `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
        values ($1, $2, encode(digest($3,'sha256'),'hex'), 'sms', $4)
        on conflict do nothing`,
-      [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
-    ).catch(() => { /* table may not exist yet — non-blocking */ });
+        [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+      )
+      .catch(() => {
+        /* table may not exist yet — non-blocking */
+      });
 
     if (toPhone) {
-      await twilioSendSms(
-        toPhone,
-        `Your Matex verification code is: ${code}. Expires in 10 minutes.`,
-      );
+      await twilioSendSms(toPhone, `Your Matex verification code is: ${code}. Expires in 10 minutes.`);
     }
 
     const isProd = process.env.NODE_ENV === "production";
@@ -1235,17 +1589,46 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     });
   }
   if (tool === "auth.verify_email") {
+    const email = String(args.email ?? "").toLowerCase().trim();
+    const code = String(args.code ?? args.otp_code ?? "");
+    if (!email || !code) return err("VALIDATION_ERROR", "email and code are required.");
+    const v = await verifyOtpCode(pool, "email", email, code);
+    if (!v.ok) return err("OTP_ERROR", v.message);
     const userId = String(args.user_id ?? "");
     if (userId) await pool.query(`update auth_mcp.users set email_verified=true where user_id=$1`, [userId]);
-    return ok({ verified: true });
+    return ok({ verified: true, challenge_id: v.challengeId });
   }
   if (tool === "auth.verify_phone") {
+    const phone = String(args.phone ?? "").trim();
+    const code = String(args.code ?? args.otp_code ?? "");
+    if (!phone || !code) return err("VALIDATION_ERROR", "phone and code are required.");
+    const v = await verifyOtpCode(pool, "phone", phone, code);
+    if (!v.ok) return err("OTP_ERROR", v.message);
     const userId = String(args.user_id ?? "");
     if (userId) await pool.query(`update auth_mcp.users set phone_verified=true where user_id=$1`, [userId]);
-    return ok({ verified: true });
+    return ok({ verified: true, challenge_id: v.challengeId });
   }
   if (tool === "auth.refresh_token") {
-    return ok({ access_token: `ui-token-${String(args.user_id ?? randomUUID())}`, expires_in: ACCESS_TOKEN_TTL_SEC });
+    const refreshRaw = String(args.refresh_token ?? "");
+    if (!refreshRaw) return err("VALIDATION_ERROR", "refresh_token is required.");
+    try {
+      const decoded = jwt.verify(refreshRaw, JWT_SECRET) as { sub: string; scope?: string };
+      if (decoded.scope !== "refresh") return err("AUTH_ERROR", "Invalid refresh token scope.");
+      const userId = String(decoded.sub);
+      const row = (await pool.query(`select email from auth_mcp.users where user_id = $1 limit 1`, [userId])).rows[0];
+      const email = String(row?.email ?? "");
+      let is_platform_admin = false;
+      const auxOk = await ensureMatexAuxTables(pool);
+      if (auxOk) {
+        const adm = await pool.query(`select 1 from public.matex_admin_operators where user_id = $1 limit 1`, [userId]);
+        is_platform_admin = (adm.rowCount ?? 0) > 0;
+      }
+      const role = is_platform_admin ? "platform_admin" : "user";
+      const accessToken = signJwt({ sub: userId, scope: "access", email, role }, ACCESS_TOKEN_TTL_SEC);
+      return ok({ access_token: accessToken, expires_in: ACCESS_TOKEN_TTL_SEC });
+    } catch {
+      return err("AUTH_ERROR", "Invalid refresh token.");
+    }
   }
 
   // ── missing profile tools ──
@@ -1263,45 +1646,138 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ user_id: userId, updated: true });
   }
   if (tool === "profile.add_bank_account") {
-    return ok({ user_id: String(args.user_id ?? ""), bank_added: true });
+    const userId = String(args.user_id ?? "");
+    const institution = String(args.institution_name ?? args.bank_name ?? "Bank");
+    const instNum = String(args.institution_number ?? "000");
+    const transit = String(args.transit_number ?? "00000");
+    const acct = String(args.account_number ?? "");
+    if (!userId || !acct) return err("VALIDATION_ERROR", "user_id and account_number are required.");
+    const masked = `****${acct.slice(-4)}`;
+    const bankId = randomUUID();
+    await pool.query(
+      `insert into profile_mcp.bank_accounts
+        (bank_account_id,user_id,institution_name,institution_number,transit_number,account_number_enc,account_type,is_verified,is_default)
+       values ($1,$2,$3,$4,$5,$6,$7,false,false)`,
+      [bankId, userId, institution, instNum, transit, masked, String(args.account_type ?? "checking")],
+    );
+    return ok({ user_id: userId, bank_account_id: bankId, bank_added: true, masked_account: masked });
   }
   if (tool === "profile.set_preferences") {
-    return ok({ user_id: String(args.user_id ?? ""), preferences_set: true });
+    const userId = String(args.user_id ?? "");
+    if (!userId) return err("VALIDATION_ERROR", "user_id is required.");
+    const existing = (await pool.query(`select notification_prefs, display_prefs, search_prefs from profile_mcp.preferences where user_id = $1`, [userId])).rows[0];
+    const notif = args.notification_prefs ?? existing?.notification_prefs ?? {};
+    const display = args.display_prefs ?? existing?.display_prefs ?? {};
+    const search = args.search_prefs ?? existing?.search_prefs ?? {};
+    await pool.query(
+      `insert into profile_mcp.preferences (user_id, notification_prefs, display_prefs, search_prefs)
+       values ($1,$2::jsonb,$3::jsonb,$4::jsonb)
+       on conflict (user_id) do update set
+         notification_prefs = excluded.notification_prefs,
+         display_prefs = excluded.display_prefs,
+         search_prefs = excluded.search_prefs,
+         updated_at = now()`,
+      [userId, JSON.stringify(notif), JSON.stringify(display), JSON.stringify(search)],
+    );
+    return ok({ user_id: userId, preferences_set: true });
   }
 
   // ── missing listing tools ──
   if (tool === "listing.update_listing") {
     const listingId = String(args.listing_id ?? "");
-    if (args.title) await pool.query(`update listing_mcp.listings set title=$2,updated_at=now() where listing_id=$1`, [listingId, String(args.title)]);
+    const sellerSelf = authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null;
+    if (!sellerSelf) return err("UNAUTHORIZED", "Authentication required.");
+    const denied = await assertListingSeller(pool, listingId, sellerSelf);
+    if (denied) return denied;
+    let categoryId: string | null = null;
+    if (args.category && String(args.category).trim() !== "") {
+      const cr = await pool.query(
+        `select category_id from listing_mcp.categories where lower(trim(name)) = lower(trim($1)) limit 1`,
+        [String(args.category)],
+      );
+      categoryId = cr.rows[0]?.category_id ? String(cr.rows[0].category_id) : null;
+    }
+    if (args.title)
+      await pool.query(`update listing_mcp.listings set title=$2,updated_at=now() where listing_id=$1`, [listingId, String(args.title)]);
+    if (args.description !== undefined && args.description !== null)
+      await pool.query(`update listing_mcp.listings set description=$2,updated_at=now() where listing_id=$1`, [
+        listingId,
+        String(args.description ?? ""),
+      ]);
+    if (categoryId)
+      await pool.query(`update listing_mcp.listings set category_id=$2::uuid,updated_at=now() where listing_id=$1`, [
+        listingId,
+        categoryId,
+      ]);
+    if (args.quantity !== undefined && args.quantity !== null && String(args.quantity) !== "")
+      await pool.query(`update listing_mcp.listings set quantity=$2,updated_at=now() where listing_id=$1`, [
+        listingId,
+        Number(args.quantity),
+      ]);
+    if (args.unit !== undefined && args.unit !== null && String(args.unit) !== "")
+      await pool.query(`update listing_mcp.listings set unit=$2::unit_type,updated_at=now() where listing_id=$1`, [
+        listingId,
+        String(args.unit),
+      ]);
+    if (args.quality_grade !== undefined && args.quality_grade !== null)
+      await pool.query(`update listing_mcp.listings set quality_grade=$2,updated_at=now() where listing_id=$1`, [
+        listingId,
+        String(args.quality_grade ?? ""),
+      ]);
+    const syncUrls = Array.isArray(args.image_urls) ? args.image_urls.map(String).filter(Boolean) : [];
+    if (syncUrls.length > 0) {
+      await pool.query(
+        `update listing_mcp.listings set images=$2::jsonb,updated_at=now() where listing_id=$1`,
+        [listingId, JSON.stringify(syncUrls.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` })))],
+      );
+    }
     return ok({ listing_id: listingId, updated: true });
   }
   if (tool === "listing.upload_images") {
     const listingId = String(args.listing_id ?? "");
-    const imageUrls = Array.isArray(args.urls) ? args.urls.map(String) : [];
+    const sellerSelf = authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null;
+    if (!sellerSelf) return err("UNAUTHORIZED", "Authentication required.");
+    const denied = await assertListingSeller(pool, listingId, sellerSelf);
+    if (denied) return denied;
+    const imageUrls = Array.isArray(args.urls) ? args.urls.map(String).filter((u) => u.length > 0) : [];
     if (listingId && imageUrls.length > 0) {
+      const row = (await pool.query(`select images from listing_mcp.listings where listing_id = $1`, [listingId])).rows[0];
+      const mergedUrls = [...imageUrlsFromJson(row?.images)];
+      for (const u of imageUrls) {
+        if (!mergedUrls.includes(u)) mergedUrls.push(u);
+      }
       await pool.query(
         `update listing_mcp.listings set images = $2::jsonb, updated_at = now() where listing_id = $1`,
-        [listingId, JSON.stringify(imageUrls.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` })))],
+        [listingId, JSON.stringify(mergedUrls.map((url, i) => ({ url, order: i, alt_text: `Image ${i + 1}` })))],
       );
+      return ok({ listing_id: listingId, merged: true, image_count: mergedUrls.length });
     }
     const fileId = randomUUID();
-    if (args.file_name) {
-      const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-      const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (SUPABASE_URL && SUPABASE_KEY) {
-        const storagePath = `listings/${listingId}/${fileId}-${String(args.file_name ?? "image.jpg")}`;
-        const uploadUrl = `${SUPABASE_URL}/storage/v1/object/listing-images/${storagePath}`;
-        return ok({
-          listing_id: listingId,
-          file_id: fileId,
-          upload_url: uploadUrl,
-          storage_path: storagePath,
-          method: "PUT",
-          headers: { "authorization": `Bearer ${SUPABASE_KEY}`, "content-type": String(args.content_type ?? "image/jpeg") },
-        });
-      }
+    const fileNameRaw = args.file_name ?? args.filename;
+    if (!fileNameRaw || String(fileNameRaw).trim() === "") {
+      return ok({ listing_id: listingId, file_id: fileId, note: "Provide file_name (or filename) for presigned upload, or urls[] to append images." });
     }
-    return ok({ listing_id: listingId, file_id: fileId, images_uploaded: true, note: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for real storage upload" });
+    const safeName = String(fileNameRaw).replace(/[/\\]/g, "_");
+    const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "").trim().replace(/\/$/, "");
+    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+    if (SUPABASE_URL && SUPABASE_KEY) {
+      const storagePath = `listings/${listingId}/${fileId}-${safeName}`;
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/listing-images/${storagePath}`;
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/listing-images/${storagePath}`;
+      return ok({
+        listing_id: listingId,
+        file_id: fileId,
+        upload_url: uploadUrl,
+        public_url: publicUrl,
+        storage_path: storagePath,
+        method: "PUT",
+        headers: { authorization: `Bearer ${SUPABASE_KEY}`, "content-type": String(args.content_type ?? "image/jpeg") },
+      });
+    }
+    return err(
+      "STORAGE_UNAVAILABLE",
+      "Listing image storage is not configured. Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY on the MCP adapter.",
+    );
   }
   if (tool === "listing.get_listing") {
     const row = (
@@ -1331,12 +1807,16 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
         [String(args.seller_id ?? "")],
       )
     ).rows;
-    const mapped = rows.map((row) => mapListingRowForMyListings(row as Record<string, unknown>));
+    const mapped = rows.map((row: Record<string, unknown>) => mapListingRowForMyListings(row));
     return ok({ listings: mapped, total: mapped.length });
   }
   if (tool === "listing.archive_listing") {
     const listingId = String(args.listing_id ?? "");
     if (!listingId) return err("VALIDATION_ERROR", "listing_id is required.");
+    const sellerSelf = authCtx?.sub && authCtx.sub !== "anonymous" ? authCtx.sub : null;
+    if (!sellerSelf) return err("UNAUTHORIZED", "Authentication required.");
+    const denied = await assertListingSeller(pool, listingId, sellerSelf);
+    if (denied) return denied;
     await pool.query(`update listing_mcp.listings set status = 'cancelled', updated_at = now() where listing_id = $1`, [listingId]);
     return ok({ listing_id: listingId, status: "archived" });
   }
@@ -1372,7 +1852,16 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
     return ok({ saved_searches: rows, total: rows.length });
   }
   if (tool === "search.index_listing") {
-    return ok({ listing_id: String(args.listing_id ?? ""), indexed: true });
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return err("VALIDATION_ERROR", "listing_id is required.");
+    await pool.query(
+      `update listing_mcp.listings
+       set search_vector = to_tsvector('english', coalesce(title,'') || ' ' || coalesce(description,'') || ' ' || coalesce(quality_grade::text,'')),
+           updated_at = now()
+       where listing_id = $1`,
+      [listingId],
+    );
+    return ok({ listing_id: listingId, indexed: true, engine: "postgres_tsvector" });
   }
 
   // ── missing messaging tools ──
@@ -1549,10 +2038,14 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
 
   // ── missing bidding tools ──
   if (tool === "bidding.place_bid") {
+    const amount = Number(args.amount ?? 0);
+    const bidderId = String(args.bidder_id ?? "");
+    const kycBlock = await kycGateHighBid(pool, bidderId, amount);
+    if (kycBlock) return kycBlock;
     const bidId = randomUUID();
     await pool.query(
       `insert into bidding_mcp.bids (bid_id,listing_id,bidder_id,amount,bid_type,status,server_timestamp) values ($1,$2,$3,$4,$5,'active',now())`,
-      [bidId, String(args.listing_id ?? ""), String(args.bidder_id ?? ""), Number(args.amount ?? 0), String(args.bid_type ?? "manual")],
+      [bidId, String(args.listing_id ?? ""), bidderId, amount, String(args.bid_type ?? "manual")],
     );
     return ok({ bid_id: bidId, amount: Number(args.amount ?? 0) });
   }
@@ -1635,6 +2128,18 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   }
   if (tool === "booking.enqueue_reminder") {
     return ok({ booking_id: String(args.booking_id ?? ""), reminder_enqueued: true, minutes_before: Number(args.minutes_before ?? 30) });
+  }
+  if (tool === "booking.get_available_slots") {
+    const slots: Array<{ date: string; start: string; end: string }> = [];
+    const base = new Date();
+    base.setDate(base.getDate() + 2);
+    base.setHours(9, 0, 0, 0);
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + i);
+      slots.push({ date: d.toISOString().slice(0, 10), start: "09:00", end: "17:00" });
+    }
+    return ok({ slots, total: slots.length, source: "adapter_synthetic" });
   }
 
   // ── missing logistics tools ──
@@ -1766,8 +2271,12 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
 
   // ── missing admin tools ──
   if (tool === "admin.get_audit_trail") {
-    const rows = (await pool.query(`select * from log_mcp.audit_log order by created_at desc limit 50`)).rows;
-    return ok({ entries: rows, total: rows.length });
+    const limit = Math.min(Math.max(Number(args.limit ?? 50), 1), 500);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
+    const rows = (await pool.query(`select * from log_mcp.audit_log order by created_at desc limit $1 offset $2`, [limit, offset])).rows;
+    const cntRow = (await pool.query(`select count(*)::int as c from log_mcp.audit_log`)).rows[0];
+    const total = Number(cntRow?.c ?? rows.length);
+    return ok({ entries: rows, total, limit, offset });
   }
   if (tool === "admin.update_platform_config") {
     const key = String(args.key ?? "").trim();
@@ -1849,7 +2358,16 @@ export function startDomainHttpAdapter(domain: string, port: number): void {
       return json(res, 400, err("INVALID_DOMAIN", `Adapter '${domain}' cannot handle '${body.tool}'.`));
     }
     try {
-      const result = await handleTool(pool, body.tool, (body.args ?? {}) as Record<string, unknown>);
+      const authPayload = (body.auth ?? {}) as Record<string, JsonValue>;
+      const authCtx: AuthContext | undefined =
+        typeof authPayload.sub === "string" && authPayload.sub.length > 0
+          ? {
+              sub: String(authPayload.sub),
+              role: authPayload.role !== undefined ? String(authPayload.role) : undefined,
+              email: authPayload.email !== undefined ? String(authPayload.email) : undefined,
+            }
+          : undefined;
+      const result = await handleTool(pool, body.tool, (body.args ?? {}) as Record<string, unknown>, authCtx);
       return json(res, result.success ? 200 : 400, result);
     } catch (error) {
       return json(res, 400, err("DB_ERROR", error instanceof Error ? error.message : String(error)));

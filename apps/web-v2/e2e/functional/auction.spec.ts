@@ -13,7 +13,7 @@ function seedAuth(page: import("@playwright/test").Page) {
 test.describe("Auction Pages", () => {
   test("AUC-01: Auction listing page renders with auction cards", async ({ page }) => {
     await seedAuth(page);
-    await page.goto("/auction");
+    await page.goto("/auctions");
 
     await expect(page.getByRole("main").getByRole("heading", { name: /Auctions/i })).toBeVisible();
 
@@ -28,7 +28,7 @@ test.describe("Auction Pages", () => {
 
   test("AUC-02: Search/filter input present on auction page", async ({ page }) => {
     await seedAuth(page);
-    await page.goto("/auction");
+    await page.goto("/auctions");
 
     const searchInput = page.getByRole("main").getByPlaceholder(/Search auctions/i);
     await expect(searchInput).toBeVisible();
@@ -39,7 +39,7 @@ test.describe("Auction Pages", () => {
 
   test("AUC-03: Auction detail page has bid input and quick bid buttons", async ({ page }) => {
     await seedAuth(page);
-    await page.goto("/auction/auc-001");
+    await page.goto("/auctions/auc-001");
 
     await expect(page.locator("text=/Current Bid/i")).toBeVisible();
 

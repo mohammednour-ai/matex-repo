@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -218,7 +218,7 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [user, setUser] = useState<ReturnType<typeof getUser>>(null);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshing] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [wallet, setWallet] = useState<WalletBalance | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -226,6 +226,9 @@ export default function DashboardPage() {
   const [kycLevel, setKycLevel] = useState<KycLevel>(0);
   const [bookings, setBookings] = useState<DashboardBooking[]>([]);
   const [sectionErrors, setSectionErrors] = useState<Partial<Record<SectionKey, string>>>({});
+  // Single-attempt silent retry so a transient dashboard hiccup doesn't
+  // show users debug banners; after that we just render whatever data we have.
+  const retriedRef = useRef(false);
 
   const load = useCallback(async (isRefresh: boolean, attempt = 0) => {
     const currentUser = getUser();
@@ -330,6 +333,18 @@ export default function DashboardPage() {
     void load(false);
   }, [load]);
 
+  // If any section failed, attempt one quiet retry with a small backoff. After
+  // that we stop — users see data where it loaded and nothing debug-ish.
+  useEffect(() => {
+    if (Object.keys(sectionErrors).length === 0) return;
+    if (retriedRef.current) return;
+    retriedRef.current = true;
+    const id = window.setTimeout(() => {
+      void load(true);
+    }, 2500);
+    return () => window.clearTimeout(id);
+  }, [sectionErrors, load]);
+
   const markNotificationRead = useCallback(async (notificationId: string) => {
     const currentUser = getUser();
     if (!currentUser?.userId) return;
@@ -358,7 +373,6 @@ export default function DashboardPage() {
       subValue?: string | null;
       icon: typeof Package;
       gradient: string;
-      errorKey?: SectionKey;
     };
     const cards: Card[] = [
       {
@@ -366,7 +380,6 @@ export default function DashboardPage() {
         value: stats?.active_listings ?? "—",
         icon: Package,
         gradient: "from-brand-500 to-brand-700",
-        errorKey: "stats",
       },
       {
         label: "Wallet Balance",
@@ -374,14 +387,12 @@ export default function DashboardPage() {
           wallet && !Number.isNaN(wallet.balance) ? formatCAD(wallet.balance) : "—",
         icon: Wallet,
         gradient: "from-emerald-500 to-emerald-700",
-        errorKey: "wallet",
       },
       {
         label: "Unread Messages",
         value: sectionErrors.unread ? "—" : unreadCount,
         icon: MessageSquare,
         gradient: "from-brand-500 to-brand-700",
-        errorKey: "unread",
       },
       {
         label: "Escrow Held",

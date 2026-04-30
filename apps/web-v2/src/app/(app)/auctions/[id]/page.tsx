@@ -18,7 +18,6 @@ import {
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
@@ -507,7 +506,6 @@ function LobbyView({
 }
 
 function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots: Lot[] }) {
-  const totalDue = wonLots.reduce((s, l) => s + l.current_bid, 0);
   const mockWon: Lot[] = auction.lots.filter((l) => l.status === "sold").slice(0, 2);
 
   return (

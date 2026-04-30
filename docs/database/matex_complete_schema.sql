@@ -1258,7 +1258,7 @@ CREATE INDEX idx_files_context ON storage_mcp.files(context, context_id);
 CREATE SCHEMA IF NOT EXISTS log_mcp;
 
 CREATE TABLE log_mcp.audit_log (
-    log_id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    log_id              UUID NOT NULL DEFAULT uuid_generate_v4(),
     category            log_category NOT NULL,
     level               log_level NOT NULL DEFAULT 'info',
     server              VARCHAR(50) NOT NULL, -- MCP server name
@@ -1278,7 +1278,9 @@ CREATE TABLE log_mcp.audit_log (
     error_message       TEXT,
     prev_hash           VARCHAR(64), -- hash chain for immutability
     entry_hash          VARCHAR(64) NOT NULL, -- hash of this entry
-    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- PK includes partition key (created_at) per Postgres rule for partitioned tables.
+    PRIMARY KEY (log_id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Monthly partitions (create programmatically in production)

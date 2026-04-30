@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Gavel, Search, Users, Package, TrendingUp, Clock } from "lucide-react";
+import { Gavel, Search, Package, TrendingUp, Clock } from "lucide-react";
 import { callTool } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -75,7 +75,7 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function AuctionPage() {
+export default function AuctionsPage() {
   const [tab, setTab] = useState<Tab>("live");
   const [search, setSearch] = useState("");
   const [auctions, setAuctions] = useState<Auction[]>([]);
@@ -248,7 +248,7 @@ function AuctionCard({ auction }: { auction: Auction }) {
         ) : (
           <Badge variant="gray">Open</Badge>
         )}
-        <Link href={`/auction/${auction.auction_id}`}>
+        <Link href={`/auctions/${auction.auction_id}`}>
           <Button size="sm" variant={isCompleted ? "secondary" : "primary"}>
             {isLive ? "Join" : isCompleted ? "View Results" : "Register"}
           </Button>
