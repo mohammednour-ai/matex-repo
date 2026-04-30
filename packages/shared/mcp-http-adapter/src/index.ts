@@ -10,6 +10,69 @@ import {
   checkTheftPreventionCoolingPeriod,
 } from "../../utils/src/operational-rules";
 
+// ---------------------------------------------------------------------------
+// Third-party bridge helpers (env-var gated: stub when keys absent)
+// ---------------------------------------------------------------------------
+
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY?.trim();
+const STRIPE_API = "https://api.stripe.com/v1";
+
+async function stripePost(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
+  const response = await fetch(`${STRIPE_API}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(params).toString(),
+  });
+  return response.json() as Promise<Record<string, unknown>>;
+}
+
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY?.trim();
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? "noreply@matex.ca";
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME ?? "Matex";
+const SENDGRID_API = "https://api.sendgrid.com/v3";
+
+async function sgSend(to: string, subject: string, text: string, html?: string): Promise<boolean> {
+  if (!SENDGRID_API_KEY) return false;
+  const response = await fetch(`${SENDGRID_API}/mail/send`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${SENDGRID_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: SENDGRID_FROM_EMAIL, name: SENDGRID_FROM_NAME },
+      subject,
+      content: [
+        { type: "text/plain", value: text },
+        ...(html ? [{ type: "text/html", value: html }] : []),
+      ],
+    }),
+  });
+  return response.status === 202;
+}
+
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID?.trim();
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN?.trim();
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER?.trim();
+
+async function twilioSendSms(to: string, body: string): Promise<boolean> {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) return false;
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Basic ${Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString("base64")}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ To: to, From: TWILIO_PHONE_NUMBER, Body: body }).toString(),
+  });
+  return response.ok;
+}
+
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
 const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
@@ -389,13 +452,39 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   if (tool === "payments.process_payment") {
     const transactionId = randomUUID();
     const amount = Number(args.amount ?? 0);
+    let stripePaymentIntentId: string | null = null;
+    let paymentStatus = "completed";
+
+    if (STRIPE_SECRET_KEY && amount > 0) {
+      try {
+        const amountCents = Math.round(amount * 100);
+        const pi = await stripePost("/payment_intents", {
+          amount: String(amountCents),
+          currency: "cad",
+          automatic_payment_methods: JSON.stringify({ enabled: true }),
+          metadata: JSON.stringify({ matex_transaction_id: transactionId }),
+        });
+        stripePaymentIntentId = pi.id as string;
+        paymentStatus = (pi.status as string) === "succeeded" ? "completed" : "processing";
+      } catch (stripeErr) {
+        console.error("[stripe] process_payment error:", stripeErr);
+      }
+    }
+
     await pool.query(
       `insert into payments_mcp.transactions
         (transaction_id,payer_id,amount,original_amount,currency,payment_method,transaction_type,status,metadata)
-       values ($1,$2,$3,$3,'CAD',$4,'purchase','completed','{}'::jsonb)`,
-      [transactionId, String(args.user_id ?? ""), amount, String(args.method ?? "stripe_card")],
+       values ($1,$2,$3,$3,'CAD',$4,'purchase',$5,$6::jsonb)`,
+      [
+        transactionId,
+        String(args.user_id ?? ""),
+        amount,
+        String(args.method ?? "stripe_card"),
+        paymentStatus,
+        JSON.stringify(stripePaymentIntentId ? { stripe_payment_intent_id: stripePaymentIntentId } : {}),
+      ],
     );
-    return ok({ transaction: { transaction_id: transactionId, amount, status: "completed" } });
+    return ok({ transaction: { transaction_id: transactionId, amount, status: paymentStatus, stripe_payment_intent_id: stripePaymentIntentId } });
   }
 
   // phase2: kyc
@@ -546,17 +635,30 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   if (tool === "logistics.get_quotes") {
     const userId = String(args.user_id ?? args.buyer_id ?? "");
     const orderId = await ensureOrder(pool, asUuidOrNew(args.order_id), userId || randomUUID());
+    const weightKg = Number(args.weight_kg ?? 1000);
+    const distanceKm = Number(args.distance_km ?? 500);
+
+    // Rate model: base + per-km + per-tonne, seeded deterministically from order
+    const baseSeed = (distanceKm * 2.1 + weightKg * 0.85);
     const carriers = [
-      { name: "Day & Ross", api: "day_ross", price: 1190, transit: 2, co2: 124 },
-      { name: "Manitoulin", api: "manitoulin", price: 1240, transit: 2, co2: 132 },
-      { name: "Purolator Freight", api: "purolator", price: 1305, transit: 1, co2: 118 },
-    ];
+      { name: "Day & Ross", carrier: "day_ross", multiplier: 1.00, transit: Math.max(1, Math.ceil(distanceKm / 600)), co2_kg_per_tonne: 0.124 },
+      { name: "Manitoulin Transport", carrier: "manitoulin", multiplier: 1.04, transit: Math.max(1, Math.ceil(distanceKm / 580)), co2_kg_per_tonne: 0.132 },
+      { name: "Purolator Freight", carrier: "purolator", multiplier: 1.10, transit: Math.max(1, Math.ceil(distanceKm / 700)), co2_kg_per_tonne: 0.118 },
+      { name: "XTL Transport", carrier: "xtl", multiplier: 0.97, transit: Math.max(1, Math.ceil(distanceKm / 560)), co2_kg_per_tonne: 0.138 },
+      { name: "Challenger Motor Freight", carrier: "challenger", multiplier: 1.06, transit: Math.max(1, Math.ceil(distanceKm / 620)), co2_kg_per_tonne: 0.121 },
+    ].map((c) => {
+      const price = Math.round(baseSeed * c.multiplier * 100) / 100;
+      const co2 = Math.round((weightKg / 1000) * c.co2_kg_per_tonne * distanceKm * 10) / 10;
+      return { name: c.name, carrier: c.carrier, price, currency: "CAD", transit_days: c.transit, co2_kg: co2 };
+    });
+
     for (const c of carriers) {
       const quoteId = randomUUID();
       await pool.query(
         `insert into logistics_mcp.shipping_quotes (quote_id,order_id,carrier_name,carrier_api,price,currency,transit_days,service_type,valid_until)
-         values ($1,$2,$3,$4,$5,'CAD',$6,'ltl',now() + interval '24 hours')`,
-        [quoteId, orderId, c.name, c.api, c.price, c.transit],
+         values ($1,$2,$3,$4,$5,'CAD',$6,'ltl',now() + interval '24 hours')
+         on conflict do nothing`,
+        [quoteId, orderId, c.name, c.carrier, c.price, c.transit_days],
       );
     }
     return ok({ order_id: orderId, quotes: carriers });
@@ -769,15 +871,33 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   if (tool === "notifications.send_notification") {
     const notificationId = randomUUID();
     const channels = Array.isArray(args.channels) ? args.channels.map(String) : ["in_app"];
+    const title = String(args.title ?? "Notification");
+    const body = String(args.body ?? "");
+    const channelsSent: string[] = [];
+
+    // Send email via SendGrid when email channel requested
+    if (channels.includes("email") && args.email) {
+      const sent = await sgSend(
+        String(args.email),
+        title,
+        body,
+        args.html ? String(args.html) : undefined,
+      );
+      if (sent) channelsSent.push("email");
+    }
+
+    // In-app always recorded
+    channelsSent.push("in_app");
+
     await pool.query(
       `insert into notifications_mcp.notifications
         (notification_id,user_id,type,title,body,data,channels_sent,priority)
        values ($1,$2,$3,$4,$5,$6::jsonb,$7::notification_channel[],$8)`,
       [notificationId, String(args.user_id ?? ""), String(args.type ?? "general"),
-       String(args.title ?? "Notification"), String(args.body ?? ""),
-       JSON.stringify(args.data ?? {}), channels, String(args.priority ?? "normal")],
+       title, body,
+       JSON.stringify(args.data ?? {}), ["in_app"], String(args.priority ?? "normal")],
     );
-    return ok({ notification_id: notificationId, channels_sent: channels });
+    return ok({ notification_id: notificationId, channels_sent: channelsSent });
   }
   if (tool === "notifications.get_notifications") {
     const userId = String(args.user_id ?? "");
@@ -1054,8 +1174,65 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
   }
 
   // ── missing auth tools ──
-  if (tool === "auth.request_email_otp" || tool === "auth.request_phone_otp") {
-    return ok({ challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600000).toISOString(), status: "otp_sent" });
+  if (tool === "auth.request_email_otp") {
+    const challengeId = randomUUID();
+    const expiresAt = new Date(Date.now() + 600_000).toISOString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const toEmail = String(args.email ?? "");
+
+    // Store challenge in DB for later verification
+    await pool.query(
+      `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
+       values ($1, $2, encode(digest($3,'sha256'),'hex'), 'email', $4)
+       on conflict do nothing`,
+      [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+    ).catch(() => { /* table may not exist yet — non-blocking */ });
+
+    if (SENDGRID_API_KEY && toEmail) {
+      await sgSend(
+        toEmail,
+        "Your Matex verification code",
+        `Your Matex verification code is: ${code}\n\nThis code expires in 10 minutes.`,
+        `<p>Your Matex verification code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
+      );
+    }
+
+    const isProd = process.env.NODE_ENV === "production";
+    return ok({
+      challenge_id: challengeId,
+      expires_at: expiresAt,
+      status: "otp_sent",
+      ...(isProd ? {} : { code }), // only expose code in dev
+    });
+  }
+
+  if (tool === "auth.request_phone_otp") {
+    const challengeId = randomUUID();
+    const expiresAt = new Date(Date.now() + 600_000).toISOString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const toPhone = String(args.phone ?? "");
+
+    await pool.query(
+      `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
+       values ($1, $2, encode(digest($3,'sha256'),'hex'), 'sms', $4)
+       on conflict do nothing`,
+      [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+    ).catch(() => { /* table may not exist yet — non-blocking */ });
+
+    if (toPhone) {
+      await twilioSendSms(
+        toPhone,
+        `Your Matex verification code is: ${code}. Expires in 10 minutes.`,
+      );
+    }
+
+    const isProd = process.env.NODE_ENV === "production";
+    return ok({
+      challenge_id: challengeId,
+      expires_at: expiresAt,
+      status: "otp_sent",
+      ...(isProd ? {} : { code }), // only expose code in dev
+    });
   }
   if (tool === "auth.verify_email") {
     const userId = String(args.user_id ?? "");

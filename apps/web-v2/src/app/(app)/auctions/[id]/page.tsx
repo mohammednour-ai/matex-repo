@@ -213,7 +213,7 @@ export default function AuctionRoomPage() {
         <AlertCircle className="mx-auto mb-3 h-10 w-10 text-slate-400" />
         <h2 className="text-lg font-semibold text-slate-900">{loadError || "Auction not found"}</h2>
         <p className="mt-2 text-sm text-slate-500">Go back to the auctions list and try another event.</p>
-        <Link href="/auction" className="mt-5 inline-block">
+        <Link href="/auctions" className="mt-5 inline-block">
           <Button size="sm" variant="secondary">Back to auctions</Button>
         </Link>
       </div>
@@ -225,7 +225,7 @@ export default function AuctionRoomPage() {
       <div className="mx-auto max-w-xl py-16 text-center">
         <Gavel className="mx-auto mb-3 h-10 w-10 text-slate-400" />
         <h2 className="text-lg font-semibold text-slate-900">No lots in this auction yet</h2>
-        <Link href="/auction" className="mt-5 inline-block">
+        <Link href="/auctions" className="mt-5 inline-block">
           <Button size="sm" variant="secondary">Back to auctions</Button>
         </Link>
       </div>

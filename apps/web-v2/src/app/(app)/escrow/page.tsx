@@ -147,6 +147,86 @@ const EMPTY_BY_TAB: Record<Tab, { image: string; title: string; description: str
   },
 };
 
+// ─── Dispute Modal ────────────────────────────────────────────────────────────
+function DisputeModal({
+  escrowId,
+  onClose,
+  onFiled,
+}: {
+  escrowId: string;
+  onClose: () => void;
+  onFiled: (id: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reason.trim()) { setError("Please describe the dispute reason."); return; }
+    setLoading(true);
+    setError("");
+    const user = getUser();
+    const res = await callTool("dispute.file_dispute", {
+      escrow_id: escrowId,
+      reason: reason.trim(),
+      filed_by: user?.userId ?? "",
+    });
+    setLoading(false);
+    if (!res.success) { setError(res.error?.message ?? "Failed to file dispute."); return; }
+    const data = res.data as unknown as { dispute_id?: string };
+    onFiled(data?.dispute_id ?? escrowId);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-steel-200 bg-white p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-base font-bold text-steel-900">File a Dispute</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-steel-400 hover:bg-steel-100 hover:text-steel-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-steel-600">
+          Disputing this escrow will freeze funds and open a case for resolution. Both parties will be notified.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="dispute-reason" className="mb-1 block text-sm font-semibold text-steel-700">
+              Reason for dispute <span className="text-danger-600">*</span>
+            </label>
+            <textarea
+              id="dispute-reason"
+              rows={4}
+              value={reason}
+              onChange={(e) => { setReason(e.target.value); setError(""); }}
+              placeholder="Describe the issue in detail — undelivered goods, quality problems, payment discrepancies, etc."
+              className="w-full rounded-xl border border-steel-200 px-3 py-2 text-sm text-steel-900 placeholder:text-steel-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          {error && <p className="text-xs font-medium text-danger-600">{error}</p>}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-steel-200 px-4 py-2.5 text-sm font-semibold text-steel-700 transition-colors hover:bg-steel-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !reason.trim()}
+              className="flex-1 rounded-xl bg-danger-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-danger-700 disabled:opacity-60"
+            >
+              {loading ? "Filing…" : "File Dispute"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function EscrowPage() {
   const [tab, setTab] = useState<Tab>("active");
   const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
@@ -154,6 +234,7 @@ export default function EscrowPage() {
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [disputeEscrowId, setDisputeEscrowId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,9 +269,12 @@ export default function EscrowPage() {
   });
 
   async function doAction(escrowId: string, action: string): Promise<void> {
+    if (action === "dispute") {
+      setDisputeEscrowId(escrowId);
+      return;
+    }
     if (action === "freeze") {
-      const reason = window.prompt("Please enter a reason for freezing this escrow:");
-      if (!reason) return;
+      const reason = "Frozen by operator";
       setActionLoading(escrowId + action);
       await callTool("escrow.freeze_escrow", { escrow_id: escrowId, reason });
       setEscrows((prev) => prev.map((e) => e.escrow_id === escrowId ? { ...e, status: "frozen" } : e));
@@ -202,9 +286,8 @@ export default function EscrowPage() {
       hold: "escrow.hold_funds",
       release: "escrow.release_funds",
       refund: "escrow.release_funds",
-      dispute: "dispute.file_dispute",
     };
-    const res = await callTool(toolMap[action] ?? "escrow.get_escrow", { escrow_id: escrowId });
+    await callTool(toolMap[action] ?? "escrow.get_escrow", { escrow_id: escrowId });
     setEscrows((prev) =>
       prev.map((e) => {
         if (e.escrow_id !== escrowId) return e;
@@ -219,6 +302,18 @@ export default function EscrowPage() {
 
   return (
     <div className="space-y-6">
+      {disputeEscrowId && (
+        <DisputeModal
+          escrowId={disputeEscrowId}
+          onClose={() => setDisputeEscrowId(null)}
+          onFiled={() => {
+            setEscrows((prev) =>
+              prev.map((e) => e.escrow_id === disputeEscrowId ? { ...e, status: "disputed" } : e)
+            );
+            setDisputeEscrowId(null);
+          }}
+        />
+      )}
       <AppPageHeader
         title="Escrow Management"
         description="All funds are held in escrow until release conditions are met."
@@ -229,19 +324,26 @@ export default function EscrowPage() {
         }
       />
 
-      {/* Summary */}
+      {/* Summary — zero values render neutral (no green/red alarm on empty state). */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Total Held", value: formatCAD(escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0)), color: "text-brand-600" },
-          { label: "Active", value: escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length, color: "text-steel-900" },
-          { label: "Released", value: escrows.filter((e) => e.status === "released").length, color: "text-emerald-600" },
-          { label: "Frozen", value: escrows.filter((e) => e.status === "frozen").length, color: "text-red-600" },
-        ].map((c) => (
-          <div key={c.label} className="marketplace-card p-4">
-            <p className="text-xs text-steel-500">{c.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+        {(() => {
+          const heldAmt = escrows.filter((e) => e.status === "funds_held").reduce((s, e) => s + e.amount, 0);
+          const activeN = escrows.filter((e) => ["created", "funds_held"].includes(e.status)).length;
+          const releasedN = escrows.filter((e) => e.status === "released").length;
+          const frozenN = escrows.filter((e) => e.status === "frozen").length;
+          const stats: { label: string; value: string | number; color: string }[] = [
+            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-steel-900" },
+            { label: "Active", value: activeN, color: "text-steel-900" },
+            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-steel-900" },
+            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-steel-900" },
+          ];
+          return stats.map((c) => (
+            <div key={c.label} className="marketplace-card p-4">
+              <p className="text-xs text-steel-500">{c.label}</p>
+              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Tabs */}

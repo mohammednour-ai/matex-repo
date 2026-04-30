@@ -53,8 +53,10 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     { name: "create_thread", description: "Create a conversation thread", inputSchema: { type: "object", properties: { participants: { type: "array" }, listing_id: { type: "string" }, subject: { type: "string" } }, required: ["participants"] } },
-    { name: "send_message", description: "Send message in thread", inputSchema: { type: "object", properties: { thread_id: { type: "string" }, sender_id: { type: "string" }, content: { type: "string" } }, required: ["thread_id", "sender_id", "content"] } },
-    { name: "get_thread", description: "Get thread messages", inputSchema: { type: "object", properties: { thread_id: { type: "string" } }, required: ["thread_id"] } },
+    { name: "send_message", description: "Send message in thread", inputSchema: { type: "object", properties: { thread_id: { type: "string" }, sender_id: { type: "string" }, content: { type: "string" } }, required: ["thread_id", "content"] } },
+    { name: "get_thread", description: "Get thread with embedded messages", inputSchema: { type: "object", properties: { thread_id: { type: "string" } }, required: ["thread_id"] } },
+    { name: "list_threads", description: "List threads for a user", inputSchema: { type: "object", properties: { user_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["user_id"] } },
+    { name: "get_messages", description: "Get paginated messages for a thread", inputSchema: { type: "object", properties: { thread_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["thread_id"] } },
     { name: "get_unread", description: "Get unread count by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
@@ -103,7 +105,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "send_message") {
     const threadId = String(args.thread_id ?? "");
     if (!threadId) return fail("VALIDATION_ERROR", "thread_id is required.");
-    if (!String(args.sender_id ?? "").trim()) return fail("VALIDATION_ERROR", "sender_id is required.");
+    // sender_id may be injected by the gateway via x-matex-user-id; accept either path
+    const senderId = String(args.sender_id ?? args._user_id ?? "").trim();
+    if (!senderId) return fail("VALIDATION_ERROR", "sender_id is required.");
     if (!String(args.content ?? "").trim()) return fail("VALIDATION_ERROR", "content is required.");
 
     if (supabase) {
@@ -121,7 +125,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { error } = await supabase.schema("messaging_mcp").from("messages").insert({
         message_id: messageId,
         thread_id: threadId,
-        sender_id: String(args.sender_id ?? ""),
+        sender_id: senderId,
         content: String(args.content ?? ""),
         created_at: createdAt,
       });
@@ -131,7 +135,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("threads")
         .update({ last_message_at: createdAt })
         .eq("thread_id", threadId);
-      await emitEvent("messaging.message.sent", { thread_id: threadId, message_id: messageId, sender_id: String(args.sender_id ?? "") });
+      await emitEvent("messaging.message.sent", { thread_id: threadId, message_id: messageId, sender_id: senderId });
       return { content: [{ type: "text", text: ok({ message_id: messageId, timestamp: createdAt }) }] };
     }
 
@@ -139,7 +143,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!thread) return fail("NOT_FOUND", "Thread not found");
     const message = {
       message_id: generateId(),
-      sender_id: String(args.sender_id ?? ""),
+      sender_id: senderId,
       content: String(args.content ?? ""),
       created_at: now(),
     };
@@ -174,6 +178,88 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const thread = threads.get(threadId);
     return { content: [{ type: "text", text: ok({ thread: thread ?? null }) }] };
+  }
+
+  if (tool === "list_threads") {
+    const userId = String(args.user_id ?? "");
+    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
+
+    if (supabase) {
+      const { data: threadRows, error: threadError, count } = await supabase
+        .schema("messaging_mcp")
+        .from("threads")
+        .select("thread_id,listing_id,subject,participants,last_message_at,status", { count: "exact" })
+        .contains("participants", [userId])
+        .order("last_message_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (threadError) return fail("DB_ERROR", threadError.message);
+      const list = (threadRows ?? []).map((t) => {
+        const parts = Array.isArray(t.participants) ? (t.participants as string[]) : [];
+        const otherId = parts.find((p) => p !== userId) ?? "";
+        return {
+          thread_id: t.thread_id,
+          listing_id: t.listing_id ?? null,
+          subject: t.subject ?? null,
+          other_user_id: otherId,
+          other_user_name: otherId.slice(0, 8),
+          last_message: "",
+          last_message_at: t.last_message_at ?? new Date(0).toISOString(),
+          unread_count: 0,
+          status: t.status ?? "active",
+        };
+      });
+      return { content: [{ type: "text", text: ok({ threads: list, total: count ?? 0, limit, offset }) }] };
+    }
+
+    const all = Array.from(threads.values()).filter((t) => t.participants.includes(userId));
+    all.sort((a, b) => {
+      const aLast = a.messages[a.messages.length - 1]?.created_at ?? "";
+      const bLast = b.messages[b.messages.length - 1]?.created_at ?? "";
+      return aLast < bLast ? 1 : -1;
+    });
+    const page = all.slice(offset, offset + limit).map((t) => {
+      const lastMsg = t.messages[t.messages.length - 1];
+      const otherId = t.participants.find((p) => p !== userId) ?? "";
+      return {
+        thread_id: t.thread_id,
+        listing_id: t.listing_id ?? null,
+        subject: t.subject ?? null,
+        other_user_id: otherId,
+        other_user_name: otherId.slice(0, 8),
+        last_message: lastMsg?.content ?? "",
+        last_message_at: lastMsg?.created_at ?? "",
+        unread_count: 0,
+        status: "active",
+      };
+    });
+    return { content: [{ type: "text", text: ok({ threads: page, total: all.length, limit, offset }) }] };
+  }
+
+  if (tool === "get_messages") {
+    const threadId = String(args.thread_id ?? "");
+    if (!threadId) return fail("VALIDATION_ERROR", "thread_id is required.");
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
+
+    if (supabase) {
+      const { data: messages, error, count } = await supabase
+        .schema("messaging_mcp")
+        .from("messages")
+        .select("message_id,thread_id,sender_id,content,created_at", { count: "exact" })
+        .eq("thread_id", threadId)
+        .order("created_at", { ascending: true })
+        .range(offset, offset + limit - 1);
+      if (error) return fail("DB_ERROR", error.message);
+      return { content: [{ type: "text", text: ok({ messages: messages ?? [], total: count ?? 0, limit, offset }) }] };
+    }
+
+    const thread = threads.get(threadId);
+    if (!thread) return fail("NOT_FOUND", "Thread not found");
+    const allMsgs = thread.messages;
+    const page = allMsgs.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ messages: page, total: allMsgs.length, limit, offset }) }] };
   }
 
   if (tool === "get_unread") {

@@ -48,8 +48,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "update_listing", description: "Update listing fields", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, fields: { type: "object" } }, required: ["listing_id", "fields"] } },
     { name: "upload_images", description: "Attach image URLs to listing", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, images: { type: "array" } }, required: ["listing_id", "images"] } },
     { name: "publish_listing", description: "Mark listing as active", inputSchema: { type: "object", properties: { listing_id: { type: "string" } }, required: ["listing_id"] } },
+    { name: "archive_listing", description: "Archive a listing (soft delete)", inputSchema: { type: "object", properties: { listing_id: { type: "string" } }, required: ["listing_id"] } },
     { name: "get_listing", description: "Get full listing by id", inputSchema: { type: "object", properties: { listing_id: { type: "string" } }, required: ["listing_id"] } },
-    { name: "get_my_listings", description: "Get seller listings", inputSchema: { type: "object", properties: { seller_id: { type: "string" } }, required: ["seller_id"] } },
+    { name: "get_my_listings", description: "Get seller listings with pagination", inputSchema: { type: "object", properties: { seller_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" }, status: { type: "string" } }, required: ["seller_id"] } },
+    { name: "list_listings", description: "Browse active marketplace listings", inputSchema: { type: "object", properties: { limit: { type: "number" }, offset: { type: "number" }, category_id: { type: "string" }, price_min: { type: "number" }, price_max: { type: "number" } } } },
+    { name: "add_favorite", description: "Save a listing to favorites (stub)", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, user_id: { type: "string" } }, required: ["listing_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -218,18 +221,86 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "get_my_listings") {
     const sellerId = String(args.seller_id ?? "");
     if (!sellerId) return fail("VALIDATION_ERROR", "seller_id is required.");
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
+    const statusFilter = args.status ? String(args.status) : undefined;
+
     if (supabase) {
-      const { data, error } = await supabase
+      let query = supabase
         .schema("listing_mcp")
         .from("listings")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("seller_id", sellerId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (statusFilter) query = query.eq("status", statusFilter);
+      const { data, error, count } = await query;
       if (error) return fail("DB_ERROR", error.message);
-      return { content: [{ type: "text", text: ok({ listings: data ?? [], total: (data ?? []).length }) }] };
+      return { content: [{ type: "text", text: ok({ listings: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
-    const listings = Array.from(listingStore.values()).filter((row) => row.seller_id === sellerId);
-    return { content: [{ type: "text", text: ok({ listings, total: listings.length }) }] };
+    let listings = Array.from(listingStore.values()).filter((row) => row.seller_id === sellerId);
+    if (statusFilter) listings = listings.filter((l) => l.status === statusFilter);
+    listings.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const page = listings.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ listings: page, total: listings.length, limit, offset }) }] };
+  }
+
+  if (tool === "archive_listing") {
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
+    if (supabase) {
+      const { error } = await supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .update({ status: "archived" })
+        .eq("listing_id", listingId);
+      if (error) return fail("DB_ERROR", error.message);
+      await emitEvent("listing.listing.archived", { listing_id: listingId });
+      return { content: [{ type: "text", text: ok({ listing_id: listingId, status: "archived" }) }] };
+    }
+    const current = listingStore.get(listingId);
+    if (!current) return fail("NOT_FOUND", "Listing not found");
+    listingStore.set(listingId, { ...current, status: "archived" as ListingStatus });
+    await emitEvent("listing.listing.archived", { listing_id: listingId });
+    return { content: [{ type: "text", text: ok({ listing_id: listingId, status: "archived" }) }] };
+  }
+
+  if (tool === "list_listings") {
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
+    const categoryFilter = args.category_id ? String(args.category_id) : undefined;
+    const priceMin = typeof args.price_min === "number" ? args.price_min : undefined;
+    const priceMax = typeof args.price_max === "number" ? args.price_max : undefined;
+
+    if (supabase) {
+      let query = supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .select("listing_id,seller_id,title,category_id,description,quantity,unit,price_type,asking_price,images,status,created_at,published_at", { count: "exact" })
+        .eq("status", "active")
+        .order("published_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (categoryFilter) query = query.eq("category_id", categoryFilter);
+      if (priceMin !== undefined) query = query.gte("asking_price", priceMin);
+      if (priceMax !== undefined) query = query.lte("asking_price", priceMax);
+      const { data, error, count } = await query;
+      if (error) return fail("DB_ERROR", error.message);
+      return { content: [{ type: "text", text: ok({ listings: data ?? [], total: count ?? 0, limit, offset }) }] };
+    }
+
+    let listings = Array.from(listingStore.values()).filter((l) => l.status === "active");
+    if (categoryFilter) listings = listings.filter((l) => l.category_id === categoryFilter);
+    if (priceMin !== undefined) listings = listings.filter((l) => (l.asking_price ?? 0) >= priceMin);
+    if (priceMax !== undefined) listings = listings.filter((l) => (l.asking_price ?? 0) <= priceMax);
+    listings.sort((a, b) => ((a.published_at ?? a.created_at) < (b.published_at ?? b.created_at) ? 1 : -1));
+    const page = listings.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ listings: page, total: listings.length, limit, offset }) }] };
+  }
+
+  if (tool === "add_favorite") {
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
+    return { content: [{ type: "text", text: ok({ listing_id: listingId, favorited: true }) }] };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };

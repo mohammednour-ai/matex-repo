@@ -628,18 +628,48 @@ function SavedSearchesPanel({
 // ---------------------------------------------------------------------------
 // Empty State
 // ---------------------------------------------------------------------------
-function SearchEmptyState({ query }: { query: string }) {
+const SUGGESTED_SEARCHES = [
+  "Copper scrap",
+  "Aluminum billets",
+  "Steel coil",
+  "Stainless 304",
+  "Brass fittings",
+  "Iron ore",
+];
+
+function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q: string) => void }) {
   return (
-    <EmptyIllustration
-      image="/illustrations/empty-search.png"
-      title="No listings found"
-      description={
-        query
-          ? `No results for "${query}". Try adjusting your filters or broadening your search.`
-          : "No materials match your current filters. Try removing some to see more results."
-      }
-      size="lg"
-    />
+    <div className="space-y-6">
+      <EmptyIllustration
+        image="/illustrations/empty-search.png"
+        title="No listings found"
+        description={
+          query
+            ? `No results for "${query}". Try adjusting your filters or broadening your search.`
+            : "No materials match your current filters. Try removing some to see more results."
+        }
+        size="lg"
+      />
+      {onSuggest && (
+        <div className="mx-auto max-w-lg text-center">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-steel-500">
+            Try searching for
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {SUGGESTED_SEARCHES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => onSuggest(s)}
+                className="rounded-full border border-steel-200 bg-white px-4 py-1.5 text-sm text-steel-700 shadow-sm transition-all hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -894,7 +924,12 @@ export default function SearchPage() {
           )}
 
           {/* Empty state */}
-          {!loading && searched && results.length === 0 && <SearchEmptyState query={query} />}
+          {!loading && searched && results.length === 0 && (
+            <SearchEmptyState
+              query={query}
+              onSuggest={(s) => { setQuery(s); void runSearch(s); }}
+            />
+          )}
 
           {/* Initial pre-search */}
           {!loading && !searched && (

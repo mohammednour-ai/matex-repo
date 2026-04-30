@@ -18,10 +18,30 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
 import * as jwt from "jsonwebtoken";
-import { randomInt, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 import type { AccountType, AuthTokens, User } from "@matex/types";
-import { isValidCanadianPhone, isValidEmail, MatexEventBus, now, sha256 } from "@matex/utils";
+import { isValidCanadianPhone, isValidEmail, MatexEventBus, now } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
+
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  try {
+    const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+    return timingSafeEqual(Buffer.from(hash, "hex"), derived);
+  } catch {
+    return false;
+  }
+}
 
 const SERVER_NAME = "auth-mcp";
 const SERVER_VERSION = "0.1.0";
@@ -31,6 +51,11 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "dev-secret-change-me") {
+  console.error("[auth-mcp] FATAL: JWT_SECRET must be set in production. Refusing to start.");
+  process.exit(1);
+}
+
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
     ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -38,6 +63,7 @@ const supabase =
 
 const users = new Map<string, User & { password_hash: string }>();
 const otpChallenges = new Map<string, OtpChallenge>();
+const resetTokens = new Map<string, { email: string; code: string; expires_at: number }>();
 const eventBus = EVENT_REDIS_URL ? new MatexEventBus({ redisUrl: EVENT_REDIS_URL }) : null;
 
 interface OtpChallenge {
@@ -156,7 +182,7 @@ async function register(args: Record<string, unknown>): Promise<Record<string, u
     throw new Error("Invalid account_type.");
   }
 
-  const passwordHash = sha256(password);
+  const passwordHash = await hashPassword(password);
 
   if (supabase) {
     const { data, error } = await supabase
@@ -217,7 +243,6 @@ async function register(args: Record<string, unknown>): Promise<Record<string, u
 async function login(args: Record<string, unknown>): Promise<Record<string, unknown>> {
   const email = String(args.email ?? "").toLowerCase().trim();
   const password = String(args.password ?? "");
-  const passwordHash = sha256(password);
 
   if (supabase) {
     const { data, error } = await supabase
@@ -226,7 +251,8 @@ async function login(args: Record<string, unknown>): Promise<Record<string, unkn
       .eq("email", email)
       .single();
     if (error || !data) throw new Error("Invalid credentials.");
-    if (data.password_hash !== passwordHash) throw new Error("Invalid credentials.");
+    const valid = await verifyPassword(password, data.password_hash as string);
+    if (!valid) throw new Error("Invalid credentials.");
     if (data.account_status !== "active" && data.account_status !== "pending_review") {
       throw new Error(`Account is ${data.account_status}.`);
     }
@@ -235,7 +261,9 @@ async function login(args: Record<string, unknown>): Promise<Record<string, unkn
   }
 
   const user = users.get(email);
-  if (!user || user.password_hash !== passwordHash) throw new Error("Invalid credentials.");
+  if (!user) throw new Error("Invalid credentials.");
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) throw new Error("Invalid credentials.");
   await emitEvent("auth.user.logged_in", { user_id: user.user_id, email });
   return { user_id: user.user_id, tokens: buildTokens(user.user_id), mfa_required: user.mfa_enabled };
 }
@@ -251,6 +279,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "verify_email", description: "Verify email using OTP code", inputSchema: { type: "object", properties: { email: { type: "string" }, otp_code: { type: "string" } }, required: ["email", "otp_code"] } },
     { name: "verify_phone", description: "Verify phone using OTP code", inputSchema: { type: "object", properties: { phone: { type: "string" }, otp_code: { type: "string" } }, required: ["phone", "otp_code"] } },
     { name: "refresh_token", description: "Issue a new access token from refresh token", inputSchema: { type: "object", properties: { refresh_token: { type: "string" } }, required: ["refresh_token"] } },
+    { name: "request_password_reset", description: "Send a password reset code to email", inputSchema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] } },
+    { name: "confirm_password_reset", description: "Confirm password reset with code and new password", inputSchema: { type: "object", properties: { email: { type: "string" }, reset_code: { type: "string" }, new_password: { type: "string" } }, required: ["email", "reset_code", "new_password"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -326,6 +356,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const decoded = jwt.verify(refreshToken, JWT_SECRET) as { sub: string; scope: string };
       if (decoded.scope !== "refresh") throw new Error("Invalid token scope.");
       return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { access_token: signToken({ sub: decoded.sub, scope: "access" }, "15m"), expires_in: 900 } }) }] };
+    }
+    if (tool === "request_password_reset") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      if (!isValidEmail(email)) throw new Error("Invalid email format.");
+      const rawCode = String(Math.floor(100000 + Math.random() * 900000));
+      resetTokens.set(email, { email, code: sha256(rawCode), expires_at: Date.now() + 600_000 });
+      await emitEvent("auth.password_reset.requested", { email });
+      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), ...(process.env.NODE_ENV !== "production" ? { code: rawCode } : {}) } }) }] };
+    }
+    if (tool === "confirm_password_reset") {
+      const email = String(args.email ?? "").toLowerCase().trim();
+      const resetCode = String(args.reset_code ?? "").trim();
+      const newPassword = String(args.new_password ?? "");
+      if (!isValidEmail(email)) throw new Error("Invalid email format.");
+      if (newPassword.length < 12) throw new Error("New password must be at least 12 characters.");
+      const token = resetTokens.get(email);
+      if (!token || token.expires_at < Date.now()) throw new Error("Reset code expired or not found.");
+      if (token.code !== sha256(resetCode)) throw new Error("Invalid reset code.");
+      resetTokens.delete(email);
+      const newHash = await hashPassword(newPassword);
+      if (supabase) {
+        const { error } = await supabase.from("auth_mcp.users").update({ password_hash: newHash }).eq("email", email);
+        if (error) throw new Error(`Failed to update password: ${error.message}`);
+      } else {
+        const user = users.get(email);
+        if (!user) throw new Error("User not found.");
+        user.password_hash = newHash;
+        users.set(email, user);
+      }
+      await emitEvent("auth.password_reset.completed", { email });
+      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { email, reset: true } }) }] };
     }
   } catch (error) {
     return {

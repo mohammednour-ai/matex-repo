@@ -73,6 +73,17 @@ function MatexCopilotInner() {
     return () => window.removeEventListener(MATEX_COPILOT_PREFILL, onPrefill);
   }, []);
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setOpen((o) => !o);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const sendText = useCallback(
     async (raw: string) => {
       const msg = raw.trim();
@@ -127,14 +138,21 @@ function MatexCopilotInner() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-accent-500 to-accent-600 text-white shadow-lg shadow-accent-900/40 transition-all hover:from-accent-600 hover:to-accent-700 hover:shadow-accent-500/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80"
-        aria-label="Open AI Copilot"
-      >
-        {open ? <X size={22} /> : <Bot size={22} />}
-      </button>
+      <div className="group fixed bottom-6 right-6 z-50">
+        {!open && (
+          <span className="pointer-events-none absolute -top-8 right-0 whitespace-nowrap rounded-lg bg-steel-900/90 px-2 py-1 text-[10px] font-semibold text-steel-300 opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+            ⌘K
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-accent-500 to-accent-600 text-white shadow-lg shadow-accent-900/40 transition-all hover:from-accent-600 hover:to-accent-700 hover:shadow-accent-500/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/80"
+          aria-label="Open AI Copilot (⌘K)"
+        >
+          {open ? <X size={22} /> : <Bot size={22} />}
+        </button>
+      </div>
 
       {open && (
         <div

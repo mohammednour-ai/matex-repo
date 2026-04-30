@@ -185,19 +185,26 @@ export default function InspectionPage() {
         }
       />
 
-      {/* Summary cards */}
+      {/* Summary cards — reserve red for Failed > 0; other KPIs stay neutral when zero. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          { label: "Scheduled", value: inspections.filter((i) => i.status === "scheduled").length, color: "text-blue-600" },
-          { label: "This Week", value: upcomingThisWeek.length, color: "text-amber-600" },
-          { label: "Completed", value: inspections.filter((i) => i.status === "completed").length, color: "text-emerald-600" },
-          { label: "Failed", value: inspections.filter((i) => i.status === "failed").length, color: "text-red-600" },
-        ].map((c) => (
-          <div key={c.label} className="marketplace-card p-4">
-            <p className="text-xs text-slate-500">{c.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+        {(() => {
+          const scheduledN = inspections.filter((i) => i.status === "scheduled").length;
+          const weekN = upcomingThisWeek.length;
+          const completedN = inspections.filter((i) => i.status === "completed").length;
+          const failedN = inspections.filter((i) => i.status === "failed").length;
+          const stats: { label: string; value: number; color: string }[] = [
+            { label: "Scheduled", value: scheduledN, color: "text-steel-900" },
+            { label: "This Week", value: weekN, color: "text-steel-900" },
+            { label: "Completed", value: completedN, color: completedN > 0 ? "text-emerald-600" : "text-steel-900" },
+            { label: "Failed", value: failedN, color: failedN > 0 ? "text-red-600" : "text-steel-900" },
+          ];
+          return stats.map((c) => (
+            <div key={c.label} className="marketplace-card p-4">
+              <p className="text-xs text-slate-500">{c.label}</p>
+              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
+            </div>
+          ));
+        })()}
       </div>
 
       {error && (

@@ -92,7 +92,7 @@ function GlassPasswordInput({
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? "Hide password" : "Show password"}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-white"
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
@@ -184,6 +184,95 @@ function SubmitButton({
   );
 }
 
+// ── Forgot Password Modal ────────────────────────────────────────────────────
+type ResetStep = "email" | "code" | "done";
+
+function ForgotPasswordModal({ prefillEmail, onClose }: { prefillEmail: string; onClose: () => void }) {
+  const [step, setStep] = useState<ResetStep>("email");
+  const [email, setEmail] = useState(prefillEmail);
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const devHint = process.env.NODE_ENV !== "production" ? "000000" : undefined;
+
+  async function requestReset() {
+    if (!email.includes("@")) { setError("Enter a valid email address."); return; }
+    setError(""); setLoading(true);
+    try {
+      await callMcp("auth.request_password_reset", { email });
+      setStep("code");
+    } catch (e) { setError(e instanceof Error ? e.message : "Request failed."); }
+    finally { setLoading(false); }
+  }
+
+  async function confirmReset() {
+    if (code.length !== 6) { setError("Enter the 6-digit code."); return; }
+    if (newPassword.length < 12) { setError("New password must be at least 12 characters."); return; }
+    setError(""); setLoading(true);
+    try {
+      await callMcp("auth.confirm_password_reset", { email, reset_code: code, new_password: newPassword });
+      setStep("done");
+    } catch (e) { setError(e instanceof Error ? e.message : "Reset failed."); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-base font-bold text-white">
+            {step === "done" ? "Password reset" : "Reset password"}
+          </h3>
+          <button type="button" onClick={onClose} aria-label="Close"
+            className="rounded-lg p-1 text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {step === "email" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-slate-400">Enter your email and we&apos;ll send a 6-digit reset code.</p>
+            <GlassEmailInput id="reset-email" label="Email" value={email} onChange={(v) => { setEmail(v); setError(""); }} />
+            {error && <p className="text-xs text-red-300">{error}</p>}
+            <SubmitButton loading={loading} onClick={requestReset}>Send reset code</SubmitButton>
+          </div>
+        )}
+
+        {step === "code" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-slate-400">
+              Code sent to <strong className="text-white">{email}</strong>.{devHint && <> Dev code: <code className="text-orange-300">{devHint}</code></>}
+            </p>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="reset-code" className="text-sm font-semibold text-slate-200">6-digit code</label>
+              <input id="reset-code" type="text" inputMode="numeric" maxLength={6} value={code}
+                onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+                placeholder="000000"
+                className={clsx(glassInput, error && "border-red-400 focus:ring-red-400")} />
+            </div>
+            <GlassPasswordInput id="reset-new-pw" label="New password (min 12 chars)" value={newPassword}
+              onChange={(v) => { setNewPassword(v); setError(""); }} autoComplete="new-password" />
+            {error && <p className="text-xs text-red-300">{error}</p>}
+            <SubmitButton loading={loading} onClick={confirmReset}>Set new password</SubmitButton>
+            <button type="button" onClick={() => setStep("email")} className="text-center text-sm text-slate-400 hover:text-white">← Back</button>
+          </div>
+        )}
+
+        {step === "done" && (
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            </div>
+            <p className="text-center text-sm text-slate-300">Password updated successfully. You can now sign in with your new password.</p>
+            <SubmitButton loading={false} onClick={onClose}>Back to sign in</SubmitButton>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Login Tab ──────────────────────────────────────────────────────────
 function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
   const router = useRouter();
@@ -192,6 +281,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showReset, setShowReset] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,17 +310,24 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
     }
   };
 
+  const clearErrorOnChange = (setter: (v: string) => void) => (v: string) => {
+    setter(v);
+    if (error) setError(null);
+  };
+
   return (
+    <>
+      {showReset && <ForgotPasswordModal prefillEmail={email} onClose={() => setShowReset(false)} />}
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <GlassEmailInput
         id="login-email"
         label="Email Address"
         value={email}
-        onChange={setEmail}
+        onChange={clearErrorOnChange(setEmail)}
         placeholder="Enter your business email"
         required
       />
-      <GlassPasswordInput id="login-password" label="Password" value={password} onChange={setPassword} />
+      <GlassPasswordInput id="login-password" label="Password" value={password} onChange={clearErrorOnChange(setPassword)} />
 
       <div className="flex items-center justify-between gap-2">
         <label className="flex cursor-pointer items-center gap-3">
@@ -242,7 +339,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
           />
           <span className="text-sm font-medium text-slate-300">Remember me</span>
         </label>
-        <button type="button" className="text-sm font-semibold text-white transition-colors hover:text-slate-200">
+        <button type="button" onClick={() => setShowReset(true)} className="text-sm font-semibold text-white transition-colors hover:text-slate-200">
           Forgot password?
         </button>
       </div>
@@ -253,7 +350,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         </div>
       )}
 
-      <SubmitButton loading={loading}>Access Trading Dashboard</SubmitButton>
+      <SubmitButton loading={loading}>Sign in</SubmitButton>
 
       <p className="text-center text-base text-slate-300">
         New to industrial trading?{" "}
@@ -266,6 +363,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         </button>
       </p>
     </form>
+    </>
   );
 }
 

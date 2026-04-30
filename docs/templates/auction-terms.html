@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Matex Auction — Terms &amp; Conditions</title>
+  <style>
+    /* ── Print &amp; Screen base ──────────────────────────────────────────── */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      color: #1a1a1a;
+      background: #fff;
+      padding: 0;
+    }
+
+    .page {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 18mm 18mm 24mm 18mm;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid #0a2540;
+      padding-bottom: 10px;
+      margin-bottom: 18px;
+    }
+    .logo-block { display: flex; align-items: center; gap: 10px; }
+    .logo-mark {
+      width: 38px; height: 38px;
+      background: #0a2540;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      color: #f5a623; font-weight: 700; font-size: 15pt; letter-spacing: -1px;
+    }
+    .logo-text { font-size: 18pt; font-weight: 700; color: #0a2540; letter-spacing: -0.5px; }
+    .logo-text span { color: #f5a623; }
+    .doc-badge {
+      font-size: 7.5pt; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1.5px; color: #555; text-align: right; line-height: 1.4;
+    }
+
+    /* ── Document title ───────────────────────────────────────────────────── */
+    .doc-title {
+      text-align: center;
+      margin: 20px 0 6px;
+    }
+    .doc-title h1 {
+      font-size: 15pt; font-weight: 700; color: #0a2540;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .doc-title p {
+      font-size: 9pt; color: #666; margin-top: 3px;
+    }
+
+    /* ── Auction summary box ──────────────────────────────────────────────── */
+    .auction-summary {
+      background: #f7f9fc;
+      border: 1.5px solid #d0d8e8;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin: 18px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px 24px;
+    }
+    .auction-summary .field {
+      display: flex; gap: 6px; align-items: baseline;
+    }
+    .auction-summary .label {
+      font-size: 8pt; font-weight: 600; color: #555;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      white-space: nowrap; min-width: 105px;
+    }
+    .auction-summary .value {
+      font-size: 9.5pt; font-weight: 600; color: #0a2540;
+      border-bottom: 1px dashed #aab;
+      min-width: 120px; padding-bottom: 1px;
+    }
+    .auction-summary .value.blank::after {
+      content: attr(data-placeholder);
+      font-weight: 400; color: #bbb; font-style: italic;
+    }
+
+    /* ── Section headings ────────────────────────────────────────────────── */
+    .section {
+      margin-top: 20px;
+    }
+    .section-title {
+      font-size: 10pt; font-weight: 700; color: #0a2540;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      border-left: 4px solid #f5a623;
+      padding-left: 8px;
+      margin-bottom: 8px;
+    }
+    .section-number { color: #f5a623; margin-right: 4px; }
+
+    /* ── Body text ───────────────────────────────────────────────────────── */
+    p { margin-bottom: 6px; }
+    ol, ul { padding-left: 20px; margin-bottom: 8px; }
+    li { margin-bottom: 3px; }
+    ol li::marker { font-weight: 600; }
+
+    /* ── Inline placeholders ─────────────────────────────────────────────── */
+    .ph {
+      display: inline-block;
+      background: #fffbe6;
+      border: 1px dashed #f5a623;
+      border-radius: 3px;
+      padding: 0 5px;
+      color: #b36000;
+      font-weight: 600;
+      font-size: 9pt;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    /* ── Parties table ───────────────────────────────────────────────────── */
+    .parties-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .party-box {
+      border: 1px solid #d0d8e8;
+      border-radius: 5px;
+      padding: 10px 12px;
+    }
+    .party-box .party-role {
+      font-size: 8pt; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: #0a2540; margin-bottom: 6px;
+      border-bottom: 1px solid #e0e8f0; padding-bottom: 4px;
+    }
+    .party-field { margin-bottom: 4px; font-size: 9.5pt; }
+    .party-field .lbl { color: #666; font-size: 8.5pt; }
+
+    /* ── Lot table ───────────────────────────────────────────────────────── */
+    .lot-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9pt;
+      margin-top: 8px;
+    }
+    .lot-table th {
+      background: #0a2540;
+      color: #fff;
+      font-weight: 600;
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .lot-table td {
+      border-bottom: 1px solid #e8ecf0;
+      padding: 7px 8px;
+      vertical-align: top;
+    }
+    .lot-table tr:nth-child(even) td { background: #f9fbfd; }
+    .lot-table td.ph-cell {
+      color: #b36000; font-style: italic; background: #fffbe6;
+    }
+
+    /* ── Signature blocks ────────────────────────────────────────────────── */
+    .sig-section {
+      margin-top: 28px;
+      border-top: 2px solid #0a2540;
+      padding-top: 16px;
+    }
+    .sig-title {
+      font-size: 10pt; font-weight: 700; color: #0a2540;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 14px;
+    }
+    .sig-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .sig-box { }
+    .sig-role {
+      font-size: 8pt; font-weight: 700; color: #0a2540;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .sig-line {
+      border-bottom: 1.5px solid #222;
+      height: 42px;
+      margin-bottom: 6px;
+      position: relative;
+    }
+    .sig-line .sig-placeholder {
+      position: absolute;
+      bottom: 4px;
+      left: 0;
+      font-size: 8pt;
+      color: #ccc;
+      font-style: italic;
+    }
+    /* esign QR placeholder */
+    .sig-line .esign-badge {
+      position: absolute;
+      right: 0;
+      bottom: 4px;
+      font-size: 7pt;
+      color: #0a2540;
+      border: 1px solid #0a2540;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .sig-meta { font-size: 8.5pt; color: #555; line-height: 1.8; }
+    .sig-meta span { display: block; border-bottom: 1px dashed #ccc; margin-bottom: 2px; padding-bottom: 1px; min-height: 18px; }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    .footer {
+      margin-top: 28px;
+      border-top: 1px solid #d0d8e8;
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #888;
+    }
+
+    /* ── Notice box ──────────────────────────────────────────────────────── */
+    .notice {
+      background: #fff8f0;
+      border: 1px solid #f5a623;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 9pt;
+      margin-top: 10px;
+    }
+    .notice strong { color: #c47a00; }
+
+    /* ── Print ───────────────────────────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .page { max-width: 100%; padding: 12mm 14mm 16mm 14mm; }
+      .ph { background: #fffbe6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .logo-mark, .lot-table th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <div class="header">
+    <div class="logo-block">
+      <div class="logo-mark">M</div>
+      <div class="logo-text">MATE<span>X</span></div>
+    </div>
+    <div class="doc-badge">
+      Auction Terms &amp; Conditions<br>
+      Document ID: <span class="ph">{{DOCUMENT_ID}}</span>
+    </div>
+  </div>
+
+  <!-- ── Title ──────────────────────────────────────────────────────────── -->
+  <div class="doc-title">
+    <h1>Auction Terms &amp; Conditions Agreement</h1>
+    <p>Matex Materials Exchange Platform &nbsp;|&nbsp; B2B Industrial &amp; Construction Materials</p>
+  </div>
+
+  <!-- ── Auction Summary ────────────────────────────────────────────────── -->
+  <div class="auction-summary">
+    <div class="field">
+      <span class="label">Auction ID</span>
+      <span class="value blank" data-placeholder="AUC-XXXXXXXX">{{AUCTION_ID}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Auction Type</span>
+      <span class="value blank" data-placeholder="e.g. Sealed / English / Reserve">{{AUCTION_TYPE}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Opening Date &amp; Time</span>
+      <span class="value blank" data-placeholder="YYYY-MM-DD HH:MM EST">{{AUCTION_OPEN_DATETIME}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Closing Date &amp; Time</span>
+      <span class="value blank" data-placeholder="YYYY-MM-DD HH:MM EST">{{AUCTION_CLOSE_DATETIME}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Reserve Price</span>
+      <span class="value blank" data-placeholder="CAD $0.00">{{RESERVE_PRICE_CAD}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Bid Increment</span>
+      <span class="value blank" data-placeholder="CAD $0.00">{{BID_INCREMENT_CAD}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Buyer's Premium</span>
+      <span class="value blank" data-placeholder="e.g. 5%">{{BUYERS_PREMIUM_PCT}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Deposit Required</span>
+      <span class="value blank" data-placeholder="CAD $0.00 or %">{{DEPOSIT_REQUIRED_CAD}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Governing Province</span>
+      <span class="value blank" data-placeholder="e.g. Ontario / Quebec">{{GOVERNING_PROVINCE}}</span>
+    </div>
+    <div class="field">
+      <span class="label">Agreement Date</span>
+      <span class="value blank" data-placeholder="YYYY-MM-DD">{{AGREEMENT_DATE}}</span>
+    </div>
+  </div>
+
+  <!-- ── 1. PARTIES ─────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">1.</span> Parties to This Agreement</div>
+    <div class="parties-grid">
+
+      <div class="party-box">
+        <div class="party-role">🏛 Auctioneer / Platform</div>
+        <div class="party-field"><span class="lbl">Legal Name:</span> Matex Technologies Inc.</div>
+        <div class="party-field"><span class="lbl">Address:</span> Canada</div>
+        <div class="party-field"><span class="lbl">Platform URL:</span> matex.ca</div>
+        <div class="party-field"><span class="lbl">Contact:</span> auctions@matex.ca</div>
+      </div>
+
+      <div class="party-box">
+        <div class="party-role">📦 Seller</div>
+        <div class="party-field"><span class="lbl">Company / Name:</span> <span class="ph">{{SELLER_NAME}}</span></div>
+        <div class="party-field"><span class="lbl">Business #:</span> <span class="ph">{{SELLER_BN}}</span></div>
+        <div class="party-field"><span class="lbl">Address:</span> <span class="ph">{{SELLER_ADDRESS}}</span></div>
+        <div class="party-field"><span class="lbl">Contact:</span> <span class="ph">{{SELLER_EMAIL}}</span></div>
+        <div class="party-field"><span class="lbl">KYC Level:</span> <span class="ph">{{SELLER_KYC_LEVEL}}</span></div>
+      </div>
+
+      <div class="party-box" style="grid-column: 1 / -1">
+        <div class="party-role">🏷 Winning Bidder (Buyer) — Filled upon auction close</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px">
+          <div class="party-field"><span class="lbl">Company / Name:</span> <span class="ph">{{BUYER_NAME}}</span></div>
+          <div class="party-field"><span class="lbl">Business #:</span> <span class="ph">{{BUYER_BN}}</span></div>
+          <div class="party-field"><span class="lbl">Address:</span> <span class="ph">{{BUYER_ADDRESS}}</span></div>
+          <div class="party-field"><span class="lbl">Contact:</span> <span class="ph">{{BUYER_EMAIL}}</span></div>
+          <div class="party-field"><span class="lbl">KYC Level:</span> <span class="ph">{{BUYER_KYC_LEVEL}}</span></div>
+          <div class="party-field"><span class="lbl">Winning Bid:</span> <span class="ph">{{WINNING_BID_CAD}}</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 2. LOT DESCRIPTION ─────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">2.</span> Lot Description &amp; Specifications</div>
+    <table class="lot-table">
+      <thead>
+        <tr>
+          <th style="width:6%">#</th>
+          <th style="width:22%">Material / Item</th>
+          <th style="width:12%">Unit</th>
+          <th style="width:12%">Quantity</th>
+          <th style="width:16%">Grade / Spec</th>
+          <th style="width:16%">Location</th>
+          <th style="width:16%">Est. Value (CAD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td class="ph-cell">{{LOT_1_DESCRIPTION}}</td>
+          <td class="ph-cell">{{LOT_1_UNIT}}</td>
+          <td class="ph-cell">{{LOT_1_QTY}}</td>
+          <td class="ph-cell">{{LOT_1_GRADE}}</td>
+          <td class="ph-cell">{{LOT_1_LOCATION}}</td>
+          <td class="ph-cell">{{LOT_1_VALUE}}</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td class="ph-cell">{{LOT_2_DESCRIPTION}}</td>
+          <td class="ph-cell">{{LOT_2_UNIT}}</td>
+          <td class="ph-cell">{{LOT_2_QTY}}</td>
+          <td class="ph-cell">{{LOT_2_GRADE}}</td>
+          <td class="ph-cell">{{LOT_2_LOCATION}}</td>
+          <td class="ph-cell">{{LOT_2_VALUE}}</td>
+        </tr>
+        <tr>
+          <td colspan="6" style="text-align:right;font-weight:700;font-size:9pt;color:#0a2540">Total Estimated Value (CAD)</td>
+          <td class="ph-cell" style="font-weight:700">{{TOTAL_LOT_VALUE_CAD}}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin-top:6px;font-size:8.5pt;color:#555">
+      Condition: <span class="ph">{{LOT_CONDITION}}</span> &nbsp;|&nbsp;
+      Inspection Period: <span class="ph">{{INSPECTION_WINDOW}}</span> &nbsp;|&nbsp;
+      Pickup/Delivery Deadline: <span class="ph">{{DELIVERY_DEADLINE}}</span>
+    </p>
+  </div>
+
+  <!-- ── 3. REGISTRATION & ELIGIBILITY ─────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">3.</span> Registration &amp; Bidder Eligibility</div>
+    <ol>
+      <li>All bidders must hold a verified Matex account at a minimum KYC Level <span class="ph">{{MIN_KYC_LEVEL}}</span> prior to placing any bid.</li>
+      <li>Bidders must be registered businesses or sole proprietors operating legally within Canada, or such other jurisdictions as Matex may approve in writing.</li>
+      <li>A refundable participation deposit of <span class="ph">{{DEPOSIT_REQUIRED_CAD}}</span> (CAD) must be held in escrow on the Matex platform before the bidder is granted bidding access. The deposit is forfeited if the winning bidder defaults.</li>
+      <li>Matex reserves the right to refuse, revoke, or disqualify any registration at its sole discretion without liability.</li>
+      <li>Bidder registration constitutes unconditional acceptance of these Terms &amp; Conditions.</li>
+    </ol>
+  </div>
+
+  <!-- ── 4. BIDDING RULES ───────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">4.</span> Bidding Rules</div>
+    <ol>
+      <li><strong>Opening Bid:</strong> The auction opens at a starting price of <span class="ph">{{OPENING_BID_CAD}}</span> (CAD).</li>
+      <li><strong>Bid Increments:</strong> Each subsequent bid must exceed the current highest bid by a minimum increment of <span class="ph">{{BID_INCREMENT_CAD}}</span> (CAD).</li>
+      <li><strong>Reserve Price:</strong> The lot carries a reserve price of <span class="ph">{{RESERVE_PRICE_CAD}}</span> (CAD). Matex will not be obligated to sell below this price. If the reserve is not met, the Seller may elect to sell to the highest bidder at their sole discretion.</li>
+      <li><strong>Bid Retractions:</strong> All bids are irrevocable and legally binding once submitted. Bid retraction is not permitted.</li>
+      <li><strong>Auto-Extend:</strong> If a bid is placed within the last <span class="ph">{{ANTI_SNIPE_MINUTES}}</span> minutes of the auction, the closing time automatically extends by <span class="ph">{{ANTI_SNIPE_MINUTES}}</span> minutes.</li>
+      <li><strong>Proxy Bidding:</strong> Matex <span class="ph">{{PROXY_BIDDING_ALLOWED}}</span> proxy/automatic bidding for this auction.</li>
+      <li><strong>Rejected Bids:</strong> Matex may reject any bid placed in error, placed in bad faith, or placed by a suspended user without notice.</li>
+    </ol>
+  </div>
+
+  <!-- ── 5. BUYER'S PREMIUM & FEES ─────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">5.</span> Buyer's Premium &amp; Platform Fees</div>
+    <ol>
+      <li>The winning bidder shall pay a Buyer's Premium of <span class="ph">{{BUYERS_PREMIUM_PCT}}</span> on the final hammer price, in addition to the hammer price itself.</li>
+      <li>Seller's commission payable to Matex: <span class="ph">{{SELLER_COMMISSION_PCT}}</span> of the hammer price, deducted from sale proceeds.</li>
+      <li>All amounts are in Canadian Dollars (CAD) and are exclusive of applicable taxes (HST/GST/QST). The winning bidder is responsible for all applicable taxes.</li>
+      <li>Payment processing fees (if any) shall be disclosed at checkout and are the responsibility of the buyer.</li>
+    </ol>
+  </div>
+
+  <!-- ── 6. PAYMENT TERMS ───────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">6.</span> Payment Terms</div>
+    <ol>
+      <li>Upon auction close, the winning bidder will receive an invoice for the total amount due: Hammer Price + Buyer's Premium + applicable taxes.</li>
+      <li>Full payment must be received within <span class="ph">{{PAYMENT_DEADLINE_DAYS}}</span> business days of auction close.</li>
+      <li>Accepted payment methods: Matex Escrow Wallet, Wire Transfer (EFT), or such other methods as Matex may approve. Cheques are not accepted.</li>
+      <li>All funds are held in Matex's managed escrow account until (a) the buyer confirms receipt and acceptance of goods, or (b) <span class="ph">{{ESCROW_AUTO_RELEASE_DAYS}}</span> days have elapsed without a dispute being filed, whichever is earlier.</li>
+      <li>Escrow funds will be released to the Seller upon successful delivery confirmation or expiry of the dispute window.</li>
+      <li><strong>Default:</strong> Failure to pay within the prescribed period constitutes default. The participation deposit will be forfeited, the sale will be cancelled, and Matex may offer the lot to the next-highest qualified bidder.</li>
+    </ol>
+  </div>
+
+  <!-- ── 7. INSPECTION ──────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">7.</span> Inspection &amp; Due Diligence</div>
+    <ol>
+      <li>Bidders are granted an inspection window of <span class="ph">{{INSPECTION_WINDOW}}</span> prior to auction close to inspect the lots at: <span class="ph">{{INSPECTION_ADDRESS}}</span>.</li>
+      <li>Inspection appointments must be scheduled via the Matex platform no later than <span class="ph">{{INSPECTION_BOOKING_DEADLINE}}</span>.</li>
+      <li>All lots are sold <strong>"as-is, where-is"</strong> unless a written condition warranty is provided by the Seller and attached as Schedule A to this Agreement.</li>
+      <li>The Seller warrants that the description of the lots in Section 2 is materially accurate and that the Seller has clear title to all items offered.</li>
+      <li>By placing a bid, the bidder acknowledges having conducted sufficient due diligence and waives the right to rescind based on condition unless fraud or material misrepresentation is proven.</li>
+    </ol>
+  </div>
+
+  <!-- ── 8. DELIVERY & LOGISTICS ────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">8.</span> Delivery, Logistics &amp; Risk of Loss</div>
+    <ol>
+      <li>Delivery terms for this auction: <span class="ph">{{INCOTERMS}}</span> (e.g., EXW, DAP, FCA).</li>
+      <li>Pickup/delivery must be completed by <span class="ph">{{DELIVERY_DEADLINE}}</span>. Storage fees of <span class="ph">{{STORAGE_FEE_PER_DAY_CAD}}</span> per day will accrue after this date.</li>
+      <li>Risk of loss and title transfer to the Buyer upon: <span class="ph">{{TITLE_TRANSFER_TRIGGER}}</span> (e.g., pickup by buyer's carrier, delivery to buyer's address).</li>
+      <li>The Buyer is responsible for arranging carrier insurance adequate to cover the value of the goods in transit.</li>
+      <li>Matex logistics carriers (if selected) are booked through the platform. Carrier liability is governed by applicable carrier tariffs and the Canada Transportation Act.</li>
+    </ol>
+  </div>
+
+  <!-- ── 9. TITLE & WARRANTIES ──────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">9.</span> Title, Warranties &amp; Representations</div>
+    <ol>
+      <li>The Seller represents and warrants that: (a) it holds clear, unencumbered title to all lots offered; (b) no liens, charges, or security interests attach to the lots except as disclosed in Schedule A; (c) the Seller has full authority to sell the lots.</li>
+      <li>Except as expressly stated in writing, <strong>no warranty of merchantability, fitness for purpose, or quality is given</strong> by either Matex or the Seller.</li>
+      <li>Matex acts solely as platform intermediary and assumes no liability for the quality, condition, or title of any lot.</li>
+    </ol>
+  </div>
+
+  <!-- ── 10. DISPUTE RESOLUTION ─────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">10.</span> Dispute Resolution</div>
+    <ol>
+      <li>Any dispute arising from this auction must be filed through the Matex platform within <span class="ph">{{DISPUTE_WINDOW_DAYS}}</span> days of delivery or the scheduled delivery date, whichever is earlier.</li>
+      <li>Matex's dispute resolution team will review submissions from both parties and issue a preliminary determination within <span class="ph">{{DISPUTE_REVIEW_DAYS}}</span> business days.</li>
+      <li>If either party contests Matex's determination, the matter shall be referred to binding arbitration under the rules of the <strong>ADR Institute of Canada</strong>, with proceedings conducted in <span class="ph">{{GOVERNING_PROVINCE}}</span>.</li>
+      <li>The language of arbitration proceedings shall be <span class="ph">{{ARBITRATION_LANGUAGE}}</span>.</li>
+      <li>Pending resolution of any dispute, escrow funds shall remain frozen in the Matex platform.</li>
+    </ol>
+  </div>
+
+  <!-- ── 11. CONFIDENTIALITY ─────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">11.</span> Confidentiality</div>
+    <ol>
+      <li>The identity of the winning bidder and all financial terms of this transaction shall remain confidential and shall not be disclosed to third parties by either the Seller or the Buyer without the prior written consent of the other party or Matex, except as required by law.</li>
+      <li>Bid history (without bidder identities) may be published on the Matex platform for transparency purposes.</li>
+    </ol>
+  </div>
+
+  <!-- ── 12. GOVERNING LAW ───────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">12.</span> Governing Law &amp; Jurisdiction</div>
+    <p>
+      This Agreement shall be governed by and construed in accordance with the laws of the Province of
+      <span class="ph">{{GOVERNING_PROVINCE}}</span> and the federal laws of Canada applicable therein.
+      The parties irrevocably submit to the exclusive jurisdiction of the courts of
+      <span class="ph">{{GOVERNING_PROVINCE}}</span>.
+    </p>
+  </div>
+
+  <!-- ── 13. GENERAL ─────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title"><span class="section-number">13.</span> General Provisions</div>
+    <ol>
+      <li><strong>Entire Agreement:</strong> This Agreement, together with any attached Schedules, constitutes the entire agreement between the parties with respect to the auction and supersedes all prior discussions.</li>
+      <li><strong>Amendments:</strong> No amendment to these terms is effective unless made in writing and signed by Matex.</li>
+      <li><strong>Severability:</strong> If any provision is found unenforceable, the remaining provisions continue in full force.</li>
+      <li><strong>Force Majeure:</strong> Neither party shall be liable for delays caused by circumstances beyond their reasonable control, including but not limited to natural disasters, strikes, or government orders.</li>
+      <li><strong>Electronic Execution:</strong> This Agreement may be executed electronically via Matex's e-signature module (powered by DocuSign / Matex eSign). Electronic signatures shall have the same legal effect as wet-ink signatures pursuant to applicable Canadian electronic commerce legislation.</li>
+    </ol>
+  </div>
+
+  <div class="notice">
+    <strong>⚠ IMPORTANT:</strong> By signing below, all parties confirm they have read, understood, and agree to be bound by these Terms &amp; Conditions in their entirety.
+  </div>
+
+  <!-- ── SIGNATURES ──────────────────────────────────────────────────────── -->
+  <div class="sig-section">
+    <div class="sig-title">Execution — Authorized Signatures</div>
+    <div class="sig-grid">
+
+      <!-- Seller -->
+      <div class="sig-box">
+        <div class="sig-role">📦 Seller</div>
+        <div class="sig-line">
+          <span class="sig-placeholder">Signature</span>
+          <span class="esign-badge">eSign</span>
+        </div>
+        <!-- SIGNATURE PLACEHOLDER: {{SELLER_SIGNATURE}} -->
+        <div class="sig-meta">
+          <span><strong>Name:</strong> <span class="ph" style="font-size:8pt">{{SELLER_SIGNATORY_NAME}}</span></span>
+          <span><strong>Title:</strong> <span class="ph" style="font-size:8pt">{{SELLER_SIGNATORY_TITLE}}</span></span>
+          <span><strong>Date:</strong> <span class="ph" style="font-size:8pt">{{SELLER_SIGNATURE_DATE}}</span></span>
+          <span><strong>IP / eSign ID:</strong> <span class="ph" style="font-size:8pt">{{SELLER_ESIGN_ID}}</span></span>
+        </div>
+      </div>
+
+      <!-- Buyer -->
+      <div class="sig-box">
+        <div class="sig-role">🏷 Buyer (Winning Bidder)</div>
+        <div class="sig-line">
+          <span class="sig-placeholder">Signature</span>
+          <span class="esign-badge">eSign</span>
+        </div>
+        <!-- SIGNATURE PLACEHOLDER: {{BUYER_SIGNATURE}} -->
+        <div class="sig-meta">
+          <span><strong>Name:</strong> <span class="ph" style="font-size:8pt">{{BUYER_SIGNATORY_NAME}}</span></span>
+          <span><strong>Title:</strong> <span class="ph" style="font-size:8pt">{{BUYER_SIGNATORY_TITLE}}</span></span>
+          <span><strong>Date:</strong> <span class="ph" style="font-size:8pt">{{BUYER_SIGNATURE_DATE}}</span></span>
+          <span><strong>IP / eSign ID:</strong> <span class="ph" style="font-size:8pt">{{BUYER_ESIGN_ID}}</span></span>
+        </div>
+      </div>
+
+      <!-- Matex Platform Confirmation -->
+      <div class="sig-box" style="grid-column: 1 / -1; border-top: 1px dashed #ccc; padding-top: 12px; margin-top: 4px;">
+        <div class="sig-role">🏛 Matex Platform — System Confirmation</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 24px">
+          <div class="sig-meta">
+            <span><strong>Platform Auction ID:</strong> <span class="ph" style="font-size:8pt">{{AUCTION_ID}}</span></span>
+            <span><strong>Hammer Price (CAD):</strong> <span class="ph" style="font-size:8pt">{{WINNING_BID_CAD}}</span></span>
+            <span><strong>Total Due incl. Premium:</strong> <span class="ph" style="font-size:8pt">{{TOTAL_AMOUNT_DUE_CAD}}</span></span>
+          </div>
+          <div class="sig-meta">
+            <span><strong>Auction Closed:</strong> <span class="ph" style="font-size:8pt">{{AUCTION_CLOSE_DATETIME}}</span></span>
+            <span><strong>Escrow TX ID:</strong> <span class="ph" style="font-size:8pt">{{ESCROW_TX_ID}}</span></span>
+            <span><strong>Document Hash (SHA-256):</strong> <span class="ph" style="font-size:8pt">{{DOCUMENT_HASH}}</span></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <div class="footer">
+    <span>Matex Technologies Inc. &nbsp;|&nbsp; matex.ca &nbsp;|&nbsp; auctions@matex.ca</span>
+    <span>Doc ID: {{DOCUMENT_ID}} &nbsp;|&nbsp; Generated: {{GENERATED_AT}} &nbsp;|&nbsp; Page 1 of 1</span>
+  </div>
+
+</div>
+</body>
+</html>

@@ -63,9 +63,9 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    { name: "search_materials", description: "Search indexed listings", inputSchema: { type: "object", properties: { query: { type: "string" } } } },
-    { name: "geo_search", description: "Search listings by distance radius", inputSchema: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" }, radius_km: { type: "number" } }, required: ["lat", "lng", "radius_km"] } },
-    { name: "filter_by_category", description: "Filter listings by category", inputSchema: { type: "object", properties: { category: { type: "string" } }, required: ["category"] } },
+    { name: "search_materials", description: "Search indexed listings with pagination", inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" }, offset: { type: "number" }, sort_by: { type: "string" }, categories: { type: "array" }, provinces: { type: "array" }, price_min: { type: "number" }, price_max: { type: "number" }, sale_modes: { type: "array" }, inspection_required: { type: "boolean" } } } },
+    { name: "geo_search", description: "Search listings by distance radius with pagination", inputSchema: { type: "object", properties: { lat: { type: "number" }, lng: { type: "number" }, radius_km: { type: "number" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["lat", "lng", "radius_km"] } },
+    { name: "filter_by_category", description: "Filter listings by category with pagination", inputSchema: { type: "object", properties: { category: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["category"] } },
     { name: "save_search", description: "Save a user search configuration", inputSchema: { type: "object", properties: { user_id: { type: "string" }, query: { type: "string" }, filters: { type: "object" } }, required: ["user_id"] } },
     { name: "get_saved_searches", description: "Get saved searches by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "index_listing", description: "Index listing document (internal utility)", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, category: { type: "string" }, lat: { type: "number" }, lng: { type: "number" }, price: { type: "number" } }, required: ["listing_id", "title", "description", "category", "lat", "lng"] } },
@@ -101,72 +101,86 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "search_materials") {
     const query = String(args.query ?? "").toLowerCase().trim();
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
 
     if (supabase) {
-      const { data, error } = await supabase
+      let dbQuery = supabase
         .schema("listing_mcp")
         .from("listings")
-        .select("listing_id,title,description,category_id,asking_price,status")
+        .select("listing_id,title,description,category_id,asking_price,status,quantity,unit,images,created_at", { count: "exact" })
         .eq("status", "active")
-        .or(`title.ilike.%${query}%,description.ilike.%${query}%`)
-        .limit(100);
+        .range(offset, offset + limit - 1);
+      if (query) dbQuery = dbQuery.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+      if (typeof args.price_min === "number") dbQuery = dbQuery.gte("asking_price", args.price_min);
+      if (typeof args.price_max === "number") dbQuery = dbQuery.lte("asking_price", args.price_max);
+      const { data, error, count } = await dbQuery;
       if (error) return fail("DB_ERROR", error.message);
-      return { content: [{ type: "text", text: ok({ results: data ?? [], total: (data ?? []).length }) }] };
+      return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
-    const results = listingIndex.filter((d) =>
+    let results = listingIndex.filter((d) =>
       query.length === 0
         ? true
         : d.title.toLowerCase().includes(query) ||
           d.description.toLowerCase().includes(query) ||
           d.category.toLowerCase().includes(query),
     );
-    return { content: [{ type: "text", text: ok({ results, total: results.length }) }] };
+    if (typeof args.price_min === "number") results = results.filter((d) => (d.price ?? 0) >= (args.price_min as number));
+    if (typeof args.price_max === "number") results = results.filter((d) => (d.price ?? 0) <= (args.price_max as number));
+    const page = results.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ results: page, total: results.length, limit, offset }) }] };
   }
 
   if (tool === "geo_search") {
     const lat = Number(args.lat ?? 0);
     const lng = Number(args.lng ?? 0);
     const radiusKm = Number(args.radius_km ?? 0);
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(radiusKm) || radiusKm <= 0) {
       return fail("VALIDATION_ERROR", "lat, lng, and radius_km must be valid numbers and radius_km > 0.");
     }
     if (supabase) {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .schema("listing_mcp")
         .from("listings")
-        .select("listing_id,title,description,category_id,asking_price,pickup_address,status")
+        .select("listing_id,title,description,category_id,asking_price,pickup_address,status", { count: "exact" })
         .eq("status", "active")
-        .limit(100);
+        .range(offset, offset + limit - 1);
       if (error) return fail("DB_ERROR", error.message);
-      return { content: [{ type: "text", text: ok({ results: data ?? [], total: (data ?? []).length, note: "DB geo_search fallback without PostGIS radius filter in MVP scaffold" }) }] };
+      return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset, note: "PostGIS radius filter pending migration" }) }] };
     }
 
-    const results = listingIndex
+    const all = listingIndex
       .map((d) => ({ ...d, distance_km: Number(distanceKm(lat, lng, d.lat, d.lng).toFixed(2)) }))
       .filter((d) => d.distance_km <= radiusKm)
       .sort((a, b) => a.distance_km - b.distance_km);
-    return { content: [{ type: "text", text: ok({ results, total: results.length }) }] };
+    const page = all.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ results: page, total: all.length, limit, offset }) }] };
   }
 
   if (tool === "filter_by_category") {
     const category = String(args.category ?? "").toLowerCase();
     if (!category) return fail("VALIDATION_ERROR", "category is required.");
+    const limit = Math.min(Number(args.limit ?? 50), 100);
+    const offset = Math.max(Number(args.offset ?? 0), 0);
 
     if (supabase) {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .schema("listing_mcp")
         .from("listings")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("status", "active")
         .eq("category_id", category)
-        .limit(100);
+        .range(offset, offset + limit - 1);
       if (error) return fail("DB_ERROR", error.message);
-      return { content: [{ type: "text", text: ok({ results: data ?? [], total: (data ?? []).length }) }] };
+      return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
-    const results = listingIndex.filter((d) => d.category.toLowerCase() === category);
-    return { content: [{ type: "text", text: ok({ results, total: results.length }) }] };
+    const all = listingIndex.filter((d) => d.category.toLowerCase() === category);
+    const page = all.slice(offset, offset + limit);
+    return { content: [{ type: "text", text: ok({ results: page, total: all.length, limit, offset }) }] };
   }
 
   if (tool === "save_search") {
