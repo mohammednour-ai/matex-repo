@@ -51,6 +51,22 @@ async function emitEvent(event: string, payload: Record<string, unknown>): Promi
   }
 }
 
+const DEFAULT_COMMISSION_RATE = 0.035;
+
+async function getCommissionRate(): Promise<number> {
+  if (!supabase) return DEFAULT_COMMISSION_RATE;
+  try {
+    const { data } = await supabase.schema("log_mcp").from("platform_config").select("config_value").eq("config_key", "commission_rate").maybeSingle();
+    if (data?.config_value) {
+      const parsed = parseFloat(String(data.config_value));
+      if (Number.isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_COMMISSION_RATE;
+}
+
 const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -225,7 +241,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!Number.isFinite(amount) || amount <= 0) return fail("VALIDATION_ERROR", "amount must be greater than 0.");
     if (!method) return fail("VALIDATION_ERROR", "method is required.");
     const orderId = args.order_id ? String(args.order_id) : undefined;
-    const commission = calculateCommission(amount, { rate: 0.035, minimum: 25, cap: 5000 });
+    const commissionRate = await getCommissionRate();
+    const commission = calculateCommission(amount, { rate: commissionRate, minimum: 25, cap: 5000 });
     const transaction = {
       transaction_id: generateId(),
       order_id: orderId,

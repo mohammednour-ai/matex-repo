@@ -65,6 +65,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!orderId || !origin || !destination || weightKg <= 0 || !requestedBy) return fail("VALIDATION_ERROR", "order_id, origin, destination, weight_kg>0, requested_by are required.");
 
     const carriers = ["Day & Ross", "Manitoulin Transport", "Purolator Freight", "GoFor Industries", "Canada Cartage"];
+    // Prices are placeholder estimates until carrier API integration is complete.
     const quotes = carriers.map((carrier) => ({
       quote_id: generateId(),
       order_id: orderId,
@@ -74,6 +75,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       co2_emissions_kg: Number((weightKg * 0.05 * (Math.random() + 0.5)).toFixed(2)),
       valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       created_at: now(),
+      is_estimated: true,
+      estimated_note: "Estimated price only. Contact carrier for binding quote.",
     }));
 
     for (const q of quotes) {
