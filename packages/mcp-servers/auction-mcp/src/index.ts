@@ -106,13 +106,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "start_auction") {
     const auctionId = String(args.auction_id ?? "");
     if (!auctionId) return fail("VALIDATION_ERROR", "auction_id is required.");
+
+    const auctionCheck = await supabase
+      .schema("auction_mcp")
+      .from("auctions")
+      .select("status")
+      .eq("auction_id", auctionId)
+      .maybeSingle();
+    if (auctionCheck.error) return fail("DB_ERROR", auctionCheck.error.message);
+    if (!auctionCheck.data) return fail("NOT_FOUND", "Auction not found.");
+    if (auctionCheck.data.status !== "scheduled") return fail("INVALID_STATE", `Auction must be in 'scheduled' state, current: ${auctionCheck.data.status}.`);
+
+    const startTs = now();
     const startResult = await supabase
       .schema("auction_mcp")
       .from("auctions")
-      .update({ status: "live", actual_start: now(), updated_at: now() })
-      .eq("auction_id", auctionId);
+      .update({ status: "live", actual_start: startTs, updated_at: startTs })
+      .eq("auction_id", auctionId)
+      .eq("status", "scheduled");
     if (startResult.error) return fail("DB_ERROR", startResult.error.message);
-    await supabase.schema("auction_mcp").from("lots").update({ status: "open", opened_at: now() }).eq("auction_id", auctionId).eq("status", "pending");
+
+    const lotsResult = await supabase
+      .schema("auction_mcp")
+      .from("lots")
+      .update({ status: "open", opened_at: startTs })
+      .eq("auction_id", auctionId)
+      .eq("status", "pending");
+    if (lotsResult.error) return fail("DB_ERROR", lotsResult.error.message);
+
     await emitEvent("auction.auction.started", { auction_id: auctionId });
     return { content: [{ type: "text", text: ok({ auction_id: auctionId, status: "live" }) }] };
   }

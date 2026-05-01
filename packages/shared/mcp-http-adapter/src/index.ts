@@ -142,7 +142,7 @@ async function readBody(req: import("node:http").IncomingMessage): Promise<Adapt
 function createPool(): pg.Pool | null {
   const DATABASE_URL = process.env.DATABASE_URL;
   if (!DATABASE_URL) return null;
-  return new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 });
+  return new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 20 });
 }
 
 let matexAuxTablesEnsured = false;
@@ -423,7 +423,7 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
        limit 100`,
       [q, pattern],
     );
-    const rows = result.rows.map((row) => mapListingRowForSearch(row as Record<string, unknown>));
+    const rows = result.rows.map((row: unknown) => mapListingRowForSearch(row as Record<string, unknown>));
     return ok({ results: rows, total: rows.length });
   }
 
@@ -1331,7 +1331,7 @@ async function handleTool(pool: pg.Pool, tool: string, args: Record<string, unkn
         [String(args.seller_id ?? "")],
       )
     ).rows;
-    const mapped = rows.map((row) => mapListingRowForMyListings(row as Record<string, unknown>));
+    const mapped = rows.map((row: unknown) => mapListingRowForMyListings(row as Record<string, unknown>));
     return ok({ listings: mapped, total: mapped.length });
   }
   if (tool === "listing.archive_listing") {
@@ -1849,7 +1849,12 @@ export function startDomainHttpAdapter(domain: string, port: number): void {
       return json(res, 400, err("INVALID_DOMAIN", `Adapter '${domain}' cannot handle '${body.tool}'.`));
     }
     try {
-      const result = await handleTool(pool, body.tool, (body.args ?? {}) as Record<string, unknown>);
+      const rawArgs = (body.args ?? {}) as Record<string, unknown>;
+      // Inject authenticated user ID from the gateway JWT payload so MCP servers can enforce ownership.
+      if (body.auth?.sub && !rawArgs._user_id) {
+        rawArgs._user_id = body.auth.sub;
+      }
+      const result = await handleTool(pool, body.tool, rawArgs);
       return json(res, result.success ? 200 : 400, result);
     } catch (error) {
       return json(res, 400, err("DB_ERROR", error instanceof Error ? error.message : String(error)));

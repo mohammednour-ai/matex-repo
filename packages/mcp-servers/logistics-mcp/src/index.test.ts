@@ -44,7 +44,7 @@ describe("logistics-mcp", () => {
 
   it("tool: book_shipment - hazmat requires TDG-certified carrier", () => {
     expect(() => {
-      const hazmatClass = "class_8";
+      const hazmatClass: string = "class_8";
       const carrierTdgCertified = false;
       if (hazmatClass !== "none" && !carrierTdgCertified) {
         throw new Error("Carrier must have TDG certification for hazmat shipments");

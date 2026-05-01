@@ -153,7 +153,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .schema("escrow_mcp")
       .from("escrows")
       .update({ status: "funds_held", held_amount: heldAmount, updated_at: now() })
-      .eq("escrow_id", escrowId);
+      .eq("escrow_id", escrowId)
+      .eq("status", status);
     if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
     await appendTimeline(escrowId, "funds_held", amount, args.performed_by ? String(args.performed_by) : null, null, {});
     await emitEvent("escrow.funds.held", { escrow_id: escrowId, amount });
@@ -180,10 +181,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         released_at: nextStatus === "released" ? now() : null,
         updated_at: now(),
       })
-      .eq("escrow_id", escrowId);
+      .eq("escrow_id", escrowId)
+      .eq("held_amount", escrow.held_amount);
     if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
     await appendTimeline(escrowId, nextStatus === "released" ? "released" : "partial_release", amount, args.performed_by ? String(args.performed_by) : null, args.reason ? String(args.reason) : null, {});
-    await emitEvent("escrow.funds.released", { escrow_id: escrowId, amount, status: nextStatus });
+    await emitEvent("escrow.funds.released", { escrow_id: escrowId, amount, status: nextStatus, performed_by: args.performed_by ? String(args.performed_by) : null });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: nextStatus, held_amount: nextHeld, released_amount: nextReleased }) }] };
   }
 
@@ -209,7 +211,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (amount <= 0 || !reason) return fail("VALIDATION_ERROR", "amount>0 and reason are required.");
     const heldAmount = Number(escrow.held_amount ?? 0);
     const refundedAmount = Number(escrow.refunded_amount ?? 0);
+    const originalAmount = Number(escrow.original_amount ?? 0);
     if (amount > heldAmount) return fail("VALIDATION_ERROR", "Refund amount exceeds held_amount.");
+    if (refundedAmount + amount > originalAmount) return fail("VALIDATION_ERROR", "Total refunds would exceed original_amount.");
     const nextHeld = roundToTwoDecimals(heldAmount - amount);
     const nextRefunded = roundToTwoDecimals(refundedAmount + amount);
     const nextStatus: EscrowStatus = "refunded";

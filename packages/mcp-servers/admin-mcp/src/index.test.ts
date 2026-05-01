@@ -75,8 +75,8 @@ describe("admin-mcp", () => {
 
   it("tool: suspend_user - cannot suspend another super_admin without super_admin role", () => {
     expect(() => {
-      const targetRole = "super_admin";
-      const callerRole = "operations_manager";
+      const targetRole: string = "super_admin";
+      const callerRole: string = "operations_manager";
       if (targetRole === "super_admin" && callerRole !== "super_admin") {
         throw new Error("Only super_admin can suspend another super_admin");
       }

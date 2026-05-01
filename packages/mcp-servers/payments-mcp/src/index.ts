@@ -107,6 +107,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .maybeSingle();
 
       const nextBalance = roundToTwoDecimals(Number(existing?.balance ?? 0) + amount);
+      const transactionId = generateId();
+      const createdAt = now();
+
+      // Insert transaction record first so a crash after this point leaves an auditable record.
+      const { error: txError } = await supabase.schema("payments_mcp").from("transactions").insert({
+        transaction_id: transactionId,
+        payer_id: userId,
+        amount,
+        currency: "CAD",
+        payment_method: "wallet",
+        transaction_type: "wallet_topup",
+        status: "completed",
+        created_at: createdAt,
+        updated_at: createdAt,
+        completed_at: createdAt,
+      });
+      if (txError) return fail("DB_ERROR", txError.message);
+
       if (existing?.wallet_id) {
         const { error: updateError } = await supabase
           .schema("payments_mcp")
@@ -124,21 +142,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (insertError) return fail("DB_ERROR", insertError.message);
       }
 
-      const transactionId = generateId();
-      const createdAt = now();
-      const { error: txError } = await supabase.schema("payments_mcp").from("transactions").insert({
-        transaction_id: transactionId,
-        payer_id: userId,
-        amount,
-        currency: "CAD",
-        payment_method: "wallet",
-        transaction_type: "wallet_topup",
-        status: "completed",
-        created_at: createdAt,
-        updated_at: createdAt,
-        completed_at: createdAt,
-      });
-      if (txError) return fail("DB_ERROR", txError.message);
       await emitEvent("payments.wallet.topped_up", { user_id: userId, amount, transaction_id: transactionId });
       return {
         content: [
@@ -250,22 +253,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         currency: "CAD",
         payment_method: method,
         transaction_type: "purchase",
-        status: "completed",
+        status: "pending_capture",
         commission_amount: commission,
         tax_amount: roundToTwoDecimals(commission * 0.13),
         metadata: { escrow_reference: transaction.escrow_reference },
         created_at: transaction.created_at,
         updated_at: transaction.created_at,
-        completed_at: transaction.created_at,
       });
       if (error) return fail("DB_ERROR", error.message);
-      await emitEvent("payments.payment.processed", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-      return { content: [{ type: "text", text: ok({ transaction }) }] };
+      const pendingTx = { ...transaction, status: "pending_capture" };
+      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
+      return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
     }
 
-    transactions.push(transaction);
-    await emitEvent("payments.payment.processed", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-    return { content: [{ type: "text", text: ok({ transaction }) }] };
+    const pendingTx = { ...transaction, status: "pending_capture" };
+    transactions.push(pendingTx);
+    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
+    return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
   }
 
   if (tool === "get_transaction_history") {

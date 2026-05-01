@@ -57,10 +57,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for inspection-mcp.");
 
   if (tool === "request_inspection") {
-    const requestedBy = String(args.requested_by ?? "");
+    const requestedBy = String(args._user_id ?? args.requested_by ?? "");
     const inspectionType = String(args.inspection_type ?? "");
     const location = args.location as Record<string, unknown> | undefined;
     if (!requestedBy || !inspectionType || !location) return fail("VALIDATION_ERROR", "requested_by, inspection_type, location are required.");
+
+    // Verify requester is the buyer or seller of the associated order or listing owner.
+    if (args.order_id) {
+      const orderId = String(args.order_id);
+      const { data: order, error: orderErr } = await supabase
+        .schema("orders_mcp")
+        .from("orders")
+        .select("buyer_id,seller_id")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (orderErr) return fail("DB_ERROR", orderErr.message);
+      if (!order) return fail("NOT_FOUND", "Order not found.");
+      if (order.buyer_id !== requestedBy && order.seller_id !== requestedBy) {
+        return fail("FORBIDDEN", "Requester must be the buyer or seller of the order.");
+      }
+    } else if (args.listing_id) {
+      const listingId = String(args.listing_id);
+      const { data: listing, error: listingErr } = await supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .select("seller_id")
+        .eq("listing_id", listingId)
+        .maybeSingle();
+      if (listingErr) return fail("DB_ERROR", listingErr.message);
+      if (!listing) return fail("NOT_FOUND", "Listing not found.");
+      if (listing.seller_id !== requestedBy) {
+        return fail("FORBIDDEN", "Requester must be the listing owner.");
+      }
+    }
+
     const inspectionId = generateId();
     const insertResult = await supabase.schema("inspection_mcp").from("inspections").insert({
       inspection_id: inspectionId,

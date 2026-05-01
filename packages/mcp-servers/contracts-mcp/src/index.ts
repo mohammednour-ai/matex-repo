@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { callServer, generateId, MatexEventBus, now } from "@matex/utils";
+import { callServer, generateId, MatexEventBus, now, sha256 } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "contracts-mcp";
@@ -70,6 +70,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const contractId = generateId();
     const totalValue = Number((quantityKg * pricePerKg).toFixed(2));
+    const termsPayload = (args.terms ?? {}) as Record<string, unknown>;
+    const termsHash = sha256(JSON.stringify(termsPayload));
     const insertResult = await supabase.schema("contracts_mcp").from("contracts").insert({
       contract_id: contractId,
       buyer_id: buyerId,
@@ -83,7 +85,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       delivery_frequency: args.delivery_frequency ? String(args.delivery_frequency) : null,
       start_date: args.start_date ? String(args.start_date) : null,
       end_date: args.end_date ? String(args.end_date) : null,
-      terms: args.terms ?? {},
+      terms: termsPayload,
+      terms_hash: termsHash,
       status: "draft",
       created_at: now(),
       updated_at: now(),
@@ -141,9 +144,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "negotiate_terms") {
     const contractId = String(args.contract_id ?? "");
-    const proposedBy = String(args.proposed_by ?? "");
+    const proposedBy = String(args._user_id ?? args.proposed_by ?? "");
     const proposedChanges = args.proposed_changes as Record<string, unknown> | undefined;
     if (!contractId || !proposedBy || !proposedChanges) return fail("VALIDATION_ERROR", "contract_id, proposed_by, proposed_changes are required.");
+
+    const { data: contract, error: fetchErr } = await supabase.schema("contracts_mcp").from("contracts").select("buyer_id,seller_id").eq("contract_id", contractId).maybeSingle();
+    if (fetchErr) return fail("DB_ERROR", fetchErr.message);
+    if (!contract) return fail("NOT_FOUND", "Contract not found.");
+    if (String(contract.buyer_id) !== proposedBy && String(contract.seller_id) !== proposedBy) {
+      return fail("FORBIDDEN", "Only the buyer or seller can propose changes to this contract.");
+    }
 
     const negotiationId = generateId();
     const insertResult = await supabase.schema("contracts_mcp").from("negotiations").insert({
@@ -178,8 +188,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "terminate_contract") {
     const contractId = String(args.contract_id ?? "");
     const reason = String(args.reason ?? "");
-    const terminatedBy = String(args.terminated_by ?? "");
+    const terminatedBy = String(args._user_id ?? args.terminated_by ?? "");
     if (!contractId || !reason || !terminatedBy) return fail("VALIDATION_ERROR", "contract_id, reason, terminated_by are required.");
+
+    const { data: contract, error: fetchErr } = await supabase.schema("contracts_mcp").from("contracts").select("buyer_id,seller_id").eq("contract_id", contractId).maybeSingle();
+    if (fetchErr) return fail("DB_ERROR", fetchErr.message);
+    if (!contract) return fail("NOT_FOUND", "Contract not found.");
+    if (String(contract.buyer_id) !== terminatedBy && String(contract.seller_id) !== terminatedBy) {
+      return fail("FORBIDDEN", "Only the buyer or seller can terminate this contract.");
+    }
 
     const updateResult = await supabase.schema("contracts_mcp").from("contracts")
       .update({ status: "terminated", termination_reason: reason, terminated_by: terminatedBy, terminated_at: now(), updated_at: now() })

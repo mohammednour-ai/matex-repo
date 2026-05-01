@@ -196,11 +196,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const newOutstanding = roundToTwoDecimals(Number(facility.total_outstanding) + amount);
       const newAvailable = roundToTwoDecimals(Number(facility.credit_limit) - newOutstanding);
-      await supabase
+      const { error: facUpdateError } = await supabase
         .schema("credit_mcp")
         .from("credit_facilities")
         .update({ total_outstanding: newOutstanding, available_credit: newAvailable, updated_at: createdAt })
-        .eq("facility_id", facility.facility_id);
+        .eq("facility_id", facility.facility_id)
+        .eq("available_credit", facility.available_credit);
+      if (facUpdateError) {
+        await supabase.schema("credit_mcp").from("credit_invoices").delete().eq("invoice_id", invoiceId);
+        return fail("CONCURRENCY_CONFLICT", "Credit facility changed concurrently, please retry.");
+      }
 
       await emitEvent("credit.draw.created", { user_id: userId, invoice_id: invoiceId, amount });
       return { content: [{ type: "text", text: ok({ invoice_id: invoiceId, amount: roundToTwoDecimals(amount), available_credit: newAvailable }) }] };

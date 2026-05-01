@@ -48,8 +48,8 @@ describe("esign-mcp", () => {
 
   it("tool: verify_hash - mismatched hashes detected", () => {
     expect(() => {
-      const storedHash = "a3f2b8c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9";
-      const computedHash = "ffffffffffffffffffffffffffffffffffffffff";
+      const storedHash: string = "a3f2b8c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9";
+      const computedHash: string = "ffffffffffffffffffffffffffffffffffffffff";
       if (storedHash !== computedHash) {
         throw new Error("Document integrity check failed: hash mismatch");
       }

@@ -125,11 +125,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
     if (typeof args.fields !== "object" || !args.fields) return fail("VALIDATION_ERROR", "fields must be an object.");
 
+    const ALLOWED_FIELDS = ["title", "description", "asking_price", "quantity"] as const;
+    const rawFields = args.fields as Record<string, unknown>;
+    const safeFields: Record<string, unknown> = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (key in rawFields) safeFields[key] = rawFields[key];
+    }
+    if (Object.keys(safeFields).length === 0) return fail("VALIDATION_ERROR", "No valid fields provided. Allowed: title, description, asking_price, quantity.");
+
     if (supabase) {
       const { error } = await supabase
         .schema("listing_mcp")
         .from("listings")
-        .update(args.fields as Record<string, unknown>)
+        .update({ ...safeFields, updated_at: now() })
         .eq("listing_id", listingId);
       if (error) return fail("DB_ERROR", error.message);
       await emitEvent("listing.listing.updated", { listing_id: listingId });
@@ -138,9 +146,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const current = listingStore.get(listingId);
     if (!current) return fail("NOT_FOUND", "Listing not found");
-    const fields = (args.fields ?? {}) as Partial<Listing>;
-    const updated = { ...current, ...fields };
-    listingStore.set(listingId, updated);
+    const updated = { ...current, ...safeFields };
+    listingStore.set(listingId, updated as Listing);
     await emitEvent("listing.listing.updated", { listing_id: listingId });
     return { content: [{ type: "text", text: ok({ listing: updated }) }] };
   }

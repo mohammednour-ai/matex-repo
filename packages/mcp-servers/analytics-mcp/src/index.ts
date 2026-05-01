@@ -46,12 +46,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }));
 
+async function assertPlatformAdmin(args: Record<string, unknown>): Promise<{ isError: true; content: Array<{ type: "text"; text: string }> } | null> {
+  const userId = String(args._user_id ?? "");
+  if (!userId) return fail("UNAUTHORIZED", "Authentication required.");
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .schema("auth_mcp")
+    .from("users")
+    .select("is_platform_admin")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) return fail("DB_ERROR", error.message);
+  if (!data?.is_platform_admin) return fail("FORBIDDEN", "Platform admin access required.");
+  return null;
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const tool = request.params.name;
   const args = (request.params.arguments ?? {}) as Record<string, unknown>;
 
   if (tool === "ping") {
     return { content: [{ type: "text", text: ok({ status: "ok", server: SERVER_NAME, version: SERVER_VERSION, timestamp: now() }) }] };
+  }
+
+  if (tool === "export_data" || tool === "get_revenue_report") {
+    const adminErr = await assertPlatformAdmin(args);
+    if (adminErr) return adminErr;
   }
 
   if (tool === "get_dashboard_stats") {

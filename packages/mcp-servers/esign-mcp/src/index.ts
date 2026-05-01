@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { generateId, MatexEventBus, now } from "@matex/utils";
+import { generateId, MatexEventBus, now, sha256 } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "esign-mcp";
@@ -111,20 +111,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const doc = docResult.data as Record<string, unknown>;
     const signatories = (doc.signatories as Array<Record<string, unknown>>) ?? [];
     let found = false;
+    const signedAt = now();
+
+    // Compute hash chain: each signature hashes (prev_hash + email + timestamp + document_id).
+    const lastSignedHash = signatories
+      .filter((s) => s.status === "signed")
+      .reduce<string>((h, s) => String(s.signature_hash ?? h), String(doc.document_hash ?? "genesis"));
+
     const updatedSignatories = signatories.map((s) => {
       if (String(s.email) === signatoryEmail && s.status !== "signed") {
         found = true;
-        return { ...s, status: "signed", signed_at: now() };
+        const sigHash = sha256(`${lastSignedHash}:${signatoryEmail}:${signedAt}:${documentId}`);
+        return { ...s, status: "signed", signed_at: signedAt, prev_hash: lastSignedHash, signature_hash: sigHash };
       }
       return s;
     });
     if (!found) return fail("NOT_FOUND", "Signatory not found or already signed.");
 
     const allSigned = updatedSignatories.every((s) => s.status === "signed");
-    const updatePayload: Record<string, unknown> = { signatories: updatedSignatories, updated_at: now() };
+    const updatePayload: Record<string, unknown> = { signatories: updatedSignatories, updated_at: signedAt };
     if (allSigned) {
       updatePayload.status = "signed";
-      updatePayload.completed_at = now();
+      updatePayload.completed_at = signedAt;
       if (args.document_hash) updatePayload.document_hash = String(args.document_hash);
     }
 

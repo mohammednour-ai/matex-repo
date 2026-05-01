@@ -10,6 +10,8 @@ const SERVER_VERSION = "0.1.0";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+// CRA Business Number format: 9-digit BN + RT + 4 digit program account
+const PLATFORM_BUSINESS_NUMBER = process.env.CRA_BUSINESS_NUMBER ?? "123456789 RT0001";
 
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
@@ -127,12 +129,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const totalAmount = Number((subtotal + taxBreakdown.total_tax).toFixed(2));
 
     const currentYear = new Date().getFullYear();
+    const issueDate = now();
+    const dueDate = new Date(Date.now() + 30 * 86400000).toISOString();
 
-    const countResult = await supabase.schema("tax_mcp").from("invoices")
-      .select("invoice_number", { count: "exact" })
-      .like("invoice_number", `MTX-${currentYear}-%`);
-    const nextSeq = (countResult.count ?? 0) + 1;
+    // Use PostgreSQL sequence for collision-free invoice numbering.
+    let nextSeq: number;
+    const seqResult = await supabase.rpc("next_invoice_seq");
+    if (seqResult.error || seqResult.data == null) {
+      // Fallback: COUNT + 1 (acceptable only when sequence RPC is unavailable).
+      const countResult = await supabase.schema("tax_mcp").from("invoices")
+        .select("invoice_number", { count: "exact" })
+        .like("invoice_number", `MTX-${currentYear}-%`);
+      nextSeq = (countResult.count ?? 0) + 1;
+    } else {
+      nextSeq = Number(seqResult.data);
+    }
     const invoiceNumber = generateInvoiceNumber(currentYear, nextSeq);
+
+    const lineItems = Array.isArray(args.line_items) && args.line_items.length > 0
+      ? args.line_items
+      : [
+          { description: "Materials (subtotal)", amount: subtotal },
+          { description: `Tax (${taxBreakdown.tax_type})`, amount: taxBreakdown.total_tax },
+          ...(commissionAmount > 0 ? [{ description: "Platform commission", amount: commissionAmount }] : []),
+        ];
 
     const invoiceId = generateId();
     const insertResult = await supabase.schema("tax_mcp").from("invoices").insert({
@@ -153,11 +173,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       commission_amount: commissionAmount,
       commission_tax_amount: commissionTax.total_tax,
       total_amount: totalAmount,
-      line_items: args.line_items ?? [],
+      line_items: lineItems,
       status: "issued",
       currency: "CAD",
-      issued_at: now(),
-      created_at: now(),
+      business_number: PLATFORM_BUSINESS_NUMBER,
+      issue_date: issueDate,
+      due_date: dueDate,
+      issued_at: issueDate,
+      created_at: issueDate,
     });
     if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
 

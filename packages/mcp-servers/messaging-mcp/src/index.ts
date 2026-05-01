@@ -105,8 +105,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "send_message") {
     const threadId = String(args.thread_id ?? "");
     if (!threadId) return fail("VALIDATION_ERROR", "thread_id is required.");
-    // sender_id may be injected by the gateway via x-matex-user-id; accept either path
-    const senderId = String(args.sender_id ?? args._user_id ?? "").trim();
+    // Prefer _user_id injected by the gateway; fall back to explicit sender_id only when _user_id is absent.
+    const senderId = String(args._user_id ?? args.sender_id ?? "").trim();
     if (!senderId) return fail("VALIDATION_ERROR", "sender_id is required.");
     if (!String(args.content ?? "").trim()) return fail("VALIDATION_ERROR", "content is required.");
 

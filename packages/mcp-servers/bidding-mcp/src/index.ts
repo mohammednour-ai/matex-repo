@@ -72,14 +72,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (listingResult.error) return fail("DB_ERROR", listingResult.error.message);
     if (!listingResult.data || listingResult.data.status !== "active") return fail("LISTING_NOT_BIDDABLE", "Listing is not active.");
 
-    // KYC gate for high-value bids.
-    if (amount >= 5000) {
-      const kyc = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", bidderId).maybeSingle();
-      if (kyc.error) return fail("DB_ERROR", kyc.error.message);
-      const currentLevel = String(kyc.data?.current_level ?? "level_0");
-      if (rankLevel(currentLevel) < rankLevel("level_2")) {
-        return fail("KYC_GATE_BLOCKED", `Bids >= 5000 require level_2. Current ${currentLevel}.`);
-      }
+    // KYC gate: level_1 required for all bids, level_2 required for bids >= 5000.
+    const kyc = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", bidderId).maybeSingle();
+    if (kyc.error) return fail("DB_ERROR", kyc.error.message);
+    const currentLevel = String(kyc.data?.current_level ?? "level_0");
+    const requiredLevel = amount >= 5000 ? "level_2" : "level_1";
+    if (rankLevel(currentLevel) < rankLevel(requiredLevel)) {
+      return fail("KYC_GATE_BLOCKED", `Bids require ${requiredLevel}. Current ${currentLevel}.`);
     }
 
     const highestResult = await supabase
@@ -97,8 +96,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (expectedHighest !== null && expectedHighest !== currentHighest) {
       return fail("OPTIMISTIC_CONCURRENCY_CONFLICT", `Expected highest ${expectedHighest} but current highest is ${currentHighest}.`);
     }
-    if (amount <= currentHighest) {
-      return fail("BID_TOO_LOW", `Bid amount must be greater than current highest ${currentHighest}.`);
+    const MIN_BID_INCREMENT = 1;
+    if (amount < currentHighest + MIN_BID_INCREMENT) {
+      return fail("BID_TOO_LOW", `Bid must be at least ${currentHighest + MIN_BID_INCREMENT} (current highest + minimum increment of ${MIN_BID_INCREMENT}).`);
     }
 
     const nextSeq = (bidSequence.get(listingId) ?? 0) + 1;

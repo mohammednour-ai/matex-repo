@@ -10,6 +10,45 @@ const SERVER_VERSION = "0.1.0";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY?.trim();
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? "noreply@matex.ca";
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID?.trim();
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN?.trim();
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER?.trim();
+
+async function deliverEmail(to: string, subject: string, text: string): Promise<void> {
+  if (!SENDGRID_API_KEY || !to) return;
+  try {
+    await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: { authorization: `Bearer ${SENDGRID_API_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: SENDGRID_FROM_EMAIL, name: "Matex" },
+        subject,
+        content: [{ type: "text/plain", value: text }],
+      }),
+    });
+  } catch {
+    // Non-blocking delivery — DB record already committed.
+  }
+}
+
+async function deliverSms(to: string, body: string): Promise<void> {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER || !to) return;
+  try {
+    await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`, {
+      method: "POST",
+      headers: {
+        authorization: `Basic ${Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ To: to, From: TWILIO_PHONE_NUMBER, Body: body }).toString(),
+    });
+  } catch {
+    // Non-blocking delivery — DB record already committed.
+  }
+}
 
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
@@ -95,6 +134,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
     });
     if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+
+    // Deliver via external APIs after DB commit. Fetch user contact info if needed.
+    if (channels.includes("email") || channels.includes("sms")) {
+      const userResult = await supabase.schema("auth_mcp").from("users").select("email,phone").eq("user_id", userId).maybeSingle();
+      const userEmail = String(userResult.data?.email ?? "");
+      const userPhone = String(userResult.data?.phone ?? "");
+      if (channels.includes("email") && userEmail) {
+        await deliverEmail(userEmail, title, body);
+      }
+      if (channels.includes("sms") && userPhone) {
+        await deliverSms(userPhone, `${title}: ${body}`);
+      }
+    }
 
     await emitEvent("notifications.notification.sent", { notification_id: notificationId, user_id: userId, type, channels, priority });
     return { content: [{ type: "text", text: ok({ notification_id: notificationId, user_id: userId, channels, priority, status: "sent" }) }] };

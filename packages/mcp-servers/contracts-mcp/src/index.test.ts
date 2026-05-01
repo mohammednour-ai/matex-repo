@@ -22,7 +22,7 @@ describe("contracts-mcp", () => {
 
   it("tool: activate_contract - requires completed e-sign", () => {
     expect(() => {
-      const esignStatus = "pending";
+      const esignStatus: string = "pending";
       if (esignStatus !== "completed") {
         throw new Error("Contract requires completed e-signature before activation");
       }

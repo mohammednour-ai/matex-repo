@@ -73,7 +73,7 @@ describe("auth-mcp", () => {
 
   it("tool: enable_mfa - validates user has active account", () => {
     expect(() => {
-      const accountStatus = "suspended";
+      const accountStatus: string = "suspended";
       if (accountStatus !== "active") {
         throw new Error("Account must be active to enable MFA");
       }

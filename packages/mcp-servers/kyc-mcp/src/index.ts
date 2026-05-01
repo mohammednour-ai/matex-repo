@@ -128,6 +128,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (status === "verified") {
       const userId = updateResult.data.user_id as string;
       const targetLevel = updateResult.data.target_level as string;
+
+      const currentLevelResult = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", userId).maybeSingle();
+      if (currentLevelResult.error) return fail("DB_ERROR", currentLevelResult.error.message);
+      const currentLevel = String(currentLevelResult.data?.current_level ?? "level_0");
+      if (levelRank(targetLevel) < levelRank(currentLevel)) {
+        return fail("KYC_DOWNGRADE_FORBIDDEN", `Cannot lower KYC level from ${currentLevel} to ${targetLevel}.`);
+      }
+
       const upsertPayload: Record<string, unknown> = {
         user_id: userId,
         current_level: targetLevel,
