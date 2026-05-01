@@ -1379,11 +1379,20 @@ async function routeToolRequest(
       });
 
       if (!response.ok) {
+        const pb = parsedBody as Record<string, unknown> | string | null;
+        let detail = "";
+        if (pb && typeof pb === "object" && "error" in pb) {
+          const e = (pb as { error?: { message?: string; code?: string } }).error;
+          if (e?.message) detail = `: ${e.message}`;
+          else if (e?.code) detail = `: ${e.code}`;
+        } else if (typeof pb === "string" && pb.length > 0) {
+          detail = `: ${pb.slice(0, 200)}`;
+        }
         return {
           success: false,
           error: {
             code: "UPSTREAM_ERROR",
-            message: `Upstream returned ${response.status}`,
+            message: `Upstream returned ${response.status}${detail}`,
           },
           data: {
             endpoint,

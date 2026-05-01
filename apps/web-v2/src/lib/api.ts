@@ -40,8 +40,20 @@ export function clearSession() {
 }
 
 export function extractId(result: MCPResponse, key: string): string {
-  const up = result.data?.upstream_response?.data as Record<string, unknown> | undefined;
-  return String(up?.[key] ?? result.data?.[key] ?? "");
+  const data = result.data as Record<string, unknown> | undefined;
+  if (!data) return "";
+  const top = data[key];
+  if (top !== undefined && top !== null && String(top).trim() !== "") return String(top);
+  const ur = data.upstream_response as Record<string, unknown> | undefined;
+  if (ur && typeof ur === "object") {
+    const inner = ur.data as Record<string, unknown> | undefined;
+    if (inner && inner[key] !== undefined && inner[key] !== null && String(inner[key]).trim() !== "") {
+      return String(inner[key]);
+    }
+    const flat = ur[key];
+    if (flat !== undefined && flat !== null && String(flat).trim() !== "") return String(flat);
+  }
+  return "";
 }
 
 export async function callTool<T = Record<string, unknown>>(

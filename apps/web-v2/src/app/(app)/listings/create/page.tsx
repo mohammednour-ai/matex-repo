@@ -170,6 +170,9 @@ const INSPECTION_WINDOWS = [
   { value: "2w", label: "2 weeks" },
 ];
 
+/** Result of persisting step 1 so callers can show API errors instead of a generic message. */
+type SaveDraftResult = { ok: true; listingId: string } | { ok: false; message: string };
+
 const STEPS = [
   { n: 1, label: "Material", icon: Package },
   { n: 2, label: "Photos", icon: Camera },
@@ -318,7 +321,7 @@ function Step1({
 }: {
   data: FormData;
   onChange: (patch: Partial<FormData>) => void;
-  onSaveDraft: () => Promise<string | null>;
+  onSaveDraft: () => Promise<SaveDraftResult>;
   saving: boolean;
   listingId: string;
 }) {
@@ -1655,11 +1658,16 @@ export default function CreateListingPage() {
     router.replace(`/listings/create?${q.toString()}`, { scroll: false });
   }, [currentStep, listingId, router, urlHydrated]);
 
-  const handleSaveDraft = async (): Promise<string | null> => {
+  const handleSaveDraft = async (): Promise<SaveDraftResult> => {
     setSaving(true);
     setStepError("");
     try {
       const user = getUser();
+      if (!user?.userId) {
+        const msg = "You must be logged in to save a listing draft.";
+        setStepError(msg);
+        return { ok: false, message: msg };
+      }
       if (listingId) {
         const imageUrls = [...new Set([...formData.uploadedUrls, ...formData.auctionTermsUrls])].filter(Boolean);
         const res = await callTool("listing.update_listing", {
@@ -1677,15 +1685,16 @@ export default function CreateListingPage() {
           ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
         });
         if (!res.success) {
-          setStepError(res.error?.message ?? "Failed to save draft");
-          return null;
+          const msg = res.error?.message ?? "Failed to save draft";
+          setStepError(msg);
+          return { ok: false, message: msg };
         }
-        return listingId;
+        return { ok: true, listingId };
       }
       const res = await callTool("listing.create_listing", {
-        seller_id: user?.userId,
+        seller_id: user.userId,
         title: formData.title,
-        description: formData.description,
+        description: formData.description ?? "",
         category: formData.category,
         material_type: formData.materialType,
         quality_grade: formData.qualityGrade,
@@ -1699,15 +1708,23 @@ export default function CreateListingPage() {
         status: "draft",
       });
       if (!res.success) {
-        setStepError(res.error?.message ?? "Failed to save draft");
-        return null;
+        const msg = res.error?.message ?? "Failed to save draft";
+        setStepError(msg);
+        return { ok: false, message: msg };
       }
       const id = extractId(res, "listing_id");
-      if (id) setListingId(id);
-      return id || null;
+      if (!id) {
+        const msg =
+          "The server saved the draft but did not return a listing id. Check the gateway/MCP response shape or try again.";
+        setStepError(msg);
+        return { ok: false, message: msg };
+      }
+      setListingId(id);
+      return { ok: true, listingId: id };
     } catch (e) {
-      setStepError(e instanceof Error ? e.message : "Failed to save draft");
-      return null;
+      const msg = e instanceof Error ? e.message : "Failed to save draft";
+      setStepError(msg);
+      return { ok: false, message: msg };
     } finally {
       setSaving(false);
     }
@@ -1726,11 +1743,8 @@ export default function CreateListingPage() {
       return;
     }
     if (currentStep === 1 && !listingId) {
-      const id = await handleSaveDraft();
-      if (!id) {
-        setStepError("Save your draft before continuing (check errors above).");
-        return;
-      }
+      const draft = await handleSaveDraft();
+      if (!draft.ok) return;
     }
     setCurrentStep((s) => Math.min(s + 1, 6));
   };
@@ -1746,10 +1760,15 @@ export default function CreateListingPage() {
     try {
       let publishListingId = listingId;
       if (!publishListingId) {
-        publishListingId = (await handleSaveDraft()) ?? "";
+        const draft = await handleSaveDraft();
+        if (!draft.ok) {
+          setPublishError(draft.message);
+          return;
+        }
+        publishListingId = draft.listingId;
       }
       if (!publishListingId) {
-        setPublishError("Could not save listing draft. Fix errors and try again.");
+        setPublishError("Could not save listing draft. Try again.");
         return;
       }
       if (publishListingId !== listingId) {

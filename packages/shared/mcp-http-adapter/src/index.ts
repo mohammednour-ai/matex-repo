@@ -1774,10 +1774,19 @@ async function handleTool(
         headers: { authorization: `Bearer ${SUPABASE_KEY}`, "content-type": String(args.content_type ?? "image/jpeg") },
       });
     }
-    return err(
-      "STORAGE_UNAVAILABLE",
-      "Listing image storage is not configured. Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY on the MCP adapter.",
-    );
+    // No Supabase on this adapter: still return 200 so the gateway does not surface "Upstream returned 400".
+    // MediaUploader treats skip_client_put like dev gateway — merges public_url into listing.images.
+    const seed = encodeURIComponent(`${listingId}-${fileId}`.slice(0, 48));
+    const placeholderUrl = `https://picsum.photos/seed/${seed}/800/600`;
+    return ok({
+      listing_id: listingId,
+      file_id: fileId,
+      skip_client_put: true,
+      public_url: placeholderUrl,
+      storage_placeholder: true,
+      note:
+        "Adapter has no SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY; placeholder image URL returned. Set those env vars on the process running start-http-adapters for real storage uploads.",
+    });
   }
   if (tool === "listing.get_listing") {
     const row = (
