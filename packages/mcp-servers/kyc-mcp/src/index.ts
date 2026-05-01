@@ -48,6 +48,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "review_verification", description: "Review and set KYC status", inputSchema: { type: "object", properties: { verification_id: { type: "string" }, status: { type: "string" }, reviewer_id: { type: "string" }, reviewer_notes: { type: "string" } }, required: ["verification_id", "status"] } },
     { name: "get_kyc_level", description: "Get current KYC level by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "assert_kyc_gate", description: "Assert user meets required KYC level", inputSchema: { type: "object", properties: { user_id: { type: "string" }, required_level: { type: "string" }, context: { type: "string" } }, required: ["user_id", "required_level"] } },
+    { name: "check_kyc_expiry", description: "Find users whose KYC review is overdue and downgrade/flag them", inputSchema: { type: "object", properties: { limit: { type: "number" } } } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -173,6 +174,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return fail("KYC_GATE_BLOCKED", `Required ${requiredLevel}, current ${currentLevel} for context '${String(args.context ?? "unknown")}'.`);
     }
     return { content: [{ type: "text", text: ok({ user_id: userId, current_level: currentLevel, required_level: requiredLevel, allowed: true }) }] };
+  }
+
+  if (tool === "check_kyc_expiry") {
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const now_ = now();
+    const { data: expiredRows, error: expiredError } = await supabase
+      .schema("kyc_mcp")
+      .from("kyc_levels")
+      .select("user_id,current_level,next_review_at")
+      .lt("next_review_at", now_)
+      .limit(limit);
+    if (expiredError) return fail("DB_ERROR", expiredError.message);
+    const rows = expiredRows ?? [];
+    const flagged: string[] = [];
+    for (const row of rows) {
+      const userId = String(row.user_id);
+      const { error: updateError } = await supabase
+        .schema("kyc_mcp")
+        .from("kyc_levels")
+        .update({ kyc_status: "review_required", updated_at: now_ })
+        .eq("user_id", userId);
+      if (!updateError) {
+        flagged.push(userId);
+        await emitEvent("kyc.expiry.flagged", { user_id: userId, current_level: row.current_level, next_review_at: row.next_review_at });
+      }
+    }
+    return { content: [{ type: "text", text: ok({ flagged_count: flagged.length, flagged_user_ids: flagged }) }] };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };

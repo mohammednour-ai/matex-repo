@@ -137,13 +137,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // Deliver via external APIs after DB commit. Fetch user contact info if needed.
     if (channels.includes("email") || channels.includes("sms")) {
-      const userResult = await supabase.schema("auth_mcp").from("users").select("email,phone").eq("user_id", userId).maybeSingle();
+      const userResult = await supabase.schema("auth_mcp").from("users").select("email,phone,email_verified,phone_verified").eq("user_id", userId).maybeSingle();
       const userEmail = String(userResult.data?.email ?? "");
       const userPhone = String(userResult.data?.phone ?? "");
-      if (channels.includes("email") && userEmail) {
+      const emailVerified = Boolean(userResult.data?.email_verified ?? false);
+      const phoneVerified = Boolean(userResult.data?.phone_verified ?? false);
+      if (channels.includes("email") && userEmail && emailVerified) {
         await deliverEmail(userEmail, title, body);
       }
-      if (channels.includes("sms") && userPhone) {
+      if (channels.includes("sms") && userPhone && phoneVerified) {
         await deliverSms(userPhone, `${title}: ${body}`);
       }
     }

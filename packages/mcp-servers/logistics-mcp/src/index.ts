@@ -155,6 +155,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (shipmentResult.error) return fail("DB_ERROR", shipmentResult.error.message);
     if (!shipmentResult.data) return fail("NOT_FOUND", "Shipment not found.");
 
+    const shipmentStatus = String((shipmentResult.data as Record<string, unknown>).status ?? "");
+    if (shipmentStatus !== "booked" && shipmentStatus !== "in_transit") {
+      return fail("INVALID_STATE", `BOL can only be generated for shipments in 'booked' or 'in_transit' status. Current: ${shipmentStatus}.`);
+    }
+
     const bolNumber = `BOL-${new Date().getFullYear()}-${shipmentId.substring(0, 8).toUpperCase()}`;
     const updateResult = await supabase.schema("logistics_mcp").from("shipments").update({ bol_number: bolNumber, updated_at: now() }).eq("shipment_id", shipmentId);
     if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);

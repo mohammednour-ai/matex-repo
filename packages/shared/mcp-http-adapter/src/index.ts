@@ -73,7 +73,12 @@ async function twilioSendSms(to: string, body: string): Promise<boolean> {
   return response.ok;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("[mcp-http-adapter] FATAL: JWT_SECRET env var is required. Set it before starting.");
+  process.exit(1);
+}
+const JWT_SECRET_VALUE: string = JWT_SECRET;
 const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
 const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
 
@@ -96,7 +101,7 @@ const ACCESS_TOKEN_TTL_SEC = parseExpirySeconds(JWT_ACCESS_TOKEN_EXPIRY, 900);
 const REFRESH_TOKEN_TTL_SEC = parseExpirySeconds(JWT_REFRESH_TOKEN_EXPIRY, 604800);
 
 function signJwt(payload: Record<string, string | number>, expiresInSec: number): string {
-  return jwt.sign(payload, JWT_SECRET as jwt.Secret, { expiresIn: expiresInSec });
+  return jwt.sign(payload, JWT_SECRET_VALUE as jwt.Secret, { expiresIn: expiresInSec });
 }
 
 const { Pool } = pg;

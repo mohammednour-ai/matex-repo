@@ -122,8 +122,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .order("captured_at", { ascending: false })
         .limit(30);
 
-      const priceValues = (prices ?? []).map((p: Record<string, unknown>) => Number(p.price ?? 0)).filter((v: number) => v > 0);
-      const avgPrice = priceValues.length > 0 ? roundToTwoDecimals(priceValues.reduce((a: number, b: number) => a + b, 0) / priceValues.length) : 0;
+      const priceValues = (prices ?? []).map((p: Record<string, unknown>) => Number(p.price ?? 0)).filter((v: number) => v > 0).sort((a, b) => a - b);
+      // Use P50 (median) rather than mean to reduce sensitivity to outliers.
+      const p50Price = priceValues.length > 0
+        ? roundToTwoDecimals(
+            priceValues.length % 2 === 0
+              ? (priceValues[priceValues.length / 2 - 1]! + priceValues[priceValues.length / 2]!) / 2
+              : priceValues[Math.floor(priceValues.length / 2)]!
+          )
+        : 0;
 
       const mpiId = generateId();
       const calculatedAt = now();
@@ -131,15 +138,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         mpi_id: mpiId,
         category,
         region,
-        index_value: avgPrice,
+        index_value: p50Price,
         sample_size: priceValues.length,
         calculated_at: calculatedAt,
         created_at: calculatedAt,
       });
       if (error) return fail("DB_ERROR", error.message);
 
-      await emitEvent("pricing.mpi.calculated", { mpi_id: mpiId, category, region, index_value: avgPrice });
-      return { content: [{ type: "text", text: ok({ mpi_id: mpiId, category, region, index_value: avgPrice, sample_size: priceValues.length }) }] };
+      await emitEvent("pricing.mpi.calculated", { mpi_id: mpiId, category, region, index_value: p50Price });
+      return { content: [{ type: "text", text: ok({ mpi_id: mpiId, category, region, index_value: p50Price, sample_size: priceValues.length }) }] };
     }
 
     return { content: [{ type: "text", text: ok({ mpi_id: generateId(), category, region, index_value: 0, sample_size: 0 }) }] };
@@ -201,19 +208,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("alert_id,user_id,material,threshold_price,direction")
         .eq("is_active", true);
 
-      const triggered: Array<Record<string, unknown>> = [];
-      for (const alert of alerts ?? []) {
-        const { data: latestPrice } = await supabase
-          .schema("pricing_mcp")
-          .from("market_prices")
-          .select("price")
-          .eq("material", String(alert.material))
-          .order("captured_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const activeAlerts = alerts ?? [];
+      if (activeAlerts.length === 0) {
+        return { content: [{ type: "text", text: ok({ triggered_count: 0, triggered: [] }) }] };
+      }
 
-        if (!latestPrice) continue;
-        const currentPrice = Number(latestPrice.price);
+      // Batch: fetch the latest price for each distinct material in a single query.
+      const uniqueMaterials = [...new Set(activeAlerts.map((a) => String(a.material)))];
+      const { data: latestPrices } = await supabase
+        .schema("pricing_mcp")
+        .from("market_prices")
+        .select("material,price,captured_at")
+        .in("material", uniqueMaterials)
+        .order("captured_at", { ascending: false });
+
+      // Build a map: material → most recent price (first row per material since ordered desc).
+      const priceMap = new Map<string, number>();
+      for (const row of latestPrices ?? []) {
+        const mat = String(row.material);
+        if (!priceMap.has(mat)) priceMap.set(mat, Number(row.price));
+      }
+
+      const triggered: Array<Record<string, unknown>> = [];
+      for (const alert of activeAlerts) {
+        const material = String(alert.material);
+        const currentPrice = priceMap.get(material);
+        if (currentPrice === undefined) continue;
         const threshold = Number(alert.threshold_price);
         const shouldTrigger =
           (alert.direction === "above" && currentPrice >= threshold) ||
@@ -225,8 +245,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             .from("price_alerts")
             .update({ last_triggered_at: now() })
             .eq("alert_id", alert.alert_id);
-          triggered.push({ alert_id: alert.alert_id, user_id: alert.user_id, material: alert.material, current_price: currentPrice, threshold_price: threshold, direction: alert.direction });
-          await emitEvent("pricing.alert.triggered", { alert_id: alert.alert_id, user_id: alert.user_id, material: alert.material, current_price: currentPrice });
+          triggered.push({ alert_id: alert.alert_id, user_id: alert.user_id, material, current_price: currentPrice, threshold_price: threshold, direction: alert.direction });
+          await emitEvent("pricing.alert.triggered", { alert_id: alert.alert_id, user_id: alert.user_id, material, current_price: currentPrice });
         }
       }
 

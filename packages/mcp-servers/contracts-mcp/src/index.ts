@@ -44,6 +44,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "negotiate_terms", description: "Propose changes to contract terms", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, proposed_by: { type: "string" }, proposed_changes: { type: "object" }, message: { type: "string" } }, required: ["contract_id", "proposed_by", "proposed_changes"] } },
     { name: "get_contract", description: "Get contract with orders and negotiations", inputSchema: { type: "object", properties: { contract_id: { type: "string" } }, required: ["contract_id"] } },
     { name: "terminate_contract", description: "Terminate an active contract", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, reason: { type: "string" }, terminated_by: { type: "string" } }, required: ["contract_id", "reason", "terminated_by"] } },
+    { name: "evaluate_breach", description: "Evaluate whether a contract order constitutes a breach and compute penalties", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" } }, required: ["contract_id", "order_id"] } },
+    { name: "collect_penalty", description: "Record and trigger collection of a breach penalty", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" }, penalty_amount: { type: "number" }, reason: { type: "string" } }, required: ["contract_id", "order_id", "penalty_amount", "reason"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -123,6 +125,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const orderQuantity = Number(args.quantity_kg ?? contract.quantity_kg ?? 0);
     const pricePerKg = Number(contract.price_per_kg ?? 0);
     const orderAmount = Number((orderQuantity * pricePerKg).toFixed(2));
+
+    if (args.delivery_date && contract.start_date) {
+      const deliveryDate = new Date(String(args.delivery_date));
+      const startDate = new Date(String(contract.start_date));
+      if (deliveryDate < startDate) {
+        return fail("VALIDATION_ERROR", `delivery_date (${args.delivery_date}) must not be before contract start_date (${contract.start_date}).`);
+      }
+    }
 
     const orderId = generateId();
     const insertResult = await supabase.schema("contracts_mcp").from("contract_orders").insert({
@@ -206,6 +216,70 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     await emitEvent("contracts.contract.terminated", { contract_id: contractId, reason, terminated_by: terminatedBy });
     return { content: [{ type: "text", text: ok({ contract_id: contractId, status: "terminated", reason }) }] };
+  }
+
+  if (tool === "evaluate_breach") {
+    const contractId = String(args.contract_id ?? "");
+    const orderId = String(args.order_id ?? "");
+    if (!contractId || !orderId) return fail("VALIDATION_ERROR", "contract_id and order_id are required.");
+
+    const [contractResult, orderResult] = await Promise.all([
+      supabase.schema("contracts_mcp").from("contracts").select("quantity_kg,price_per_kg,breach_penalties,status").eq("contract_id", contractId).maybeSingle(),
+      supabase.schema("contracts_mcp").from("contract_orders").select("quantity_kg,status,delivery_date").eq("order_id", orderId).eq("contract_id", contractId).maybeSingle(),
+    ]);
+    if (contractResult.error) return fail("DB_ERROR", contractResult.error.message);
+    if (orderResult.error) return fail("DB_ERROR", orderResult.error.message);
+    if (!contractResult.data) return fail("NOT_FOUND", "Contract not found.");
+    if (!orderResult.data) return fail("NOT_FOUND", "Contract order not found.");
+
+    const contract = contractResult.data as Record<string, unknown>;
+    const order = orderResult.data as Record<string, unknown>;
+    const penaltyConfig = (contract.breach_penalties ?? {}) as Record<string, unknown>;
+    const orderQty = Number(order.quantity_kg ?? 0);
+    const contractQty = Number(contract.quantity_kg ?? 0);
+    const pricePerKg = Number(contract.price_per_kg ?? 0);
+
+    const shortfallKg = Math.max(0, contractQty - orderQty);
+    const shortfallPct = contractQty > 0 ? Number(((shortfallKg / contractQty) * 100).toFixed(2)) : 0;
+    const penaltyRate = Number(penaltyConfig.shortfall_rate ?? 0.05);
+    const penaltyAmount = shortfallPct > 0 ? Number((shortfallKg * pricePerKg * penaltyRate).toFixed(2)) : 0;
+    const isLateDelivery = order.delivery_date && order.status !== "completed" && new Date(String(order.delivery_date)) < new Date();
+    const latePenalty = isLateDelivery ? Number(penaltyConfig.late_delivery_fee ?? 0) : 0;
+    const totalPenalty = Number((penaltyAmount + latePenalty).toFixed(2));
+    const isBreach = totalPenalty > 0;
+
+    return {
+      content: [{
+        type: "text",
+        text: ok({ contract_id: contractId, order_id: orderId, is_breach: isBreach, shortfall_kg: shortfallKg, shortfall_pct: shortfallPct, late_delivery: Boolean(isLateDelivery), penalty_amount: penaltyAmount, late_penalty: latePenalty, total_penalty: totalPenalty }),
+      }],
+    };
+  }
+
+  if (tool === "collect_penalty") {
+    const contractId = String(args.contract_id ?? "");
+    const orderId = String(args.order_id ?? "");
+    const penaltyAmount = Number(args.penalty_amount ?? 0);
+    const reason = String(args.reason ?? "");
+    if (!contractId || !orderId) return fail("VALIDATION_ERROR", "contract_id and order_id are required.");
+    if (!Number.isFinite(penaltyAmount) || penaltyAmount <= 0) return fail("VALIDATION_ERROR", "penalty_amount must be greater than 0.");
+    if (!reason) return fail("VALIDATION_ERROR", "reason is required.");
+
+    const penaltyId = generateId();
+    const collectedAt = now();
+    const { error } = await supabase.schema("contracts_mcp").from("contract_orders")
+      .update({ status: "breach_penalty_levied", updated_at: collectedAt })
+      .eq("order_id", orderId)
+      .eq("contract_id", contractId);
+    if (error) return fail("DB_ERROR", error.message);
+
+    await emitEvent("contracts.penalty.collected", { contract_id: contractId, order_id: orderId, penalty_id: penaltyId, amount: penaltyAmount, reason });
+    return {
+      content: [{
+        type: "text",
+        text: ok({ penalty_id: penaltyId, contract_id: contractId, order_id: orderId, amount: penaltyAmount, reason, collected_at: collectedAt }),
+      }],
+    };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };
