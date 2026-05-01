@@ -1198,11 +1198,13 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       const uid = String(args.user_id ?? "");
       if (!uid) return fail("VALIDATION_ERROR", "user_id is required.");
       await dbGrantPlatformAdmin(uid);
+      await publishEvent("admin.role.granted", { user_id: uid, role: "platform_admin", granted_by: userId });
       return ok({ user_id: uid, granted: true });
     }
     if (tool === "admin.revoke_platform_admin") {
       const uid = String(args.user_id ?? "");
       await dbRevokePlatformAdmin(uid);
+      await publishEvent("admin.role.revoked", { user_id: uid, role: "platform_admin", revoked_by: userId });
       return ok({ user_id: uid, revoked: true });
     }
     if (tool === "admin.list_platform_config") {

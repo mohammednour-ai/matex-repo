@@ -90,6 +90,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!eventType || !organizerId || participants.length === 0 || !scheduledStart || !scheduledEnd) {
       return fail("VALIDATION_ERROR", "event_type, organizer_id, participants, scheduled_start, scheduled_end are required.");
     }
+    // Check for overlapping bookings for the organizer.
+    const { data: overlapping, error: overlapError } = await supabase
+      .schema("booking_mcp")
+      .from("bookings")
+      .select("booking_id")
+      .eq("organizer_id", organizerId)
+      .lt("scheduled_start", scheduledEnd)
+      .gt("scheduled_end", scheduledStart)
+      .not("status", "in", '("cancelled","rejected")');
+    if (overlapError) return fail("DB_ERROR", overlapError.message);
+    if (overlapping && overlapping.length > 0) {
+      return fail("BOOKING_CONFLICT", `Organizer already has a booking overlapping ${scheduledStart} – ${scheduledEnd}.`);
+    }
+
     const bookingId = generateId();
     const insertResult = await supabase.schema("booking_mcp").from("bookings").insert({
       booking_id: bookingId,
