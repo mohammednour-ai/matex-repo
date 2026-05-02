@@ -10,9 +10,10 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { now, sha256 } from "@matex/utils";
+import { now, sha256 , initSentry} from "@matex/utils";
 
 const SERVER_NAME = "storage-mcp";
+initSentry(SERVER_NAME);
 const SERVER_VERSION = "0.1.0";
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;

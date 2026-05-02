@@ -14,7 +14,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { AuditLogEntry, LogCategory, LogLevel } from "@matex/types";
-import { generateId, MatexEventBus, now, sanitizeForLog, sha256 } from "@matex/utils";
+import { generateId, MatexEventBus, now, sanitizeForLog, sha256 , initSentry} from "@matex/utils";
 
 type JsonObject = Record<string, unknown>;
 
@@ -34,6 +34,7 @@ interface LogInput {
 }
 
 const SERVER_NAME = "log-mcp";
+initSentry(SERVER_NAME);
 const SERVER_VERSION = "0.1.0";
 const MAX_IN_MEMORY = 5_000;
 

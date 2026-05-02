@@ -21,7 +21,7 @@ import * as jwt from "jsonwebtoken";
 import { randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { AccountType, AuthTokens, User } from "@matex/types";
-import { isValidCanadianPhone, isValidEmail, MatexEventBus, now, sha256 } from "@matex/utils";
+import { isValidCanadianPhone, isValidEmail, MatexEventBus, now, sha256 , initSentry} from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const scryptAsync = promisify(scrypt);
@@ -44,6 +44,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
 }
 
 const SERVER_NAME = "auth-mcp";
+initSentry(SERVER_NAME);
 const SERVER_VERSION = "0.1.0";
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;

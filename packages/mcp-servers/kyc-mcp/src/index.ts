@@ -2,10 +2,11 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { generateId, MatexEventBus, now } from "@matex/utils";
+import { generateId, MatexEventBus, now , initSentry} from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "kyc-mcp";
+initSentry(SERVER_NAME);
 const SERVER_VERSION = "0.1.0";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

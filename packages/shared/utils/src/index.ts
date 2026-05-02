@@ -171,3 +171,4 @@ export * from "./event-bus";
 export { callServer } from "./inter-server";
 export * from "./operational-rules";
 export * from "./cross-border";
+export { initSentry } from "./sentry";

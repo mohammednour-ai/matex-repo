@@ -3,10 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
 import type { Profile } from "@matex/types";
-import { MatexEventBus, now } from "@matex/utils";
+import { MatexEventBus, now , initSentry} from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "profile-mcp";
+initSentry(SERVER_NAME);
 const SERVER_VERSION = "0.1.0";
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;

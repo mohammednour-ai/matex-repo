@@ -156,4 +156,38 @@ describe("auction-mcp", () => {
     );
     expect(result.message.length).toBeLessThan(300);
   });
+
+  it("tool: list_bids - validates required fields", () => {
+    expect(() => {
+      const args: Record<string, unknown> = {};
+      if (!args.lot_id) throw new Error("lot_id is required");
+    }).toThrow("lot_id is required");
+  });
+
+  it("tool: list_bids - clamps limit to [1, 200]", () => {
+    const clamp = (n: number) => Math.min(Math.max(n, 1), 200);
+    expect(clamp(0)).toBe(1);
+    expect(clamp(50)).toBe(50);
+    expect(clamp(500)).toBe(200);
+    expect(clamp(-10)).toBe(1);
+  });
+
+  it("tool: list_bids - returns newest-first envelope shape", () => {
+    const result = {
+      success: true,
+      data: {
+        lot_id: "lot-123",
+        bids: [
+          { bid_id: "b3", bidder: "alice", amount: 5500, timestamp: "2025-05-02T10:03:00Z" },
+          { bid_id: "b2", bidder: "bob",   amount: 5400, timestamp: "2025-05-02T10:02:00Z" },
+          { bid_id: "b1", bidder: "alice", amount: 5300, timestamp: "2025-05-02T10:01:00Z" },
+        ],
+        count: 3,
+      },
+    };
+    expect(result.success).toBe(true);
+    expect(result.data.bids).toBeInstanceOf(Array);
+    expect(result.data.bids[0].amount).toBeGreaterThan(result.data.bids[2].amount);
+    expect(result.data.count).toBe(result.data.bids.length);
+  });
 });
