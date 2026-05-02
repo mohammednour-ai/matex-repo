@@ -20,7 +20,7 @@ import {
   CircleAlert,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { TrendStrip } from "@/components/dashboard/TrendStrip";
 import type {

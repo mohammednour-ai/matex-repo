@@ -15,8 +15,8 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { callTool, getUser, extractId } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/shadcn/badge";
+import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";

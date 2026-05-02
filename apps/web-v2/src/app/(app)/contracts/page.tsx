@@ -15,8 +15,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { callTool, callCopilot, extractId } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/shadcn/badge";
+import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
