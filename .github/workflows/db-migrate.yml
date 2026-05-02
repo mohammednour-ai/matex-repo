@@ -7,18 +7,6 @@ on:
         description: 'Type "apply" to confirm'
         required: true
         default: ''
-      supabase_access_token:
-        description: 'Supabase Access Token (sbp_...)'
-        required: true
-        default: ''
-      supabase_project_ref:
-        description: 'Supabase Project Ref'
-        required: true
-        default: ''
-      supabase_db_password:
-        description: 'Supabase DB Password'
-        required: true
-        default: ''
 
 jobs:
   migrate:
@@ -37,18 +25,18 @@ jobs:
 
       - name: Link project
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ github.event.inputs.supabase_access_token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link \
-            --project-ref "${{ github.event.inputs.supabase_project_ref }}" \
-            --password "${{ github.event.inputs.supabase_db_password }}"
+            --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}" \
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
       - name: Apply migrations
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ github.event.inputs.supabase_access_token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase db push \
-            --password "${{ github.event.inputs.supabase_db_password }}"
+            --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
 
       - name: Confirm
-        run: echo "✅ Migrations applied to project ${{ github.event.inputs.supabase_project_ref }}"
+        run: echo "✅ Migrations applied to project ${{ secrets.SUPABASE_PROJECT_REF }}"

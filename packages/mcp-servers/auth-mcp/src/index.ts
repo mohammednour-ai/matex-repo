@@ -132,6 +132,8 @@ function issueOtp(targetType: "email" | "phone", targetValue: string): { challen
   return {
     challenge_id: challengeId,
     expires_at: expiresAt,
+    // Expose raw code in non-production so dev/test flows can complete OTP without email/SMS.
+    ...(process.env.NODE_ENV !== "production" ? { code: rawCode } : {}),
   };
 }
 
