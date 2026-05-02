@@ -1407,7 +1407,7 @@ function Step6({
   listingId: string;
   onEdit: (step: number) => void;
   onPublish: () => Promise<void>;
-  onSaveDraft: () => Promise<string | null>;
+  onSaveDraft: () => Promise<SaveDraftResult>;
   publishing: boolean;
   saving: boolean;
   publishError: string;
@@ -1762,7 +1762,7 @@ export default function CreateListingPage() {
       if (!publishListingId) {
         const draft = await handleSaveDraft();
         if (!draft.ok) {
-          setPublishError(draft.message);
+          setPublishError((draft as { ok: false; message: string }).message);
           return;
         }
         publishListingId = draft.listingId;
