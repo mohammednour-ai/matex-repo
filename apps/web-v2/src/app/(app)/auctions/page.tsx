@@ -7,7 +7,7 @@ import { callTool } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";

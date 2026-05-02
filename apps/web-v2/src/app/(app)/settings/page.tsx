@@ -13,9 +13,9 @@ import {
 import clsx from "clsx";
 import { callTool } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ─── Tab definitions ────────────────────────────────────────────────────────

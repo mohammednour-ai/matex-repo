@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, X, FileVideo } from "lucide-react";
 import clsx from "clsx";
-import { Spinner } from "./Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { callTool } from "@/lib/api";
 
 type UploadedFile = {

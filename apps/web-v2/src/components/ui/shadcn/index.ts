@@ -23,4 +23,6 @@ export {
   DialogDescription,
 } from "./dialog";
 
+export { Modal } from "./modal";
+
 export { Toaster } from "./sonner";

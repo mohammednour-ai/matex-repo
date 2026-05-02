@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/shadcn/button";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { Badge } from "@/components/ui/shadcn/badge";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
 import { callTool, getUser } from "@/lib/api";
 import { isFlagEnabled } from "@/lib/flags";

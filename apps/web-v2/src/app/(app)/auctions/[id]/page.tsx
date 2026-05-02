@@ -18,7 +18,7 @@ import {
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 

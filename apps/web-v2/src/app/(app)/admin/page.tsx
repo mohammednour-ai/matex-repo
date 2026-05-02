@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { callTool, getUser, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";

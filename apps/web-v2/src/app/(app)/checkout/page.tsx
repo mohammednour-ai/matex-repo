@@ -15,7 +15,7 @@ import {
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import Image from "next/image";
