@@ -149,14 +149,17 @@ jobs:
       - name: Set web gateway URL
         run: |
           # NEXT_PUBLIC_GATEWAY_URL will be the Railway public domain of matex-backend
-          # Update this after the backend service generates its Railway domain
+          # Update this after the backend service generates its Railway domain.
+          # We deliberately DO NOT set PORT — Railway injects its own PORT at
+          # runtime and routes public HTTPS traffic to it. Forcing PORT=3002
+          # causes Railway's probe and our Next process to disagree, which
+          # surfaces as "deployment completed but not online".
           railway variables set \
             --project-id "${{ inputs.railway_project_id }}" \
             --environment-id "${{ inputs.railway_env_id }}" \
             --service-id "${{ inputs.service_id_web }}" \
             MCP_GATEWAY_URL="${{ secrets.RAILWAY_BACKEND_URL }}" \
             NEXT_PUBLIC_GATEWAY_URL="${{ secrets.RAILWAY_BACKEND_URL }}" \
-            NODE_ENV="production" \
-            PORT="3002"
+            NODE_ENV="production"
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

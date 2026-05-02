@@ -1,0 +1,25 @@
+# Railway config for the matex-backend service (MCP Gateway + HTTP adapters).
+# The web service's config lives at apps/web-v2/railway.toml.
+
+[build]
+watchPatterns = [
+  "apps/mcp-gateway/**",
+  "packages/**",
+  "scripts/start-http-adapters.ts",
+  "Dockerfile",
+  "docker-start.sh",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+]
+
+# Gateway listens on PORT (injected by Railway) and exposes GET /health.
+# Without an explicit healthcheckPath Railway probes `/`, which the gateway
+# does not route — this is what surfaces as "deployment completed but not
+# online" on a fresh Railway project.
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -89,6 +89,19 @@ After `matex-backend` deploys and Railway generates its public URL (like `https:
 
 ---
 
+## Step 6 — Generate public domains (mandatory)
+
+Railway does **not** auto-create a public domain. Until you do this, deploys will show "Completed" in the Railway UI but the service is unreachable from the internet — which is exactly the "deployment completed but not online" symptom.
+
+For **each** of `matex-backend` and `matex-web`:
+
+1. Open the service in the Railway UI.
+2. **Settings → Networking → Public Networking → Generate Domain.**
+3. Copy the generated `https://*.up.railway.app` URL.
+4. For `matex-backend`: add it as the GitHub secret `RAILWAY_BACKEND_URL` and re-run the **Railway — Configure Environment Variables** workflow so the web service picks it up as `MCP_GATEWAY_URL` / `NEXT_PUBLIC_GATEWAY_URL`.
+
+---
+
 ## Checklist
 
 - [ ] Railway project created with 2 services
@@ -97,5 +110,28 @@ After `matex-backend` deploys and Railway generates its public URL (like `https:
 - [ ] DB schema applied (Actions → Database — Apply Migrations)
 - [ ] Railway env vars set (Actions → Railway — Configure Environment Variables)
 - [ ] Supabase service role key obtained and set
+- [ ] **Public domains generated for both services** (Step 6)
 - [ ] `matex-web` GATEWAY_URL updated with backend Railway URL
 - [ ] Stripe/SendGrid/Twilio keys added when ready
+
+---
+
+## Troubleshooting — "Deployment completed but not online"
+
+This is a real failure mode, not a UI quirk. Walk down the list in order:
+
+1. **Domain not generated.** See Step 6 above. The Railway UI says "Completed" once the build finishes; without a generated public domain there is no externally reachable URL.
+2. **Healthcheck failing.** Both services have explicit healthcheck endpoints:
+   - Backend: `GET /health` (defined in `apps/mcp-gateway/src/index.ts`)
+   - Web: `GET /api/health` (defined in `apps/web-v2/src/app/api/health/route.ts`)
+
+   The healthcheck path is set in each service's `railway.toml`. Tail the deploy logs in the Railway UI; if you see repeated `Healthcheck failed` lines, the container is running but the probe can't reach the endpoint — usually a `PORT` mismatch.
+3. **`PORT` mismatch.** Do **not** set `PORT` manually in Railway env vars for either service. Railway injects its own `PORT` at runtime; the apps listen on `0.0.0.0:$PORT`. If you set `PORT=3002` in the Railway dashboard, Railway routes public traffic to a different port and the probe times out. (Fixed in `.github/workflows/railway-setup.yml` — make sure the workflow has been re-run since this fix.)
+4. **Crash loop.** "Completed" only describes the build, not the runtime. Tail logs; if the container is restarting, check `restartPolicyMaxRetries` (set to 3 in our `railway.toml`) and the failing line.
+5. **Outbound DB unreachable.** If the gateway boots fine but `/health` returns DB `not_configured`, check `DATABASE_URL` — the URL-encoded password matters (`@` → `%40`). The example in this doc already shows the encoded form.
+6. **Wrong root directory in Railway service settings.** Both services build from the **monorepo root** (`/`), with the Dockerfile path differing per service:
+   - `matex-backend`: `Dockerfile`
+   - `matex-web`: `apps/web-v2/Dockerfile`
+   If the Root Directory was set to `apps/web-v2`, the workspace lockfile won't be found and the build will silently fall back to a different image — sometimes producing a "completed" status but a non-listening container.
+
+If all of the above check out, redeploy the service (Deployments → ⋯ → Redeploy) and re-test `https://<service-domain>/api/health` (web) or `/health` (backend). Both should return `200` with a small JSON payload.
