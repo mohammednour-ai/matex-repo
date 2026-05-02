@@ -47,16 +47,23 @@ export function useBidStream({
     let cancelled = false;
 
     async function tick() {
-      // Bid history poll (forward-compatible — silently ignores unknown tool)
+      // Bid history poll. The auction-mcp tool returns `{ lot_id, bids: [...], count }`;
+      // the gateway may also return `data` as a bare array if a different upstream
+      // ever serves this. Accept either shape.
       const bidsRes = await callTool("auction.list_bids", { lot_id: lotId, limit: 50 });
-      if (!cancelled && bidsRes.success && Array.isArray(bidsRes.data)) {
-        const entries: BidStreamEntry[] = (bidsRes.data as Array<Record<string, unknown>>)
-          .map((row, i) => ({
-            bid_id: String(row.bid_id ?? `srv-${i}`),
-            bidder: String(row.bidder ?? row.bidder_id ?? "Anonymous"),
-            amount: Number(row.amount ?? 0),
-            timestamp: String(row.timestamp ?? row.created_at ?? new Date().toISOString()),
-          }));
+      if (!cancelled && bidsRes.success && bidsRes.data) {
+        const raw = bidsRes.data as Record<string, unknown> | Array<Record<string, unknown>>;
+        const rows: Array<Record<string, unknown>> = Array.isArray(raw)
+          ? raw
+          : Array.isArray((raw as { bids?: unknown }).bids)
+            ? ((raw as { bids: Array<Record<string, unknown>> }).bids)
+            : [];
+        const entries: BidStreamEntry[] = rows.map((row, i) => ({
+          bid_id: String(row.bid_id ?? `srv-${i}`),
+          bidder: String(row.bidder ?? row.bidder_id ?? "Anonymous"),
+          amount: Number(row.amount ?? 0),
+          timestamp: String(row.timestamp ?? row.created_at ?? new Date().toISOString()),
+        }));
         if (entries.length > 0) onBidsRef.current(entries);
       }
 

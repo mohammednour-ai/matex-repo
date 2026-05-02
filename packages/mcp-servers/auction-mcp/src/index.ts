@@ -47,6 +47,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "get_lot_state", description: "Get lot state", inputSchema: { type: "object", properties: { lot_id: { type: "string" } }, required: ["lot_id"] } },
     { name: "list_auctions", description: "List auctions filtered by status. Returns auction summary records.", inputSchema: { type: "object", properties: { status: { type: "string", enum: ["scheduled", "live", "completed", "cancelled"] }, limit: { type: "number" } } } },
     { name: "get_auction", description: "Get one auction with its lots", inputSchema: { type: "object", properties: { auction_id: { type: "string" } }, required: ["auction_id"] } },
+    { name: "list_bids", description: "List bids for a lot (newest-first). Powers the live bid feed in the auction console.", inputSchema: { type: "object", properties: { lot_id: { type: "string" }, limit: { type: "number" } }, required: ["lot_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -296,6 +297,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
+  }
+
+  if (tool === "list_bids") {
+    const lotId = String(args.lot_id ?? "");
+    const limit = Math.min(Math.max(Number(args.limit ?? 50), 1), 200);
+    if (!lotId) return fail("VALIDATION_ERROR", "lot_id is required.");
+
+    // Bids are keyed by listing_id in the bidding_mcp schema, not by lot_id.
+    // Look up the lot's listing first, then page the bid history.
+    const lotResult = await supabase
+      .schema("auction_mcp")
+      .from("lots")
+      .select("listing_id")
+      .eq("lot_id", lotId)
+      .maybeSingle();
+    if (lotResult.error) return fail("DB_ERROR", "Database operation failed");
+    if (!lotResult.data) return fail("NOT_FOUND", "lot not found");
+
+    const bidsResult = await supabase
+      .schema("bidding_mcp")
+      .from("bids")
+      .select("bid_id, bidder_id, amount, server_timestamp")
+      .eq("listing_id", lotResult.data.listing_id)
+      .order("server_timestamp", { ascending: false })
+      .limit(limit);
+    if (bidsResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    const rows = (bidsResult.data ?? []).map((b) => ({
+      bid_id: String(b.bid_id),
+      bidder: String(b.bidder_id),
+      amount: Number(b.amount),
+      timestamp: String(b.server_timestamp),
+    }));
+
+    return { content: [{ type: "text", text: ok({ lot_id: lotId, bids: rows, count: rows.length }) }] };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };
