@@ -1617,7 +1617,7 @@ async function handleTool(
     const refreshRaw = String(args.refresh_token ?? "");
     if (!refreshRaw) return err("VALIDATION_ERROR", "refresh_token is required.");
     try {
-      const decoded = jwt.verify(refreshRaw, JWT_SECRET) as { sub: string; scope?: string };
+      const decoded = jwt.verify(refreshRaw, JWT_SECRET_VALUE) as { sub: string; scope?: string };
       if (decoded.scope !== "refresh") return err("AUTH_ERROR", "Invalid refresh token scope.");
       const userId = String(decoded.sub);
       const row = (await pool.query(`select email from auth_mcp.users where user_id = $1 limit 1`, [userId])).rows[0];
