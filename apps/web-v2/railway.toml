@@ -1,5 +1,12 @@
 # Include shared monorepo paths so changes outside apps/web-v2 still trigger deploys.
+#
+# Without an explicit `builder` Railway falls back to Nixpacks, which guesses a
+# pnpm workspace filter that doesn't match `@matex/web-v2` and fails the deploy
+# with `No projects matched the filters in /app` (Next.js never starts).
+# Pinning the builder forces Railway to use apps/web-v2/Dockerfile.
 [build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 watchPatterns = [
   "apps/web-v2/**",
   "packages/**",
