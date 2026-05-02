@@ -1,12 +1,21 @@
-# Include shared monorepo paths so changes outside apps/web-v2 still trigger deploys.
+# Railway service config for `matex-web`.
 #
-# Without an explicit `builder` Railway falls back to Nixpacks, which guesses a
+# REQUIRED dashboard settings for this file to take effect (Railway services
+# default Config-as-Code Path to `/railway.toml`, which belongs to the gateway):
+#   matex-web → Settings → Config-as-Code File: apps/web-v2/railway.toml
+#   matex-web → Settings → Source → Root Directory: <empty>  (i.e. monorepo root)
+#
+# Root Directory MUST be the monorepo root because apps/web-v2/Dockerfile copies
+# pnpm-workspace.yaml + packages/shared/* from the parent. Scoping the build
+# context to apps/web-v2/ would make the Docker build fail at COPY.
+#
+# Without an explicit builder Railway falls back to Nixpacks, which guesses a
 # pnpm workspace filter that doesn't match `@matex/web-v2` and fails the deploy
 # with `No projects matched the filters in /app` (Next.js never starts).
-# Pinning the builder forces Railway to use apps/web-v2/Dockerfile.
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+# Path is relative to the Root Directory (monorepo root), NOT to this toml file.
+dockerfilePath = "apps/web-v2/Dockerfile"
 watchPatterns = [
   "apps/web-v2/**",
   "packages/**",
