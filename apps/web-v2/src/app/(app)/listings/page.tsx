@@ -23,6 +23,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
 import { callTool, getUser } from "@/lib/api";
+import { isFlagEnabled } from "@/lib/flags";
+import { ListingsTable } from "@/components/listings/ListingsTable";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -429,7 +431,11 @@ const TABS: { id: Tab; label: string }[] = [
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type ViewMode = "cards" | "table";
+
 export default function MyListingsPage() {
+  const tableViewEnabled = isFlagEnabled("listings_table_view");
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [listings, setListings] = useState<ListingCard[]>([]);
@@ -566,19 +572,51 @@ export default function MyListingsPage() {
           onCreate={() => router.push("/listings/create")}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredListings.map((listing) => (
-            <div
-              key={listing.listing_id}
-              className={clsx(archiving === listing.listing_id && "opacity-50 pointer-events-none")}
-            >
-              <ListingCardItem
-                listing={listing}
-                onArchive={handleArchive}
-              />
+        <>
+          {tableViewEnabled && (
+            <div className="mb-3 flex justify-end">
+              <div className="inline-flex rounded-lg border border-steel-200 bg-white p-0.5 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  className={clsx(
+                    "rounded-md px-3 py-1.5 transition-colors",
+                    viewMode === "cards" ? "bg-brand-50 text-brand-700" : "text-steel-500 hover:text-steel-800",
+                  )}
+                >
+                  Cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  className={clsx(
+                    "rounded-md px-3 py-1.5 transition-colors",
+                    viewMode === "table" ? "bg-brand-50 text-brand-700" : "text-steel-500 hover:text-steel-800",
+                  )}
+                >
+                  Table
+                </button>
+              </div>
             </div>
-          ))}
-        </div>
+          )}
+          {tableViewEnabled && viewMode === "table" ? (
+            <ListingsTable rows={filteredListings} />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredListings.map((listing) => (
+                <div
+                  key={listing.listing_id}
+                  className={clsx(archiving === listing.listing_id && "opacity-50 pointer-events-none")}
+                >
+                  <ListingCardItem
+                    listing={listing}
+                    onArchive={handleArchive}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Loading spinner for archiving */}

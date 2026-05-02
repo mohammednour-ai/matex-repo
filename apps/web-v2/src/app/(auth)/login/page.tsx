@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Eye, Loader2, EyeOff, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
+import { identify, track } from "@/lib/analytics";
 
 // ── types ──────────────────────────────────────────────────────────────
 type Tab = "login" | "register";
@@ -212,6 +213,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         "matex_user",
         JSON.stringify({ userId, email, accountType, isPlatformAdmin }),
       );
+      identify(userId, { account_type: accountType, is_platform_admin: isPlatformAdmin });
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
@@ -507,6 +509,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       });
       const userObj = regData.user as Record<string, unknown> | undefined;
       const newUserId = String(regData.user_id ?? userObj?.user_id ?? userObj?.id ?? "");
+      track("signup_completed", { account_type: accountType });
       setUserId(newUserId);
       setProfileSection(0);
       setStep("profile");
@@ -544,6 +547,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     setLoading(true);
     try {
       await callMcp("auth.verify_email", { email, code: otpCode, user_id: userId });
+      track("email_verified");
 
       const loginData = await callMcp("auth.login", { email, password });
       const loginToken =

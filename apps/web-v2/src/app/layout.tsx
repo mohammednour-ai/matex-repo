@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/system/ToastProvider";
+import { PostHogProvider } from "@/components/system/PostHogProvider";
 
 // The app is entirely auth-gated / data-driven; skip static prerender so that
 // Next doesn't evaluate client-only code paths at build time (which was
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body>
         {children}
         <ToastProvider />
+        <PostHogProvider />
       </body>
     </html>
   );

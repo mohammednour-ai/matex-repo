@@ -33,6 +33,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { ConfidenceStack } from "@/components/listings/ConfidenceStack";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1236,6 +1237,15 @@ export default function ListingDetailPage() {
 
         {/* ======== RIGHT COLUMN (1/3) ======== */}
         <div className="w-full lg:w-80 flex-shrink-0 space-y-4 lg:sticky lg:top-24">
+
+          {/* Trust signals — first thing a buyer sees in the side rail. */}
+          <ConfidenceStack
+            sellerKycLevel={listing.seller_kyc_level}
+            photosCount={(listing.photos ?? []).length}
+            certifications={listing.certifications ?? []}
+            inspectionRequired={listing.inspection_required}
+            lmeReferenceCadPerMt={null}
+          />
 
           {/* Seller card */}
           <SellerCard

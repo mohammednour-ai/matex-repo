@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { MediaUploader } from "@/components/ui/MediaUploader";
 import { callTool, getUser, extractId } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { ListingCreateOverview } from "@/components/listings/ListingCreateOverview";
 
@@ -1799,6 +1800,7 @@ export default function CreateListingPage() {
         publish_mode: formData.publishMode,
         scheduled_at: formData.scheduledAt || undefined,
       });
+      track("listing_created", { sale_mode: formData.saleMode, listing_id: publishListingId });
       setShowSuccess(true);
     } catch (e) {
       setPublishError(e instanceof Error ? e.message : "Failed to publish listing");

@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { getFreighteraQuote, type FreighteraQuoteRequest } from "./freightera.js";
 
 const SERVER_NAME = "carriers-bridge";
 const SERVER_VERSION = "0.1.0";
@@ -47,8 +48,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       tdg_certified: true,
     }));
 
+    // Freightera adapter — additive. Stub today; real Shipper API once granted.
+    try {
+      const origin = (args.origin ?? {}) as Record<string, unknown>;
+      const destination = (args.destination ?? {}) as Record<string, unknown>;
+      const freighteraReq: FreighteraQuoteRequest = {
+        origin: {
+          province: String(origin.province ?? ""),
+          postal_code: String(origin.postal_code ?? ""),
+          country: (String(origin.country ?? "CA").toUpperCase() === "US" ? "US" : "CA") as "CA" | "US",
+        },
+        destination: {
+          province: String(destination.province ?? ""),
+          postal_code: String(destination.postal_code ?? ""),
+          country: (String(destination.country ?? "CA").toUpperCase() === "US" ? "US" : "CA") as "CA" | "US",
+        },
+        weight_kg: weightKg,
+        hazmat_class: typeof args.hazmat_class === "string" ? args.hazmat_class : undefined,
+        flatbed: Boolean((args as { flatbed?: boolean }).flatbed),
+      };
+      const freightera = await getFreighteraQuote(freighteraReq);
+      quotes.push(freightera);
+    } catch {
+      // Freightera failure must not break the rest of the quote board.
+    }
+
     return {
-      content: [{ type: "text", text: JSON.stringify({ success: true, quotes, carrier_count: CARRIERS.length }) }],
+      content: [{ type: "text", text: JSON.stringify({ success: true, quotes, carrier_count: quotes.length }) }],
     };
   }
 

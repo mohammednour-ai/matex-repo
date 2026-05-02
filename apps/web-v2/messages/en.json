@@ -1,0 +1,74 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "retry": "Try again",
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "listings": "Listings",
+    "search": "Search",
+    "auctions": "Auctions",
+    "messages": "Messages",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Overview",
+    "verification_alert": {
+      "title": "Complete verification",
+      "body": "Higher KYC levels unlock larger trades and faster payouts.",
+      "cta": "Continue in Settings"
+    },
+    "quick_actions": {
+      "create_listing": "Create listing",
+      "search_materials": "Search materials",
+      "live_auctions": "Live auctions",
+      "check_escrow": "Check escrow",
+      "logistics": "Logistics",
+      "ai_copilot": "AI Copilot"
+    }
+  },
+  "listings": {
+    "title": "My Listings",
+    "subtitle": "Manage and track your materials on the marketplace",
+    "create": "Create listing",
+    "tabs": {
+      "all": "All",
+      "active": "Active",
+      "draft": "Draft",
+      "sold": "Sold",
+      "ended": "Ended"
+    },
+    "view": {
+      "cards": "Cards",
+      "table": "Table"
+    },
+    "empty": {
+      "title": "No listings yet",
+      "body": "Create your first listing to start selling on the marketplace."
+    }
+  },
+  "auctions": {
+    "title": "Auctions",
+    "tabs": {
+      "live": "Live",
+      "upcoming": "Upcoming",
+      "completed": "Completed"
+    },
+    "empty": {
+      "live": "No live auctions",
+      "upcoming": "No upcoming auctions",
+      "completed": "No completed auctions"
+    },
+    "errors": {
+      "load_failed": "Could not load auctions."
+    }
+  },
+  "errors": {
+    "generic": "The service is temporarily unavailable. Please try again."
+  }
+}

@@ -22,6 +22,7 @@ import {
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { TrendStrip } from "@/components/dashboard/TrendStrip";
 import type {
   DashboardBooking,
   DashboardNotification,
@@ -479,6 +480,17 @@ export default function DashboardPage() {
           </Link>
         </div>
       )}
+
+      <TrendStrip
+        activeListings={stats?.active_listings ?? null}
+        listingsChangePct={
+          stats?.listings_change_pct != null && !Number.isNaN(stats.listings_change_pct)
+            ? stats.listings_change_pct
+            : null
+        }
+        escrowHeldCad={stats?.escrow_held ?? null}
+        loading={!stats}
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((card) => (
