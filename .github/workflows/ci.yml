@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 env:
   NODE_VERSION: "20"
@@ -88,8 +88,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @matex/web exec playwright install --with-deps chromium
-      - run: pnpm --filter @matex/web test:e2e
+      - run: pnpm --filter @matex/web-v2 exec playwright install --with-deps chromium
+      - run: pnpm --filter @matex/web-v2 test:e2e
 
   deploy-staging:
     name: Deploy to Staging
