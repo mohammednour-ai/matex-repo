@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { callTool } from "@/lib/api";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { Spinner } from "@/components/ui/Spinner";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 import clsx from "clsx";
 
 // ─── Types ───────────────────────────────────────────────────────────────────

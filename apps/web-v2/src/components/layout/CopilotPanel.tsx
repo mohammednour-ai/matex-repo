@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, X, Send, ChevronDown } from "lucide-react";
 import clsx from "clsx";
-import { Badge } from "../ui/Badge";
-import { Spinner } from "../ui/Spinner";
+import { Badge } from "@/components/ui/shadcn/badge";
+import { Spinner } from "@/components/ui/shadcn/spinner";
 
 type Message = {
   id: string;
