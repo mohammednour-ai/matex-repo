@@ -1,30 +1,18 @@
 "use client";
 
 import posthog from "posthog-js";
+import type { AnalyticsEvent } from "@matex/utils";
 
 /**
- * Activation funnel + product analytics events. Names are stable; do not rename
- * without updating the PostHog dashboards.
+ * Browser-side analytics. The canonical event-name registry lives in
+ * `@matex/utils/src/analytics-events.ts`; server-side captures (gateway,
+ * Inngest functions, MCP servers) import the same names so dashboards
+ * stay consistent.
  *
  * North-star metric: GMV through completed escrow releases (event:
  * `escrow_released` with `amount_cents`).
  */
-export type FunnelEvent =
-  | "signup_completed"
-  | "email_verified"
-  | "kyc_started"
-  | "kyc_passed"
-  | "listing_created"
-  | "first_sale_completed"
-  | "escrow_released";
-
-export type AnalyticsEvent =
-  | FunnelEvent
-  | "auction_viewed"
-  | "auction_bid_placed"
-  | "search_performed"
-  | "saved_search_created"
-  | "freight_quote_requested";
+export type { FunnelEvent, EngagementEvent, AnalyticsEvent, AnalyticsTraits } from "@matex/utils";
 
 export function track(event: AnalyticsEvent, properties?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
