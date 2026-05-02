@@ -115,6 +115,11 @@ export default function AuctionRoomPage() {
   const [bidLoading, setBidLoading] = useState(false);
   const [bidError, setBidError] = useState("");
   const [bidSuccess, setBidSuccess] = useState(false);
+  // Proxy bidding (max-bid): the system will keep bidding for the user up to
+  // this ceiling whenever they get outbid. Persisted locally for the session;
+  // forwarded to the backend on each bid as `max_proxy_bid`.
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyMax, setProxyMax] = useState("");
   const [isRegistered, setIsRegistered] = useState(false);
   const [wonLots] = useState<Lot[]>([]);
   const bidStreamRef = useRef<HTMLDivElement>(null);
@@ -176,9 +181,14 @@ export default function AuctionRoomPage() {
     setBidLoading(true);
     setBidError("");
     setBidSuccess(false);
+    const proxyArg =
+      proxyEnabled && proxyMax !== "" && Number(proxyMax) > amount
+        ? { max_proxy_bid: Number(proxyMax) }
+        : {};
     const res = await callTool("auction.place_auction_bid", {
       lot_id: activeLot.lot_id,
       amount,
+      ...proxyArg,
     });
     if (res.success) {
       const newBid: BidEntry = {
@@ -260,9 +270,9 @@ export default function AuctionRoomPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel */}
-        <div className="flex w-2/3 flex-col gap-4 overflow-y-auto border-r border-slate-200 bg-white p-5">
+      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+        {/* Left panel — full width on mobile, 2/3 desktop */}
+        <div className="flex w-full flex-col gap-4 overflow-y-auto border-b border-slate-200 bg-white p-5 lg:w-2/3 lg:border-b-0 lg:border-r">
           {/* Lot header */}
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-slate-700">
@@ -294,6 +304,44 @@ export default function AuctionRoomPage() {
               <CountdownTimer targetDate={lotEnd} className="text-2xl font-bold" />
             </div>
           </div>
+
+          {/* Your-bid status pill (visible once the user has bid). The pill
+              compares the email-prefix the bid stream stamps as the bidder
+              against the latest bid; the gateway should replace this with a
+              server-known user_id match once user identity is in the bid
+              payload. */}
+          {bids.length > 0 && user?.email && (() => {
+            const youKey = user.email.split("@")[0];
+            const youAreHighBidder = bids[0]?.bidder === youKey;
+            const youHaveBid = bids.some((b) => b.bidder === youKey);
+            if (!youHaveBid) return null;
+            return (
+              <div
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${
+                  youAreHighBidder
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-warning-50 text-warning-800"
+                }`}
+              >
+                {youAreHighBidder ? (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    You are the high bidder
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-4 w-4" />
+                    You have been outbid
+                    {proxyEnabled && Number(proxyMax) > activeLot.current_bid && (
+                      <span className="ml-auto text-xs font-medium text-warning-700">
+                        Proxy will rebid up to {formatCAD(Number(proxyMax))}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Bidding controls */}
           {isRegistered ? (
@@ -336,6 +384,36 @@ export default function AuctionRoomPage() {
                   <CheckCircle className="h-4 w-4" /> Bid placed successfully!
                 </div>
               )}
+
+              {/* Proxy bidding (max bid). Forwarded as `max_proxy_bid` on
+                  the next placed bid; the auction MCP keeps re-bidding up to
+                  this ceiling when the user is outbid. */}
+              <details className="rounded-lg border border-slate-200 bg-white p-2 text-xs">
+                <summary className="cursor-pointer select-none text-slate-600 hover:text-slate-900">
+                  <input
+                    type="checkbox"
+                    checked={proxyEnabled}
+                    onChange={(e) => setProxyEnabled(e.target.checked)}
+                    className="mr-2 align-middle"
+                  />
+                  Set a maximum (proxy bid)
+                </summary>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={activeLot.current_bid + 100}
+                    step={100}
+                    placeholder={`Max ${formatCAD(activeLot.current_bid + 1000)}`}
+                    value={proxyMax}
+                    onChange={(e) => setProxyMax(e.target.value)}
+                    disabled={!proxyEnabled}
+                    className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-50 disabled:text-slate-400"
+                  />
+                  <span className="text-[10px] text-slate-500">
+                    Bids automatically up to this ceiling.
+                  </span>
+                </div>
+              </details>
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
@@ -366,11 +444,16 @@ export default function AuctionRoomPage() {
         </div>
 
         {/* Right panel */}
-        <div className="flex w-1/3 flex-col overflow-hidden bg-white">
+        <div className="flex w-full flex-col overflow-hidden bg-white lg:w-1/3">
           {/* Bid stream */}
           <div className="flex-1 overflow-y-auto border-b border-slate-200 p-4">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Live Bid Stream</h3>
             <div ref={bidStreamRef} className="space-y-2">
+              {bids.length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+                  No bids yet. Be the first.
+                </div>
+              )}
               {bids.map((bid, i) => (
                 <div
                   key={bid.bid_id}

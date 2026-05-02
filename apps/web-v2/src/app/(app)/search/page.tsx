@@ -854,7 +854,12 @@ export default function SearchPage() {
           <FilterSidebar {...filterSidebarProps} />
         </div>
 
-        {/* Mobile filter drawer */}
+        {/* Mobile filter drawer.
+            TODO(ux): replace this hand-rolled overlay with the shared
+            <Sheet side="right"> primitive from `@/components/ui/Sheet` for
+            consistency with the rest of the app. Held back here only because
+            the existing implementation is well-tested and the Sheet swap
+            wants its own visual diff review. */}
         {filterOpen && (
           <div className="fixed inset-0 z-50 md:hidden flex">
             <div className="absolute inset-0 bg-black/40" onClick={() => setFilterOpen(false)} />
