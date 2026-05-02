@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool, getUser } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/shadcn/badge";
+import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Modal } from "@/components/ui/Modal";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";

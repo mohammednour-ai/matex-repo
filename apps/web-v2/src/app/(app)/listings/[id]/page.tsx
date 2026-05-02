@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { Modal } from "@/components/ui/Modal";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { ConfidenceStack } from "@/components/listings/ConfidenceStack";

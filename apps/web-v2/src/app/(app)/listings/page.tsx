@@ -17,9 +17,9 @@ import {
   TrendingUp,
   AlertCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/shadcn/button";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
 import { callTool, getUser } from "@/lib/api";

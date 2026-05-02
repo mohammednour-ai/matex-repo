@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 

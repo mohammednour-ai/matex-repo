@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/shadcn/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function CreateContractPage() {

@@ -15,9 +15,9 @@ import {
   ScrollText,
 } from "lucide-react";
 import { callTool, getUser, type MCPResponse } from "@/lib/api";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/shadcn/badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";

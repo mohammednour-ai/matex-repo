@@ -18,7 +18,7 @@ import {
   Info,
   Loader2,
 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/shadcn/button";
 import { MediaUploader } from "@/components/ui/MediaUploader";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { track } from "@/lib/analytics";
