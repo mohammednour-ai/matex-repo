@@ -121,13 +121,16 @@ jobs:
 
       - name: Set runtime vars
         run: |
+          # Do NOT set PORT here. Railway injects its own PORT at runtime and
+          # routes public HTTPS traffic to it. Hardcoding PORT=3001 causes
+          # Railway's routing and the container's listener to disagree, which
+          # surfaces as "deployment completed but not online".
           railway variables set \
             --project-id "${{ inputs.railway_project_id }}" \
             --environment-id "${{ inputs.railway_env_id }}" \
             --service-id "${{ inputs.service_id_backend }}" \
             NODE_ENV="production" \
             LOG_LEVEL="info" \
-            PORT="3001" \
             CORS_ORIGIN="${{ secrets.RAILWAY_WEB_URL }}"
 
   set-web-vars:
