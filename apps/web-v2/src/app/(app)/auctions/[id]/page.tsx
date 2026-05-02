@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -21,6 +21,9 @@ import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { BidStream, type BidStreamEntry } from "@/components/auctions/BidStream";
+import { LotProgressBar } from "@/components/auctions/LotProgressBar";
+import { useBidStream } from "@/components/auctions/useBidStream";
 
 type AuctionStatus = "scheduled" | "live" | "completed";
 type LotStatus = "upcoming" | "active" | "sold" | "unsold";
@@ -38,12 +41,7 @@ type Lot = {
   winner_label?: string;
 };
 
-type BidEntry = {
-  bid_id: string;
-  bidder: string;
-  amount: number;
-  timestamp: string;
-};
+type BidEntry = BidStreamEntry;
 
 type AuctionDetail = {
   auction_id: string;
@@ -93,14 +91,6 @@ function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
-
 export default function AuctionRoomPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -122,7 +112,30 @@ export default function AuctionRoomPage() {
   const [proxyMax, setProxyMax] = useState("");
   const [isRegistered, setIsRegistered] = useState(false);
   const [wonLots] = useState<Lot[]>([]);
-  const bidStreamRef = useRef<HTMLDivElement>(null);
+
+  // Real-time bid feed. Polls `auction.list_bids` (when shipped) every 5s,
+  // merges new entries by id, and keeps `current_bid` / `bid_count` in sync
+  // via `auction.get_auction`.
+  useBidStream({
+    lotId: activeLot?.lot_id ?? null,
+    auctionId: auction?.auction_id ?? null,
+    onBids: (incoming) => {
+      setBids((prev) => {
+        const seen = new Set(prev.map((b) => b.bid_id));
+        const fresh = incoming.filter((b) => !seen.has(b.bid_id));
+        if (fresh.length === 0) return prev;
+        // Newest-first ordering by timestamp
+        return [...fresh, ...prev].sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        );
+      });
+    },
+    onLotUpdate: (currentBid, bidCount) => {
+      setActiveLot((prev) =>
+        prev ? { ...prev, current_bid: currentBid, bid_count: bidCount } : prev,
+      );
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -294,15 +307,18 @@ export default function AuctionRoomPage() {
             <p className="mt-1 text-sm text-slate-500">{activeLot.bid_count} bids placed</p>
           </div>
 
-          {/* Lot timer */}
-          <div className={`flex items-center justify-center gap-3 rounded-xl border p-4 ${isUrgent ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
-            <Clock className={`h-5 w-5 ${isUrgent ? "text-red-500" : "text-amber-600"}`} />
-            <div className="text-center">
-              <p className={`text-xs font-medium ${isUrgent ? "text-red-500" : "text-amber-700"}`}>
-                {isUrgent ? "CLOSING NOW" : "Lot closes in"}
-              </p>
-              <CountdownTimer targetDate={lotEnd} className="text-2xl font-bold" />
+          {/* Lot timer + progress */}
+          <div className={`space-y-3 rounded-xl border p-4 ${isUrgent ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+            <div className="flex items-center justify-center gap-3">
+              <Clock className={`h-5 w-5 ${isUrgent ? "text-red-500" : "text-amber-600"}`} />
+              <div className="text-center">
+                <p className={`text-xs font-medium ${isUrgent ? "text-red-500" : "text-amber-700"}`}>
+                  {isUrgent ? "CLOSING NOW" : "Lot closes in"}
+                </p>
+                <CountdownTimer targetDate={lotEnd} className="text-2xl font-bold" />
+              </div>
             </div>
+            <LotProgressBar startTime={auction.start_time} endTime={lotEnd} />
           </div>
 
           {/* Your-bid status pill (visible once the user has bid). The pill
@@ -447,35 +463,10 @@ export default function AuctionRoomPage() {
         <div className="flex w-full flex-col overflow-hidden bg-white lg:w-1/3">
           {/* Bid stream */}
           <div className="flex-1 overflow-y-auto border-b border-slate-200 p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Live Bid Stream</h3>
-            <div ref={bidStreamRef} className="space-y-2">
-              {bids.length === 0 && (
-                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
-                  No bids yet. Be the first.
-                </div>
-              )}
-              {bids.map((bid, i) => (
-                <div
-                  key={bid.bid_id}
-                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${
-                    i === 0 ? "bg-blue-50 ring-1 ring-blue-200" : "bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold ${i === 0 ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"}`}>
-                      {bid.bidder.charAt(bid.bidder.length - 1)}
-                    </div>
-                    <span className="font-medium text-slate-700">{bid.bidder}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${i === 0 ? "text-blue-700" : "text-slate-800"}`}>
-                      {formatCAD(bid.amount)}
-                    </p>
-                    <p className="text-slate-400">{timeAgo(bid.timestamp)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Live Bid Stream
+            </h3>
+            <BidStream bids={bids} currentUserKey={user?.email?.split("@")[0] ?? null} />
           </div>
 
           {/* Lot list */}
