@@ -166,6 +166,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     const negotiationId = generateId();
+    const proposalExpiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
     const insertResult = await supabase.schema("contracts_mcp").from("negotiations").insert({
       negotiation_id: negotiationId,
       contract_id: contractId,
@@ -173,6 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       proposed_changes: proposedChanges,
       message: args.message ? String(args.message) : null,
       status: "proposed",
+      expires_at: proposalExpiresAt,
       created_at: now(),
     });
     if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
