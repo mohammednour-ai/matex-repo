@@ -1,0 +1,74 @@
+{
+  "common": {
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "back": "Retour",
+    "next": "Suivant",
+    "submit": "Soumettre"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "listings": "Annonces",
+    "search": "Rechercher",
+    "auctions": "Enchères",
+    "messages": "Messages",
+    "settings": "Paramètres"
+  },
+  "dashboard": {
+    "title": "Vue d'ensemble",
+    "verification_alert": {
+      "title": "Compléter la vérification",
+      "body": "Des niveaux KYC plus élevés débloquent des transactions plus importantes et des versements plus rapides.",
+      "cta": "Continuer dans Paramètres"
+    },
+    "quick_actions": {
+      "create_listing": "Créer une annonce",
+      "search_materials": "Rechercher des matériaux",
+      "live_auctions": "Enchères en direct",
+      "check_escrow": "Vérifier le séquestre",
+      "logistics": "Logistique",
+      "ai_copilot": "Copilote IA"
+    }
+  },
+  "listings": {
+    "title": "Mes annonces",
+    "subtitle": "Gérez et suivez vos matériaux sur le marché",
+    "create": "Créer une annonce",
+    "tabs": {
+      "all": "Toutes",
+      "active": "Actives",
+      "draft": "Brouillons",
+      "sold": "Vendues",
+      "ended": "Terminées"
+    },
+    "view": {
+      "cards": "Cartes",
+      "table": "Tableau"
+    },
+    "empty": {
+      "title": "Aucune annonce",
+      "body": "Créez votre première annonce pour commencer à vendre sur le marché."
+    }
+  },
+  "auctions": {
+    "title": "Enchères",
+    "tabs": {
+      "live": "En direct",
+      "upcoming": "À venir",
+      "completed": "Terminées"
+    },
+    "empty": {
+      "live": "Aucune enchère en direct",
+      "upcoming": "Aucune enchère à venir",
+      "completed": "Aucune enchère terminée"
+    },
+    "errors": {
+      "load_failed": "Impossible de charger les enchères."
+    }
+  },
+  "errors": {
+    "generic": "Le service est temporairement indisponible. Veuillez réessayer."
+  }
+}

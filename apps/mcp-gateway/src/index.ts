@@ -12,8 +12,20 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { URL } from "node:url";
 import * as jwt from "jsonwebtoken";
 import Redis from "ioredis";
+import * as Sentry from "@sentry/node";
 import { now, sha256, sanitizeUpstreamError } from "@matex/utils";
 import { randomUUID } from "node:crypto";
+
+// Sentry — opt-in via SENTRY_DSN. No DSN ⇒ no events, no overhead. Initialized
+// at module load so any startup error is captured before the http server binds.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? "development",
+    tracesSampleRate: 0.1,
+    serverName: "mcp-gateway",
+  });
+}
 import {
   isDbAvailable,
   dbFindUserByEmail,
@@ -1387,6 +1399,11 @@ async function routeToolRequest(
         const requestId = randomUUID();
         const safe = sanitizeUpstreamError(parsedBody, response.status);
         console.error(`[gateway] upstream error requestId=${requestId} tool=${body.tool} status=${response.status}`, parsedBody);
+        Sentry.captureMessage("gateway.upstream_error", {
+          level: "error",
+          tags: { tool: body.tool, target_server: targetServer, request_id: requestId },
+          extra: { upstream_status: response.status, upstream_body: parsedBody },
+        });
         return {
           success: false,
           error: { ...safe, requestId },
@@ -1419,6 +1436,9 @@ async function routeToolRequest(
         request_id: requestId,
       });
       console.error(`[gateway] forward failed requestId=${requestId} tool=${body.tool}`, error);
+      Sentry.captureException(error, {
+        tags: { tool: body.tool, target_server: targetServer, request_id: requestId },
+      });
       return {
         success: false,
         error: {

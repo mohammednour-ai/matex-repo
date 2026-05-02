@@ -2,45 +2,63 @@
 
 Source plan: `/root/.claude/plans/matex-senior-wise-shore.md` (the senior advisory report's §6 checklist, all 25 items).
 
-This document tracks which items shipped in the initial PR vs which are intentionally deferred. **Deferred ≠ dropped.** Each deferred item lists why it was held back and what unblocks it.
+This document tracks which items have shipped vs which are intentionally still deferred. **Deferred ≠ dropped.** Each deferred item lists why it was held back and what unblocks it.
 
-## Shipped
+## Shipped — round 1 (PR #4)
 
 | ID | Task | Files |
 |---|---|---|
-| **A1** | Auction error leak hotfix: implement `list_auctions` + `get_auction` in `auction-mcp`; gateway-level upstream-error sanitizer; `requestId` threading | `apps/mcp-gateway/src/index.ts`, `packages/mcp-servers/auction-mcp/src/index.ts`, `packages/shared/utils/src/index.ts` |
-| **A2** | Contract tests for `list_auctions` response shape + regression tests for `sanitizeUpstreamError` | `packages/mcp-servers/auction-mcp/src/index.test.ts` |
-| **A3** | `callTool` sanitizes upstream errors; route-segment `error.tsx` for `(app)` group | `apps/web-v2/src/lib/api.ts`, `apps/web-v2/src/app/(app)/error.tsx` |
-| **B3** | Feature-flag abstraction with env-var backing (PostHog swap-in slot prepared) | `apps/web-v2/src/lib/flags.ts` |
-| **C1** | Mount existing `react-hot-toast` Toaster + typed `showError` / `showSuccess` helpers; wire auctions page | `apps/web-v2/src/app/layout.tsx`, `apps/web-v2/src/components/system/ToastProvider.tsx`, `apps/web-v2/src/lib/toast.ts`, `apps/web-v2/src/app/(app)/auctions/page.tsx` |
-| **C3** | Orange-on-orange alert fix: extend `warning` palette to 200/800; repoint "Complete verification" alert | `apps/web-v2/tailwind.config.js`, `apps/web-v2/src/app/(app)/dashboard/page.tsx` |
-| **G1** | KYB tier definitions doc | `docs/kyb-tiers.md` |
-| **G3** | Trust & Safety promise doc | `docs/trust-and-safety.md` |
-| **G4** | Launch order (province + US state phasing) doc | `docs/launch-order.md` |
-| **D3** | Data-residency / PIPEDA / Law 25 doc (Supabase region verification on the checklist) | `docs/data-residency.md` |
+| **A1** | Auction error leak hotfix | `apps/mcp-gateway/src/index.ts`, `packages/mcp-servers/auction-mcp/src/index.ts`, `packages/shared/utils/src/index.ts` |
+| **A2** | Contract tests for `list_auctions` + sanitizer regression | `packages/mcp-servers/auction-mcp/src/index.test.ts` |
+| **A3** | `callTool` error normalization + `(app)/error.tsx` | `apps/web-v2/src/lib/api.ts`, `apps/web-v2/src/app/(app)/error.tsx` |
+| **B3** | Feature-flag abstraction (env-var, PostHog swap-in slot) | `apps/web-v2/src/lib/flags.ts` |
+| **C1** | Mounted `react-hot-toast` Toaster + `showError` helper | `apps/web-v2/src/components/system/ToastProvider.tsx`, `apps/web-v2/src/lib/toast.ts` |
+| **C3** | Orange-on-orange alert → amber palette | `apps/web-v2/tailwind.config.js`, `apps/web-v2/src/app/(app)/dashboard/page.tsx` |
+| **G1** / **G3** / **G4** / **D3** | KYB tiers, Trust & Safety, launch order, data residency docs | `docs/*.md` |
 
-## Deferred (with reasons)
+## Shipped — round 2 (PR #5)
 
-Each of these requires either a vendor account/credential, a non-trivial dependency install with its own QA cycle, or human translation work — none of which can be reliably executed inside a single dev-session bound by sandbox network access.
+Production-down fix: `apps/web-v2/src/app/api/health/route.ts`, both `railway.toml` files, `RAILWAY_DEPLOY.md` troubleshooting.
+
+## Shipped — round 3 (this PR)
+
+| ID | Task | Files |
+|---|---|---|
+| **B1** | Sentry on web-v2 (`@sentry/nextjs`) + gateway (`@sentry/node`); upstream errors captured with `requestId` and PII scrubbing | `apps/web-v2/sentry.{client,server,edge}.config.ts`, `apps/web-v2/instrumentation.ts`, `apps/mcp-gateway/src/index.ts` |
+| **B2** | PostHog provider (`posthog-js`) + activation funnel events (`signup_completed`, `email_verified`, `listing_created`, `identify`); EU host default | `apps/web-v2/src/components/system/PostHogProvider.tsx`, `apps/web-v2/src/lib/analytics.ts`, login + listings/create wired |
+| **C2** | shadcn-style foundation: `cn()` helper, `Skeleton`, `Sheet` primitive (Radix Dialog + tailwindcss-animate) | `apps/web-v2/src/lib/cn.ts`, `apps/web-v2/src/components/ui/{Skeleton,Sheet}.tsx` |
+| **C4** | TanStack Table dual-mode for Listings + CSV export, behind `listings_table_view` flag | `apps/web-v2/src/components/listings/ListingsTable.tsx`, `apps/web-v2/src/app/(app)/listings/page.tsx` |
+| **C6** | `KPICardV2` with Tremor `SparkAreaChart` + delta-vs-prev | `apps/web-v2/src/components/ui/KPICardV2.tsx` |
+| **D1** | Inngest client + 4 durable functions (auction-end, escrow-release-timer, kyc-poll-status, daily digest) + `/api/inngest` route | `apps/web-v2/src/lib/inngest.ts`, `apps/web-v2/src/app/api/inngest/route.ts` |
+| **E** | i18n catalogs (`en.json` + `fr-CA.json`) + `t()` helper + locale detection + storage; behind `bilingual_ui` flag | `apps/web-v2/messages/{en,fr-CA}.json`, `apps/web-v2/src/lib/i18n.ts` |
+| **F** | Freightera adapter wired into `carriers-bridge` (synthetic until API granted) | `packages/bridges/carriers-bridge/src/freightera.ts`, `packages/bridges/carriers-bridge/src/index.ts` |
+
+## Still deferred
 
 | ID | Task | Blocker | Unblock |
 |---|---|---|---|
-| **B1** | Sentry across `web-v2`, gateway, and MCP servers | DSN credential + `@sentry/nextjs` install | Create Sentry org, add DSN to env, run `npx @sentry/wizard` |
-| **B2** | PostHog + activation-funnel instrumentation | API key + `posthog-js` / `posthog-node` install | Create PostHog project (EU host), add `NEXT_PUBLIC_POSTHOG_KEY` |
-| **C2 (shadcn migration)** | shadcn/ui foundation — `Skeleton`, `Sonner`, `Sheet`, `DataTable`, `Dialog` | `pnpm dlx shadcn@latest init` adds many transitive deps | Approve dependency PR; existing custom components remain in place |
-| **C2 (empty-state pass)** | Action-oriented empty states with illustrations on dashboard / listings / search / auctions | The four pages already use a `<EmptyState />` component (`apps/web-v2/src/components/ui/EmptyState.tsx`) but copy + illustrations need a design pass | Design + product copy pass |
-| **C4** | Listings dual-mode (cards ⇄ TanStack Table) with CSV export | `@tanstack/react-table` install + DataTable component | Approve dependency PR |
-| **C5** | Mobile audit on 4 primary pages at 375 / 768 / 1280 | Manual QA on a real preview deployment | Push branch and open Vercel preview |
-| **C6** | KPI cards v2 with sparkline + delta vs prior period | `@tremor/react` install | Approve dependency PR |
-| **C7** | Listing-detail confidence stack + auction console redesign | Larger UX scope; depends on `@react-pdf/renderer` (PDFs), Metals-API key, design assets | Schedule a dedicated UX sprint |
-| **D1** | Inngest durable functions (auction end, escrow timer, KYC poll, daily digest) | `inngest` SDK install + Inngest Cloud account or self-host | Approve account; run signing-key setup |
-| **D2** | Typesense Cloud + `search-mcp` sync on `listing.created` / `listing.updated` | Typesense Cloud node ($80/mo) + `typesense` SDK install | Provision cluster; add API keys |
-| **E** | `next-intl` scaffolding + EN / FR-CA messages | `next-intl` install; FR-CA legal copy must be reviewed by a Quebec-resident speaker (Bill 96 risk) | Approve install; engage QC translator |
-| **F** | Freightera Shipper API adapter in `carriers-bridge` + quote widget | Freightera "select accounts" approval has a real lead time (advisory called this critical-path) | Submit access request immediately, parallel to other work |
+| **B1 (extended)** | Sentry init in every MCP server beyond the gateway | Each server gets its own DSN init; mechanical follow-up | Copy the gateway's `Sentry.init` block into each `packages/mcp-servers/*/src/index.ts` once the org has stable DSNs |
+| **B2 (extended)** | Server-side PostHog (`posthog-node`) for funnel events that don't have UI signals | Need access to gateway logs to map events; design pass on per-event property contracts | Define event schema + attach to `MatexEventBus` consumer |
+| **C2 (full migration)** | Replace existing custom UI (`Button`, `Badge`, `Modal`, `Spinner`, `Input`) with shadcn equivalents and adopt `Sonner` over `react-hot-toast` | Larger refactor with visual diffs; need a design pass first | Schedule a UX sprint |
+| **C5** | Mobile audit at 375 / 768 / 1280 | Manual QA on the Vercel preview | Run during the next deploy cycle |
+| **C7** | Listing-detail confidence stack + auction console redesign | UX scope: photo gallery, certified weight slot, inspection PDF link, LME reference price, sticky bid panel; needs design assets + Metals-API key | Schedule a 1-week UX sprint |
+| **D2** | Typesense Cloud + `search-mcp` sync on `listing.created` / `listing.updated` | Typesense Cloud node ($80/mo) + cluster + API keys | Provision and add `TYPESENSE_HOST` / `TYPESENSE_API_KEY` |
+| **E (full migration)** | Move `apps/web-v2/src/app` under `[locale]` segment, swap to `next-intl`'s `useTranslations`, ship language switcher in top bar | FR-CA legal copy must be reviewed by a Quebec-resident speaker (Bill 96 risk) | Engage QC translator; flip `qc_market_open` only after sign-off |
+| **F (full)** | Real Freightera Shipper API (replace synthetic adapter), book + BOL flow | "Select accounts" approval has lead time | Submit Freightera access request now, in parallel |
+| **D1 (extended)** | Wire Inngest functions to actual MCP-server side effects (today they're stubbed `step.run` blocks) | Need stable contract with auction-mcp, escrow-mcp, notifications-mcp | After this round merges, wire one event end-to-end as a reference |
 
-## How to pick this up
+## Activation env vars (for this PR)
 
-1. Approve a dependency-add PR for Sentry, PostHog, shadcn primitives, and TanStack Table together — they share a shared QA cycle and unblock C2/C4/C6 in one go.
-2. Open vendor accounts in parallel: Sentry (free), PostHog (free up to 1M events), Inngest (free starter), Typesense Cloud ($80/mo), Freightera (request access with a real lead time).
-3. Engage a Quebec-resident translator for the FR-CA review on `next-intl` — block QC market opening behind `qc_market_open` until that review lands.
-4. Schedule the C7 (listing detail + auction console) sprint as a dedicated 1-week UX block; it has design dependencies the engineering checklist cannot satisfy on its own.
+To turn each feature on in a deployment, set:
+
+| Variable | What it activates |
+|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` (web) + `SENTRY_DSN` (gateway) | B1 — Sentry events flow |
+| `NEXT_PUBLIC_POSTHOG_KEY` (+ optional `NEXT_PUBLIC_POSTHOG_HOST`) | B2 — PostHog analytics + funnel events |
+| `NEXT_PUBLIC_FLAG_LISTINGS_TABLE_VIEW=1` | C4 — table view on `/listings` |
+| `NEXT_PUBLIC_FLAG_BILINGUAL_UI=1` | E — locale picker honors `?lang=fr-CA` |
+| `INNGEST_SIGNING_KEY` + `INNGEST_EVENT_KEY` | D1 — Inngest dispatches functions |
+| `FREIGHTERA_API_KEY` | F — real Freightera quote (synthetic without it) |
+| `NEXT_PUBLIC_FLAG_FREIGHT_QUOTE_WIDGET=1` | F — quote widget on listing detail (when added) |
+
+Without these the code paths are dormant; nothing breaks.
