@@ -12,7 +12,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { URL } from "node:url";
 import * as jwt from "jsonwebtoken";
 import Redis from "ioredis";
-import { now, sha256 } from "@matex/utils";
+import { now, sha256, sanitizeUpstreamError } from "@matex/utils";
 import { randomUUID } from "node:crypto";
 import {
   isDbAvailable,
@@ -87,7 +87,7 @@ interface AuthClaims extends jwt.JwtPayload {
 interface ToolResult {
   success: boolean;
   data?: Record<string, JsonValue>;
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; requestId?: string };
 }
 
 /** Railway / Render set `PORT`. Empty string must not become 0 (listen would break routing). */
@@ -1382,25 +1382,17 @@ async function routeToolRequest(
       });
 
       if (!response.ok) {
-        const pb = parsedBody as Record<string, unknown> | string | null;
-        let detail = "";
-        if (pb && typeof pb === "object" && "error" in pb) {
-          const e = (pb as { error?: { message?: string; code?: string } }).error;
-          if (e?.message) detail = `: ${e.message}`;
-          else if (e?.code) detail = `: ${e.code}`;
-        } else if (typeof pb === "string" && pb.length > 0) {
-          detail = `: ${pb.slice(0, 200)}`;
-        }
+        // Never include raw upstream details (DB messages, column names, stack traces) in
+        // client-facing responses. Log full body server-side; return sanitized error.
+        const requestId = randomUUID();
+        const safe = sanitizeUpstreamError(parsedBody, response.status);
+        console.error(`[gateway] upstream error requestId=${requestId} tool=${body.tool} status=${response.status}`, parsedBody);
         return {
           success: false,
-          error: {
-            code: "UPSTREAM_ERROR",
-            message: `Upstream returned ${response.status}${detail}`,
-          },
+          error: { ...safe, requestId },
           data: {
             endpoint,
             upstream_status: response.status,
-            upstream_body: parsedBody as JsonValue,
           },
         };
       }
@@ -1416,6 +1408,7 @@ async function routeToolRequest(
         },
       };
     } catch (error) {
+      const requestId = randomUUID();
       await publishEvent("gateway.tool.forward_failed", {
         user_id: claims.sub,
         tool: body.tool,
@@ -1423,10 +1416,16 @@ async function routeToolRequest(
         target_server: targetServer,
         endpoint,
         error: error instanceof Error ? error.message : "unknown",
+        request_id: requestId,
       });
+      console.error(`[gateway] forward failed requestId=${requestId} tool=${body.tool}`, error);
       return {
         success: false,
-        error: { code: "FORWARD_FAILED", message: `Failed to forward request to ${endpoint}` },
+        error: {
+          code: "FORWARD_FAILED",
+          message: "The service is temporarily unavailable. Please try again.",
+          requestId,
+        },
       };
     }
   }

@@ -1,8 +1,37 @@
 export type MCPResponse<T = Record<string, unknown>> = {
   success: boolean;
   data?: T & { upstream_response?: { data?: Record<string, unknown> } };
-  error?: { code: string; message: string };
+  error?: { code: string; message: string; requestId?: string };
 };
+
+const GENERIC_ERROR_MESSAGE = "The service is temporarily unavailable. Please try again.";
+
+/**
+ * Normalize any upstream/error payload to a user-safe message. The gateway already
+ * sanitizes upstream errors, but defense-in-depth: the browser must never render
+ * raw SQL/stack/column text even if a future gateway regression slips through.
+ */
+function isSafeMessage(message: string): boolean {
+  if (!message) return false;
+  if (message.length > 240) return false;
+  // Heuristics: anything that looks like a DB schema reference or a raw status line
+  // is not safe to show users.
+  if (/column\s+\S+\.\S+\s+does\s+not\s+exist/i.test(message)) return false;
+  if (/^Upstream returned \d{3}/i.test(message)) return false;
+  if (/relation\s+"\S+"\s+does\s+not\s+exist/i.test(message)) return false;
+  if (/syntax error at or near/i.test(message)) return false;
+  return true;
+}
+
+export function normalizeError(err: { code?: string; message?: string; requestId?: string } | undefined): {
+  code: string;
+  message: string;
+  requestId?: string;
+} {
+  if (!err) return { code: "UNKNOWN_ERROR", message: GENERIC_ERROR_MESSAGE };
+  const safe = isSafeMessage(err.message ?? "") ? err.message! : GENERIC_ERROR_MESSAGE;
+  return { code: err.code ?? "UNKNOWN_ERROR", message: safe, requestId: err.requestId };
+}
 
 export function getToken(): string {
   if (typeof window === "undefined") return "";
@@ -76,11 +105,16 @@ export async function callTool<T = Record<string, unknown>>(
     body: JSON.stringify({ tool, args, token: isPublic ? undefined : token }),
   });
   const text = await res.text();
+  let parsed: MCPResponse<T>;
   try {
-    return JSON.parse(text) as MCPResponse<T>;
+    parsed = JSON.parse(text) as MCPResponse<T>;
   } catch {
-    return { success: false, error: { code: "PARSE_ERROR", message: text.slice(0, 200) } };
+    return { success: false, error: { code: "PARSE_ERROR", message: GENERIC_ERROR_MESSAGE } };
   }
+  if (!parsed.success) {
+    return { success: false, error: normalizeError(parsed.error) };
+  }
+  return parsed;
 }
 
 export async function callCopilot(message: string, context?: Record<string, unknown>): Promise<{

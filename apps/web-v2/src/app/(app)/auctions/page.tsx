@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Gavel, Search, Package, TrendingUp, Clock } from "lucide-react";
 import { callTool } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
@@ -93,7 +94,10 @@ export default function AuctionsPage() {
         const d = res.data as unknown as { auctions?: RawAuction[] };
         setAuctions(Array.isArray(d?.auctions) ? d.auctions.map(normalizeAuction) : []);
       } else {
-        setError(res.error?.message ?? "Could not load auctions.");
+        // res.error is already sanitized by callTool / gateway; never echoes raw SQL.
+        const fallback = "Could not load auctions.";
+        setError(res.error?.message ?? fallback);
+        showError(res.error, fallback);
       }
       setLoading(false);
     })();
