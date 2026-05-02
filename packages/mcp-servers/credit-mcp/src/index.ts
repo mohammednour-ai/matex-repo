@@ -104,7 +104,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .from("credit_facilities")
           .update({ credit_score: clampedScore, tier, credit_limit: tierConfig.limit, terms: tierConfig.terms, updated_at: createdAt })
           .eq("facility_id", existing.facility_id);
-        if (error) return fail("DB_ERROR", error.message);
+        if (error) return fail("DB_ERROR", "Database operation failed");
       } else {
         const { error } = await supabase.schema("credit_mcp").from("credit_facilities").insert({
           facility_id: facilityId,
@@ -119,7 +119,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           created_at: createdAt,
           updated_at: createdAt,
         });
-        if (error) return fail("DB_ERROR", error.message);
+        if (error) return fail("DB_ERROR", "Database operation failed");
       }
 
       const historyId = generateId();
@@ -151,7 +151,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       if (!data) return { content: [{ type: "text", text: ok({ facility: null, message: "No credit facility found." }) }] };
       return { content: [{ type: "text", text: ok({ facility: data }) }] };
     }
@@ -174,7 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("facility_id,available_credit,total_outstanding,credit_limit,status")
         .eq("user_id", userId)
         .maybeSingle();
-      if (facError) return fail("DB_ERROR", facError.message);
+      if (facError) return fail("DB_ERROR", "Database operation failed");
       if (!facility) return fail("NO_FACILITY", "No credit facility found for this user.");
       if (facility.status === "frozen") return fail("FACILITY_FROZEN", "Credit facility is frozen.");
       if (amount > Number(facility.available_credit)) return fail("INSUFFICIENT_CREDIT", `Requested ${amount} exceeds available credit ${facility.available_credit}.`);
@@ -192,7 +192,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         created_at: createdAt,
         due_date: new Date(Date.now() + 30 * 86400000).toISOString(),
       });
-      if (invError) return fail("DB_ERROR", invError.message);
+      if (invError) return fail("DB_ERROR", "Database operation failed");
 
       const newOutstanding = roundToTwoDecimals(Number(facility.total_outstanding) + amount);
       const newAvailable = roundToTwoDecimals(Number(facility.credit_limit) - newOutstanding);
@@ -229,7 +229,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("invoice_id,facility_id,user_id,amount,status")
         .eq("invoice_id", invoiceId)
         .maybeSingle();
-      if (invError) return fail("DB_ERROR", invError.message);
+      if (invError) return fail("DB_ERROR", "Database operation failed");
       if (!invoice) return fail("NOT_FOUND", "Invoice not found.");
       if (invoice.status === "paid") return fail("ALREADY_PAID", "Invoice is already paid.");
 
@@ -276,7 +276,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("history_id,user_id,score,tier,factors,created_at")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ history: data ?? [], total: (data ?? []).length }) }] };
     }
 
@@ -296,7 +296,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("facility_id,status")
         .eq("user_id", userId)
         .maybeSingle();
-      if (facError) return fail("DB_ERROR", facError.message);
+      if (facError) return fail("DB_ERROR", "Database operation failed");
       if (!facility) return fail("NOT_FOUND", "No credit facility found.");
       if (facility.status === "frozen") return fail("ALREADY_FROZEN", "Facility is already frozen.");
 
@@ -306,7 +306,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("credit_facilities")
         .update({ status: "frozen", frozen_at: frozenAt, freeze_reason: reason, updated_at: frozenAt })
         .eq("facility_id", facility.facility_id);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       await emitEvent("credit.facility.frozen", { user_id: userId, facility_id: facility.facility_id, reason });
       return { content: [{ type: "text", text: ok({ facility_id: facility.facility_id, status: "frozen", reason }) }] };

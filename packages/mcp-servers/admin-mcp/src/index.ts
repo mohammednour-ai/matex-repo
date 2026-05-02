@@ -60,7 +60,7 @@ async function assertPlatformAdmin(args: Record<string, unknown>): Promise<{ isE
     .select("is_platform_admin")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) return fail("DB_ERROR", error.message);
+  if (error) return fail("DB_ERROR", "Database operation failed");
   if (!data?.is_platform_admin) return fail("FORBIDDEN", "Platform admin access required.");
   return null;
 }
@@ -135,7 +135,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("user_id,account_status")
         .eq("user_id", userId)
         .maybeSingle();
-      if (fetchError) return fail("DB_ERROR", fetchError.message);
+      if (fetchError) return fail("DB_ERROR", "Database operation failed");
       if (!user) return fail("NOT_FOUND", "User not found.");
       if (user.account_status === "suspended") return fail("ALREADY_SUSPENDED", "User is already suspended.");
 
@@ -144,7 +144,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("users")
         .update({ account_status: "suspended", updated_at: now() })
         .eq("user_id", userId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       await emitEvent("admin.user.suspended", { user_id: userId, reason });
       return { content: [{ type: "text", text: ok({ user_id: userId, account_status: "suspended", reason }) }] };
@@ -165,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("user_id,account_status")
         .eq("user_id", userId)
         .maybeSingle();
-      if (fetchError) return fail("DB_ERROR", fetchError.message);
+      if (fetchError) return fail("DB_ERROR", "Database operation failed");
       if (!user) return fail("NOT_FOUND", "User not found.");
       if (user.account_status !== "suspended") return fail("NOT_SUSPENDED", "User is not suspended.");
 
@@ -174,7 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("users")
         .update({ account_status: "active", updated_at: now() })
         .eq("user_id", userId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       await emitEvent("admin.user.unsuspended", { user_id: userId });
       return { content: [{ type: "text", text: ok({ user_id: userId, account_status: "active" }) }] };
@@ -199,7 +199,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("listings")
         .update({ status: newStatus, updated_at: now() })
         .eq("listing_id", listingId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       await emitEvent("admin.listing.moderated", { listing_id: listingId, action, reason });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, action, status: newStatus, reason }) }] };
@@ -225,7 +225,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (userId) query = query.eq("user_id", userId);
       if (category) query = query.eq("category", category);
       const { data, error, count } = await query;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ entries: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -246,7 +246,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .range(offset, offset + limit - 1);
       if (statusFilter) query = query.eq("status", statusFilter);
       const { data, error, count } = await query;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ listings: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 

@@ -106,7 +106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("logistics.shipment.booked", { shipment_id: shipmentId, order_id: orderId, carrier_name: carrierName });
     return { content: [{ type: "text", text: ok({ shipment_id: shipmentId, order_id: orderId, carrier_name: carrierName, status: "booked" }) }] };
@@ -124,7 +124,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (status === "delivered") updatePayload.delivered_at = now();
 
     const updateResult = await supabase.schema("logistics_mcp").from("shipments").update(updatePayload).eq("shipment_id", shipmentId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     const eventName = status === "delivered" ? "logistics.shipment.delivered" : status === "picked_up" ? "logistics.shipment.picked_up" : "logistics.shipment.updated";
     await emitEvent(eventName, { shipment_id: shipmentId, status });
@@ -141,7 +141,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (orderId) query = query.eq("order_id", orderId);
 
     const shipmentResult = await query.maybeSingle();
-    if (shipmentResult.error) return fail("DB_ERROR", shipmentResult.error.message);
+    if (shipmentResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!shipmentResult.data) return fail("NOT_FOUND", "Shipment not found.");
 
     const lookupOrderId = shipmentResult.data.order_id as string;
@@ -155,7 +155,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!shipmentId) return fail("VALIDATION_ERROR", "shipment_id is required.");
 
     const shipmentResult = await supabase.schema("logistics_mcp").from("shipments").select("*").eq("shipment_id", shipmentId).maybeSingle();
-    if (shipmentResult.error) return fail("DB_ERROR", shipmentResult.error.message);
+    if (shipmentResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!shipmentResult.data) return fail("NOT_FOUND", "Shipment not found.");
 
     const shipmentStatus = String((shipmentResult.data as Record<string, unknown>).status ?? "");
@@ -165,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const bolNumber = `BOL-${new Date().getFullYear()}-${shipmentId.substring(0, 8).toUpperCase()}`;
     const updateResult = await supabase.schema("logistics_mcp").from("shipments").update({ bol_number: bolNumber, updated_at: now() }).eq("shipment_id", shipmentId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("logistics.bol.generated", { shipment_id: shipmentId, bol_number: bolNumber });
     return { content: [{ type: "text", text: ok({ shipment_id: shipmentId, bol_number: bolNumber }) }] };

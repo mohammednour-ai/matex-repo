@@ -76,7 +76,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       max_bookings_per_day: typeof args.max_bookings_per_day === "number" ? Number(args.max_bookings_per_day) : 5,
       created_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("booking.availability.set", { availability_id: availabilityId, user_id: userId, day_of_week: dayOfWeek });
     return { content: [{ type: "text", text: ok({ availability_id: availabilityId }) }] };
   }
@@ -99,7 +99,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .lt("scheduled_start", scheduledEnd)
       .gt("scheduled_end", scheduledStart)
       .not("status", "in", '("cancelled","rejected")');
-    if (overlapError) return fail("DB_ERROR", overlapError.message);
+    if (overlapError) return fail("DB_ERROR", "Database operation failed");
     if (overlapping && overlapping.length > 0) {
       return fail("BOOKING_CONFLICT", `Organizer already has a booking overlapping ${scheduledStart} – ${scheduledEnd}.`);
     }
@@ -120,7 +120,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("booking.booking.created", { booking_id: bookingId, event_type: eventType, organizer_id: organizerId });
     return { content: [{ type: "text", text: ok({ booking_id: bookingId, status: "pending" }) }] };
   }
@@ -139,7 +139,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       updatePayload.cancelled_at = now();
     }
     const updateResult = await supabase.schema("booking_mcp").from("bookings").update(updatePayload).eq("booking_id", bookingId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("booking.booking.status_changed", { booking_id: bookingId, status });
     return { content: [{ type: "text", text: ok({ booking_id: bookingId, status }) }] };
   }
@@ -153,7 +153,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("*")
       .eq("organizer_id", userId)
       .order("scheduled_start", { ascending: true });
-    if (rows.error) return fail("DB_ERROR", rows.error.message);
+    if (rows.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ bookings: rows.data ?? [], total: (rows.data ?? []).length }) }] };
   }
 

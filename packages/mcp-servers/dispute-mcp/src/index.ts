@@ -81,7 +81,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.dispute.created", { dispute_id: disputeId, order_id: orderId, filed_by: filedBy, dispute_type: disputeType });
     return { content: [{ type: "text", text: ok({ dispute_id: disputeId, status: "open", resolution_tier: "mediation" }) }] };
@@ -103,7 +103,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       description: args.description ? String(args.description) : null,
       submitted_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.evidence.submitted", { dispute_id: disputeId, evidence_id: evidenceId });
     return { content: [{ type: "text", text: ok({ evidence_id: evidenceId, dispute_id: disputeId }) }] };
@@ -126,7 +126,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: "proposed",
       created_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.settlement.proposed", { dispute_id: disputeId, proposal_id: proposalId });
     return { content: [{ type: "text", text: ok({ proposal_id: proposalId, dispute_id: disputeId, status: "proposed" }) }] };
@@ -148,7 +148,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ resolution_tier: nextTier, escalated_by: escalatedBy, escalation_reason: reason, resolution_deadline: resolutionDeadline, updated_at: now() })
       .eq("dispute_id", disputeId)
       .eq("status", "open");
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.dispute.escalated", { dispute_id: disputeId, escalated_by: escalatedBy, reason, resolution_tier: nextTier, resolution_deadline: resolutionDeadline });
     return { content: [{ type: "text", text: ok({ dispute_id: disputeId, resolution_tier: nextTier, resolution_deadline: resolutionDeadline }) }] };
@@ -164,7 +164,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const updateResult = await supabase.schema("dispute_mcp").from("disputes")
       .update({ status: "resolved", resolved_by: resolvedBy, resolution, resolution_type: resolutionType, resolved_at: now(), updated_at: now() })
       .eq("dispute_id", disputeId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     if (typeof args.penalty_amount === "number" && args.penalty_user_id) {
       const penaltyId = generateId();
@@ -188,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!disputeId) return fail("VALIDATION_ERROR", "dispute_id is required.");
 
     const disputeResult = await supabase.schema("dispute_mcp").from("disputes").select("*").eq("dispute_id", disputeId).maybeSingle();
-    if (disputeResult.error) return fail("DB_ERROR", disputeResult.error.message);
+    if (disputeResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!disputeResult.data) return fail("NOT_FOUND", "Dispute not found.");
 
     const evidenceResult = await supabase.schema("dispute_mcp").from("evidence").select("*").eq("dispute_id", disputeId).order("submitted_at", { ascending: true });
@@ -223,7 +223,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       dispute_id: args.dispute_id ? String(args.dispute_id) : null,
       updated_at: now(),
     }, { onConflict: "user_id" });
-    if (upsertResult.error) return fail("DB_ERROR", upsertResult.error.message);
+    if (upsertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     if (tier === "critical" && previousTier !== "critical") {
       await emitEvent("dispute.pis.critical", { user_id: userId, score: newScore, reason });

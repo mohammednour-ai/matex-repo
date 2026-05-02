@@ -73,7 +73,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("user_id", userId)
         .maybeSingle();
-      if (profileError) return fail("DB_ERROR", profileError.message);
+      if (profileError) return fail("DB_ERROR", "Database operation failed");
 
       const { data: prefRow } = await supabase
         .schema("profile_mcp")
@@ -129,7 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         address: fields.address ?? null,
       };
       const { error } = await supabase.schema("profile_mcp").from("profiles").upsert(merged, { onConflict: "user_id" });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("profile.profile.updated", { user_id: userId });
       return { content: [{ type: "text", text: ok({ profile: merged }) }] };
     }
@@ -165,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         account_number_enc: `****${accountLast4}`,
         account_type: "checking",
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("profile.bank_account.added", { user_id: userId });
       return { content: [{ type: "text", text: ok({ user_id: userId, verification_status: "pending_micro_deposit" }) }] };
     }
@@ -197,7 +197,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .schema("profile_mcp")
         .from("preferences")
         .upsert({ user_id: userId, notification_prefs: preferences }, { onConflict: "user_id" });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("profile.preferences.updated", { user_id: userId });
       return { content: [{ type: "text", text: ok({ user_id: userId, preferences }) }] };
     }

@@ -133,7 +133,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       read: false,
       created_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     // Deliver via external APIs after DB commit. Fetch user contact info if needed.
     if (channels.includes("email") || channels.includes("sms")) {
@@ -166,7 +166,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     query = query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
 
     const result = await query;
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
 
     const unreadResult = await supabase.schema("notifications_mcp").from("notifications")
       .select("notification_id", { count: "exact" })
@@ -185,7 +185,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ read: true, read_at: now() })
       .in("notification_id", notificationIds)
       .eq("user_id", userId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     return { content: [{ type: "text", text: ok({ marked_read: notificationIds.length }) }] };
   }
@@ -195,7 +195,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
 
     const result = await supabase.schema("notifications_mcp").from("notification_preferences").select("*").eq("user_id", userId).maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
 
     const defaults = { email_enabled: true, sms_enabled: true, push_enabled: true, in_app_enabled: true, quiet_hours_start: null, quiet_hours_end: null };
     return { content: [{ type: "text", text: ok({ preferences: result.data ?? { user_id: userId, ...defaults } }) }] };
@@ -211,7 +211,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ...preferences,
       updated_at: now(),
     }, { onConflict: "user_id" });
-    if (upsertResult.error) return fail("DB_ERROR", upsertResult.error.message);
+    if (upsertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     return { content: [{ type: "text", text: ok({ user_id: userId, updated: true }) }] };
   }

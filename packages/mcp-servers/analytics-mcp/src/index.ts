@@ -56,7 +56,7 @@ async function assertPlatformAdmin(args: Record<string, unknown>): Promise<{ isE
     .select("is_platform_admin")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) return fail("DB_ERROR", error.message);
+  if (error) return fail("DB_ERROR", "Database operation failed");
   if (!data?.is_platform_admin) return fail("FORBIDDEN", "Platform admin access required.");
   return null;
 }
@@ -175,7 +175,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .gte("created_at", startDate)
         .lte("created_at", endDate)
         .in("transaction_type", ["purchase", "commission"]);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       const rows = data ?? [];
       const totalRevenue = rows.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.commission_amount ?? 0), 0);
@@ -225,7 +225,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const cfg = schemaMap[queryType];
       const { data, error } = await supabase.schema(cfg.schema).from(cfg.table).select(cfg.select).limit(1000);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       const exportId = generateId();
       await emitEvent("analytics.data.exported", { export_id: exportId, query_type: queryType, row_count: (data ?? []).length });

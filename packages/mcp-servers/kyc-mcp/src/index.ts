@@ -75,7 +75,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       current_status: "pending",
       submitted_at: now(),
     });
-    if (error) return fail("DB_ERROR", error.message);
+    if (error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("kyc.verification.started", { verification_id: verificationId, user_id: userId, target_level: targetLevel });
     return { content: [{ type: "text", text: ok({ verification_id: verificationId, status: "pending" }) }] };
   }
@@ -98,7 +98,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       file_url: fileUrl,
       file_hash: fileHash,
     });
-    if (error) return fail("DB_ERROR", error.message);
+    if (error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("kyc.document.submitted", { verification_id: verificationId, document_id: documentId, user_id: userId });
     return { content: [{ type: "text", text: ok({ document_id: documentId }) }] };
   }
@@ -123,7 +123,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .eq("verification_id", verificationId)
       .select("user_id,target_level")
       .maybeSingle();
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!updateResult.data) return fail("NOT_FOUND", "verification_id not found");
 
     if (status === "verified") {
@@ -131,7 +131,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const targetLevel = updateResult.data.target_level as string;
 
       const currentLevelResult = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", userId).maybeSingle();
-      if (currentLevelResult.error) return fail("DB_ERROR", currentLevelResult.error.message);
+      if (currentLevelResult.error) return fail("DB_ERROR", "Database operation failed");
       const currentLevel = String(currentLevelResult.data?.current_level ?? "level_0");
       if (levelRank(targetLevel) < levelRank(currentLevel)) {
         return fail("KYC_DOWNGRADE_FORBIDDEN", `Cannot lower KYC level from ${currentLevel} to ${targetLevel}.`);
@@ -147,7 +147,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (targetLevel === "level_2") upsertPayload.level_2_at = now();
       if (targetLevel === "level_3") upsertPayload.level_3_at = now();
       const levelUpsert = await supabase.schema("kyc_mcp").from("kyc_levels").upsert(upsertPayload, { onConflict: "user_id" });
-      if (levelUpsert.error) return fail("DB_ERROR", levelUpsert.error.message);
+      if (levelUpsert.error) return fail("DB_ERROR", "Database operation failed");
     }
 
     await emitEvent("kyc.verification.reviewed", { verification_id: verificationId, status });
@@ -158,7 +158,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const userId = String(args.user_id ?? "");
     if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
     const result = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level,updated_at").eq("user_id", userId).maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ user_id: userId, current_level: result.data?.current_level ?? "level_0", updated_at: result.data?.updated_at ?? null }) }] };
   }
 
@@ -167,7 +167,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const requiredLevel = String(args.required_level ?? "");
     if (!userId || !requiredLevel) return fail("VALIDATION_ERROR", "user_id and required_level are required.");
     const result = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", userId).maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     const currentLevel = String(result.data?.current_level ?? "level_0");
     const allowed = levelRank(currentLevel) >= levelRank(requiredLevel);
     if (!allowed) {
@@ -185,7 +185,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("user_id,current_level,next_review_at")
       .lt("next_review_at", now_)
       .limit(limit);
-    if (expiredError) return fail("DB_ERROR", expiredError.message);
+    if (expiredError) return fail("DB_ERROR", "Database operation failed");
     const rows = expiredRows ?? [];
     const flagged: string[] = [];
     for (const row of rows) {

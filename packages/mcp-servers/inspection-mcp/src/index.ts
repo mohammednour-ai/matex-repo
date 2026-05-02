@@ -72,7 +72,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("buyer_id,seller_id")
         .eq("order_id", orderId)
         .maybeSingle();
-      if (orderErr) return fail("DB_ERROR", orderErr.message);
+      if (orderErr) return fail("DB_ERROR", "Database operation failed");
       if (!order) return fail("NOT_FOUND", "Order not found.");
       if (order.buyer_id !== requestedBy && order.seller_id !== requestedBy) {
         return fail("FORBIDDEN", "Requester must be the buyer or seller of the order.");
@@ -85,7 +85,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("seller_id")
         .eq("listing_id", listingId)
         .maybeSingle();
-      if (listingErr) return fail("DB_ERROR", listingErr.message);
+      if (listingErr) return fail("DB_ERROR", "Database operation failed");
       if (!listing) return fail("NOT_FOUND", "Listing not found.");
       if (listing.seller_id !== requestedBy) {
         return fail("FORBIDDEN", "Requester must be the listing owner.");
@@ -106,7 +106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.inspection.requested", { inspection_id: inspectionId, order_id: args.order_id ? String(args.order_id) : null, listing_id: args.listing_id ? String(args.listing_id) : null });
     return { content: [{ type: "text", text: ok({ inspection_id: inspectionId, status: "requested" }) }] };
   }
@@ -129,7 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       scale_certificate: args.scale_certificate ? String(args.scale_certificate) : null,
       recorded_at: now(),
     }, { onConflict: "order_id,weight_point" });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.weight.recorded", { order_id: orderId, weight_point: weightPoint, weight_kg: weightKg });
     return { content: [{ type: "text", text: ok({ order_id: orderId, weight_point: weightPoint, weight_kg: weightKg }) }] };
   }
@@ -151,7 +151,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         updated_at: now(),
       })
       .eq("inspection_id", inspectionId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.inspection.completed", { inspection_id: inspectionId, result });
     return { content: [{ type: "text", text: ok({ inspection_id: inspectionId, status: "completed", result }) }] };
   }
@@ -168,7 +168,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("weight_point,weight_kg,recorded_at")
       .eq("order_id", orderId)
       .order("recorded_at", { ascending: false });
-    if (weightsResult.error) return fail("DB_ERROR", weightsResult.error.message);
+    if (weightsResult.error) return fail("DB_ERROR", "Database operation failed");
     const latest = weightsResult.data?.[0];
     if (!latest) return fail("NOT_FOUND", "No weight records for order_id.");
     const actualWeight = Number(latest.weight_kg ?? 0);
@@ -207,13 +207,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const inspectionId = String(args.inspection_id ?? "");
     if (!inspectionId) return fail("VALIDATION_ERROR", "inspection_id is required.");
     const inspection = await supabase.schema("inspection_mcp").from("inspections").select("*").eq("inspection_id", inspectionId).maybeSingle();
-    if (inspection.error) return fail("DB_ERROR", inspection.error.message);
+    if (inspection.error) return fail("DB_ERROR", "Database operation failed");
     if (!inspection.data) return fail("NOT_FOUND", "inspection_id not found");
     const orderId = inspection.data.order_id as string | null;
     const weights = orderId
       ? await supabase.schema("inspection_mcp").from("weight_records").select("*").eq("order_id", orderId).order("recorded_at", { ascending: true })
       : { data: [], error: null };
-    if (weights.error) return fail("DB_ERROR", weights.error.message);
+    if (weights.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ inspection: inspection.data, weight_records: weights.data ?? [] }) }] };
   }
 
@@ -227,7 +227,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("weight_point,weight_kg,scale_certified,recorded_at")
       .eq("order_id", orderId)
       .order("recorded_at", { ascending: true });
-    if (weightsResult.error) return fail("DB_ERROR", weightsResult.error.message);
+    if (weightsResult.error) return fail("DB_ERROR", "Database operation failed");
 
     const rows = (weightsResult.data ?? []) as Array<Record<string, unknown>>;
     const byPoint: Record<string, number> = {};

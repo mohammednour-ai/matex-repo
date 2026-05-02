@@ -132,7 +132,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (typeof args.price_min === "number") dbQuery = dbQuery.gte("asking_price", args.price_min);
       if (typeof args.price_max === "number") dbQuery = dbQuery.lte("asking_price", args.price_max);
       const { data, error, count } = await dbQuery;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -165,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("listing_id,title,description,category_id,asking_price,pickup_address,status", { count: "exact" })
         .eq("status", "active")
         .range(offset, offset + limit - 1);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset, note: "PostGIS radius filter pending migration" }) }] };
     }
 
@@ -191,7 +191,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .eq("status", "active")
         .eq("category_id", category)
         .range(offset, offset + limit - 1);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -217,7 +217,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         query: entry.query,
         filters: entry.filters,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("search.saved_search.created", { user_id: userId, saved_search_id: entry.saved_search_id });
       return { content: [{ type: "text", text: ok({ saved_search_id: entry.saved_search_id }) }] };
     }
@@ -238,7 +238,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ saved_searches: data ?? [], total: (data ?? []).length }) }] };
     }
     const results = savedSearches.get(userId) ?? [];

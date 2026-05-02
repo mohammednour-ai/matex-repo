@@ -182,7 +182,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       issued_at: issueDate,
       created_at: issueDate,
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("tax.invoice.issued", { invoice_id: invoiceId, invoice_number: invoiceNumber, order_id: orderId, total_amount: totalAmount });
     return { content: [{ type: "text", text: ok({ invoice_id: invoiceId, invoice_number: invoiceNumber, subtotal, tax: taxBreakdown, total_amount: totalAmount }) }] };
@@ -198,7 +198,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (invoiceNumber) query = query.eq("invoice_number", invoiceNumber);
 
     const result = await query.maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     if (!result.data) return fail("NOT_FOUND", "Invoice not found.");
     return { content: [{ type: "text", text: ok({ invoice: result.data }) }] };
   }
@@ -213,7 +213,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ status: "voided", void_reason: reason, voided_by: voidedBy, voided_at: now() })
       .eq("invoice_id", invoiceId)
       .eq("status", "issued");
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("tax.invoice.voided", { invoice_id: invoiceId, reason });
     return { content: [{ type: "text", text: ok({ invoice_id: invoiceId, status: "voided" }) }] };
@@ -229,7 +229,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .eq("status", "issued")
       .gte("issued_at", periodStart)
       .lte("issued_at", periodEnd);
-    if (invoicesResult.error) return fail("DB_ERROR", invoicesResult.error.message);
+    if (invoicesResult.error) return fail("DB_ERROR", "Database operation failed");
 
     const rows = (invoicesResult.data ?? []) as Array<Record<string, unknown>>;
     const summary = {

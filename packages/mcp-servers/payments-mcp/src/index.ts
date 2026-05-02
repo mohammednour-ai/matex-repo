@@ -99,7 +99,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("user_id,balance,pending_balance")
         .eq("user_id", userId)
         .maybeSingle();
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       const wallet = data ?? { user_id: userId, balance: 0, pending_balance: 0 };
       return { content: [{ type: "text", text: ok({ wallet }) }] };
     }
@@ -139,7 +139,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         updated_at: createdAt,
         completed_at: createdAt,
       });
-      if (txError) return fail("DB_ERROR", txError.message);
+      if (txError) return fail("DB_ERROR", "Database operation failed");
 
       if (existing?.wallet_id) {
         const { error: updateError } = await supabase
@@ -147,7 +147,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .from("wallets")
           .update({ balance: nextBalance, updated_at: now() })
           .eq("wallet_id", existing.wallet_id);
-        if (updateError) return fail("DB_ERROR", updateError.message);
+        if (updateError) return fail("DB_ERROR", "Database operation failed");
       } else {
         const { error: insertError } = await supabase.schema("payments_mcp").from("wallets").insert({
           user_id: userId,
@@ -155,7 +155,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           pending_balance: 0,
           currency: "CAD",
         });
-        if (insertError) return fail("DB_ERROR", insertError.message);
+        if (insertError) return fail("DB_ERROR", "Database operation failed");
       }
 
       await emitEvent("payments.wallet.topped_up", { user_id: userId, amount, transaction_id: transactionId });
@@ -208,7 +208,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         label: String(args.label ?? "Payment Method"),
         is_default: setDefault,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       const { data: rows } = await supabase
         .schema("payments_mcp")
         .from("payment_methods")
@@ -277,7 +277,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         created_at: transaction.created_at,
         updated_at: transaction.created_at,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       const pendingTx = { ...transaction, status: "pending_capture" };
       await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
       return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
@@ -300,7 +300,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("payer_id", userId)
         .order("created_at", { ascending: false });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ transactions: data ?? [], total: (data ?? []).length }) }] };
     }
 

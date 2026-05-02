@@ -93,7 +93,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.contract.created", { contract_id: contractId, buyer_id: buyerId, seller_id: sellerId, contract_type: contractType });
     return { content: [{ type: "text", text: ok({ contract_id: contractId, status: "draft", total_value: totalValue }) }] };
@@ -107,7 +107,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ status: "active", esign_document_id: args.esign_document_id ? String(args.esign_document_id) : null, activated_at: now(), updated_at: now() })
       .eq("contract_id", contractId)
       .eq("status", "draft");
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.contract.activated", { contract_id: contractId });
     return { content: [{ type: "text", text: ok({ contract_id: contractId, status: "active" }) }] };
@@ -118,7 +118,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!contractId) return fail("VALIDATION_ERROR", "contract_id is required.");
 
     const contractResult = await supabase.schema("contracts_mcp").from("contracts").select("*").eq("contract_id", contractId).eq("status", "active").maybeSingle();
-    if (contractResult.error) return fail("DB_ERROR", contractResult.error.message);
+    if (contractResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!contractResult.data) return fail("NOT_FOUND", "Active contract not found.");
 
     const contract = contractResult.data as Record<string, unknown>;
@@ -146,7 +146,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.order.triggered", { contract_id: contractId, order_id: orderId, order_amount: orderAmount });
     return { content: [{ type: "text", text: ok({ order_id: orderId, contract_id: contractId, order_amount: orderAmount, status: "pending_confirmation" }) }] };
@@ -159,7 +159,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!contractId || !proposedBy || !proposedChanges) return fail("VALIDATION_ERROR", "contract_id, proposed_by, proposed_changes are required.");
 
     const { data: contract, error: fetchErr } = await supabase.schema("contracts_mcp").from("contracts").select("buyer_id,seller_id").eq("contract_id", contractId).maybeSingle();
-    if (fetchErr) return fail("DB_ERROR", fetchErr.message);
+    if (fetchErr) return fail("DB_ERROR", "Database operation failed");
     if (!contract) return fail("NOT_FOUND", "Contract not found.");
     if (String(contract.buyer_id) !== proposedBy && String(contract.seller_id) !== proposedBy) {
       return fail("FORBIDDEN", "Only the buyer or seller can propose changes to this contract.");
@@ -177,7 +177,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       expires_at: proposalExpiresAt,
       created_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.negotiation.proposed", { contract_id: contractId, negotiation_id: negotiationId, proposed_by: proposedBy });
     return { content: [{ type: "text", text: ok({ negotiation_id: negotiationId, contract_id: contractId, status: "proposed" }) }] };
@@ -188,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!contractId) return fail("VALIDATION_ERROR", "contract_id is required.");
 
     const contractResult = await supabase.schema("contracts_mcp").from("contracts").select("*").eq("contract_id", contractId).maybeSingle();
-    if (contractResult.error) return fail("DB_ERROR", contractResult.error.message);
+    if (contractResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!contractResult.data) return fail("NOT_FOUND", "Contract not found.");
 
     const ordersResult = await supabase.schema("contracts_mcp").from("contract_orders").select("*").eq("contract_id", contractId).order("created_at", { ascending: false });
@@ -204,7 +204,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!contractId || !reason || !terminatedBy) return fail("VALIDATION_ERROR", "contract_id, reason, terminated_by are required.");
 
     const { data: contract, error: fetchErr } = await supabase.schema("contracts_mcp").from("contracts").select("buyer_id,seller_id").eq("contract_id", contractId).maybeSingle();
-    if (fetchErr) return fail("DB_ERROR", fetchErr.message);
+    if (fetchErr) return fail("DB_ERROR", "Database operation failed");
     if (!contract) return fail("NOT_FOUND", "Contract not found.");
     if (String(contract.buyer_id) !== terminatedBy && String(contract.seller_id) !== terminatedBy) {
       return fail("FORBIDDEN", "Only the buyer or seller can terminate this contract.");
@@ -214,7 +214,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ status: "terminated", termination_reason: reason, terminated_by: terminatedBy, terminated_at: now(), updated_at: now() })
       .eq("contract_id", contractId)
       .in("status", ["draft", "active"]);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.contract.terminated", { contract_id: contractId, reason, terminated_by: terminatedBy });
     return { content: [{ type: "text", text: ok({ contract_id: contractId, status: "terminated", reason }) }] };
@@ -229,8 +229,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       supabase.schema("contracts_mcp").from("contracts").select("quantity_kg,price_per_kg,breach_penalties,status").eq("contract_id", contractId).maybeSingle(),
       supabase.schema("contracts_mcp").from("contract_orders").select("quantity_kg,status,delivery_date").eq("order_id", orderId).eq("contract_id", contractId).maybeSingle(),
     ]);
-    if (contractResult.error) return fail("DB_ERROR", contractResult.error.message);
-    if (orderResult.error) return fail("DB_ERROR", orderResult.error.message);
+    if (contractResult.error) return fail("DB_ERROR", "Database operation failed");
+    if (orderResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!contractResult.data) return fail("NOT_FOUND", "Contract not found.");
     if (!orderResult.data) return fail("NOT_FOUND", "Contract order not found.");
 
@@ -273,7 +273,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ status: "breach_penalty_levied", updated_at: collectedAt })
       .eq("order_id", orderId)
       .eq("contract_id", contractId);
-    if (error) return fail("DB_ERROR", error.message);
+    if (error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("contracts.penalty.collected", { contract_id: contractId, order_id: orderId, penalty_id: penaltyId, amount: penaltyAmount, reason });
     return {

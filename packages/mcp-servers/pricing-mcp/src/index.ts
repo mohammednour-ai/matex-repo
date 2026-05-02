@@ -79,7 +79,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         captured_at: createdAt,
         created_at: createdAt,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("pricing.price.captured", { price_id: priceId, material, source, price });
       return { content: [{ type: "text", text: ok({ price_id: priceId, material, source, price: roundToTwoDecimals(price), currency, unit }) }] };
     }
@@ -101,7 +101,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .limit(limit);
       if (material) query = query.eq("material", material);
       const { data, error } = await query;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ prices: data ?? [], total: (data ?? []).length }) }] };
     }
 
@@ -143,7 +143,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         calculated_at: calculatedAt,
         created_at: calculatedAt,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
 
       await emitEvent("pricing.mpi.calculated", { mpi_id: mpiId, category, region, index_value: p50Price });
       return { content: [{ type: "text", text: ok({ mpi_id: mpiId, category, region, index_value: p50Price, sample_size: priceValues.length }) }] };
@@ -175,7 +175,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         is_active: true,
         created_at: createdAt,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ alert_id: alertId, user_id: userId, material, threshold_price: roundToTwoDecimals(thresholdPrice), direction }) }] };
     }
 
@@ -193,7 +193,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("alert_id,user_id,material,threshold_price,direction,is_active,last_triggered_at,created_at")
         .eq("user_id", userId)
         .eq("is_active", true);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ alerts: data ?? [], total: (data ?? []).length }) }] };
     }
 

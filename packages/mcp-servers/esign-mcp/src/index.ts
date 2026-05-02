@@ -77,7 +77,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("esign.document.created", { document_id: documentId, template_type: templateType });
     return { content: [{ type: "text", text: ok({ document_id: documentId, status: "draft", template_type: templateType }) }] };
@@ -93,7 +93,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .update({ status: "sent", provider_envelope_id: providerEnvelopeId, expires_at: expiresAt, updated_at: now() })
       .eq("document_id", documentId)
       .eq("status", "draft");
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("esign.document.sent", { document_id: documentId, provider_envelope_id: providerEnvelopeId });
     return { content: [{ type: "text", text: ok({ document_id: documentId, status: "sent", expires_at: expiresAt }) }] };
@@ -105,7 +105,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!documentId || !signatoryEmail) return fail("VALIDATION_ERROR", "document_id and signatory_email are required.");
 
     const docResult = await supabase.schema("esign_mcp").from("documents").select("*").eq("document_id", documentId).maybeSingle();
-    if (docResult.error) return fail("DB_ERROR", docResult.error.message);
+    if (docResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!docResult.data) return fail("NOT_FOUND", "Document not found.");
 
     const doc = docResult.data as Record<string, unknown>;
@@ -137,7 +137,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     const updateResult = await supabase.schema("esign_mcp").from("documents").update(updatePayload).eq("document_id", documentId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     if (allSigned) {
       await emitEvent("esign.document.signed", { document_id: documentId });
@@ -150,7 +150,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!documentId) return fail("VALIDATION_ERROR", "document_id is required.");
 
     const docResult = await supabase.schema("esign_mcp").from("documents").select("*").eq("document_id", documentId).maybeSingle();
-    if (docResult.error) return fail("DB_ERROR", docResult.error.message);
+    if (docResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!docResult.data) return fail("NOT_FOUND", "Document not found.");
 
     return { content: [{ type: "text", text: ok({ document: docResult.data }) }] };
@@ -163,7 +163,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const updateResult = await supabase.schema("esign_mcp").from("documents")
       .update({ status: "voided", updated_at: now() })
       .eq("document_id", documentId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("esign.document.voided", { document_id: documentId });
     return { content: [{ type: "text", text: ok({ document_id: documentId, status: "voided" }) }] };
@@ -175,7 +175,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!documentId || !hash) return fail("VALIDATION_ERROR", "document_id and hash are required.");
 
     const docResult = await supabase.schema("esign_mcp").from("documents").select("document_hash").eq("document_id", documentId).maybeSingle();
-    if (docResult.error) return fail("DB_ERROR", docResult.error.message);
+    if (docResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!docResult.data) return fail("NOT_FOUND", "Document not found.");
 
     const storedHash = String((docResult.data as Record<string, unknown>).document_hash ?? "");
