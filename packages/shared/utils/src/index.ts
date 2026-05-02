@@ -172,3 +172,5 @@ export { callServer } from "./inter-server";
 export * from "./operational-rules";
 export * from "./cross-border";
 export { initSentry } from "./sentry";
+export type { AnalyticsEvent, FunnelEvent, EngagementEvent, AnalyticsTraits } from "./analytics-events";
+export { serverTrack, serverIdentify, serverAnalyticsShutdown } from "./server-analytics";

@@ -46,13 +46,22 @@ The full C2/C5/C7 UI sprint shipped across seven PRs:
 
 Plus a CI infra fix: `.github/workflows/ci.yml` now triggers on `master` and uses the correct `@matex/web-v2` pnpm filter (#14).
 
+## Shipped — round 5 (backend reference wiring, PRs #19 + #20 + this PR)
+
+| ID | What | Where |
+|---|---|---|
+| **B1 (extended)** | `initSentry(serverName)` helper in `@matex/utils`; wired into all 24 MCP servers so per-server crashes surface in Sentry tagged with `serverName` | PR #19 |
+| **C7 (data plumbing — `auction.list_bids`)** | New `auction-mcp` tool that powers the live bid feed in the auction console; the UI hook from #17 starts surfacing other bidders' bids automatically | PR #19 |
+| **D1 (extended)** | `auction.scheduled_end_due` Inngest function now actually closes open lots and creates escrow holds for winners (was a stub). Reference pattern for the other three Inngest functions. New `lib/gateway-server.ts` server-side `callGatewayTool` helper. | PR #20 |
+| **B2 (extended — schema + helpers)** | Canonical analytics event registry in `@matex/utils/src/analytics-events.ts`; `serverTrack` / `serverIdentify` helpers using `posthog-node`. Browser client refactored to import the shared types so server + client events stitch via the same names. | this PR |
+
 ## Still deferred
 
 | ID | Task | Blocker | Unblock |
 |---|---|---|---|
-| **B1 (extended)** | Sentry init in every MCP server beyond the gateway | Each server gets its own DSN init; mechanical follow-up | Copy the gateway's `Sentry.init` block into each `packages/mcp-servers/*/src/index.ts` once the org has stable DSNs |
-| **B2 (extended)** | Server-side PostHog (`posthog-node`) for funnel events that don't have UI signals | Need access to gateway logs to map events; design pass on per-event property contracts | Define event schema + attach to `MatexEventBus` consumer |
-| **C7 (data plumbing)** | Wire `auction.list_bids` MCP tool, `price-mcp` LME / Fastmarkets reference price, certifier upload flow, inspection PDF storage | Backend tools / external API access | UI is forward-compatible — when each backend ships, no frontend change is needed |
+| **B2 (extended — wiring)** | Attach `serverTrack` to actual gateway tool dispatches and `MatexEventBus` subscribers (event-by-event property contracts) | Per-event design pass | Use the example wirings in `server-analytics.ts` doc-block as templates; one event per follow-up PR |
+| **D1 (extended — remaining 3)** | Wire `escrow.release_timer`, `kyc.poll_status`, `email.daily_digest` Inngest functions to real MCP side effects (each is a 30-min copy of `auction.scheduled_end_due`) | Per-function MCP contracts settling (escrow timing window, KYC provider polling, notifications-mcp send hook) | Apply the pattern from PR #20 |
+| **C7 (data plumbing — remaining)** | `price-mcp` LME / Fastmarkets reference price, certifier upload flow, inspection PDF storage | Backend tools / external API access | UI is forward-compatible — when each backend ships, no frontend change is needed |
 | **D2** | Typesense Cloud + `search-mcp` sync on `listing.created` / `listing.updated` | Typesense Cloud node ($80/mo) + cluster + API keys | Provision and add `TYPESENSE_HOST` / `TYPESENSE_API_KEY` |
 | **E (full migration)** | Move `apps/web-v2/src/app` under `[locale]` segment, swap to `next-intl`'s `useTranslations`, ship language switcher in top bar | FR-CA legal copy must be reviewed by a Quebec-resident speaker (Bill 96 risk) | Engage QC translator; flip `qc_market_open` only after sign-off |
 | **F (full)** | Real Freightera Shipper API (replace synthetic adapter), book + BOL flow | "Select accounts" approval has lead time | Submit Freightera access request now, in parallel |
