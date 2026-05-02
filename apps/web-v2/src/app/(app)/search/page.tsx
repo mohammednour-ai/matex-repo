@@ -20,6 +20,12 @@ import {
 import clsx from "clsx";
 import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/Sheet";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState as EmptyIllustration } from "@/components/ui/EmptyState";
@@ -854,28 +860,19 @@ export default function SearchPage() {
           <FilterSidebar {...filterSidebarProps} />
         </div>
 
-        {/* Mobile filter drawer.
-            TODO(ux): replace this hand-rolled overlay with the shared
-            <Sheet side="right"> primitive from `@/components/ui/Sheet` for
-            consistency with the rest of the app. Held back here only because
-            the existing implementation is well-tested and the Sheet swap
-            wants its own visual diff review. */}
-        {filterOpen && (
-          <div className="fixed inset-0 z-50 md:hidden flex">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setFilterOpen(false)} />
-            <div className="relative ml-auto w-80 bg-white h-full flex flex-col overflow-hidden shadow-xl">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-                <span className="font-semibold text-gray-900">Filters</span>
-                <button onClick={() => setFilterOpen(false)} className="p-1 rounded-md hover:bg-gray-100">
-                  <X size={18} className="text-gray-500" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <FilterSidebar {...filterSidebarProps} />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Mobile filter drawer (uses the shared Sheet primitive built on
+            Radix Dialog — keyboard nav, focus trap, escape-to-close all free). */}
+        <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
+          <SheetContent
+            side="right"
+            className="w-full sm:max-w-sm overflow-y-auto md:hidden"
+          >
+            <SheetHeader>
+              <SheetTitle>Filters</SheetTitle>
+            </SheetHeader>
+            <FilterSidebar {...filterSidebarProps} />
+          </SheetContent>
+        </Sheet>
 
         {/* Results */}
         <div className="flex-1 min-w-0">

@@ -33,15 +33,26 @@ Production-down fix: `apps/web-v2/src/app/api/health/route.ts`, both `railway.to
 | **E** | i18n catalogs (`en.json` + `fr-CA.json`) + `t()` helper + locale detection + storage; behind `bilingual_ui` flag | `apps/web-v2/messages/{en,fr-CA}.json`, `apps/web-v2/src/lib/i18n.ts` |
 | **F** | Freightera adapter wired into `carriers-bridge` (synthetic until API granted) | `packages/bridges/carriers-bridge/src/freightera.ts`, `packages/bridges/carriers-bridge/src/index.ts` |
 
+## Shipped — round 4 (UI sprint, PRs #11–#18)
+
+The full C2/C5/C7 UI sprint shipped across seven PRs:
+
+| ID | What | PRs |
+|---|---|---|
+| **C2 (full migration)** | shadcn primitives (`Button`/`Badge`/`Input`/`Dialog`/`Modal`/`Spinner`) under `components/ui/shadcn/`; Sonner replaces `react-hot-toast`; legacy custom components deleted | #11, #12, #13, #18 |
+| **C5** | Mobile-responsive sweep: `CopilotPanel` width capped to viewport, search filter drawer rebuilt on the shared `Sheet` primitive (Radix Dialog under the hood — focus trap + esc handling free) | #18 |
+| **C7 (listing-detail)** | Photo lightbox (Radix Dialog), `CertifiedWeightCard` with verification-pending fallback, `InspectionReportSection` with PDF download, LME reference price wired through `Listing.lme_reference_cad_per_mt`, `StickyBidPanel` extracted to first-class component | #15 |
+| **C7 (auction console)** | `BidStream` component with newest-first highlight + slide-in animation, `LotProgressBar` with green→amber→red phase escalation and "Going once / Going twice / Sold!" caller labels in the final 10 s, `useBidStream` polling hook (forward-compatible with not-yet-shipped `auction.list_bids` MCP tool) | #17 |
+
+Plus a CI infra fix: `.github/workflows/ci.yml` now triggers on `master` and uses the correct `@matex/web-v2` pnpm filter (#14).
+
 ## Still deferred
 
 | ID | Task | Blocker | Unblock |
 |---|---|---|---|
 | **B1 (extended)** | Sentry init in every MCP server beyond the gateway | Each server gets its own DSN init; mechanical follow-up | Copy the gateway's `Sentry.init` block into each `packages/mcp-servers/*/src/index.ts` once the org has stable DSNs |
 | **B2 (extended)** | Server-side PostHog (`posthog-node`) for funnel events that don't have UI signals | Need access to gateway logs to map events; design pass on per-event property contracts | Define event schema + attach to `MatexEventBus` consumer |
-| **C2 (full migration)** | Replace existing custom UI (`Button`, `Badge`, `Modal`, `Spinner`, `Input`) with shadcn equivalents and adopt `Sonner` over `react-hot-toast` | Larger refactor with visual diffs; need a design pass first | Schedule a UX sprint |
-| **C5** | Mobile audit at 375 / 768 / 1280 | Manual QA on the Vercel preview | Run during the next deploy cycle |
-| **C7** | Listing-detail confidence stack + auction console redesign | UX scope: photo gallery, certified weight slot, inspection PDF link, LME reference price, sticky bid panel; needs design assets + Metals-API key | Schedule a 1-week UX sprint |
+| **C7 (data plumbing)** | Wire `auction.list_bids` MCP tool, `price-mcp` LME / Fastmarkets reference price, certifier upload flow, inspection PDF storage | Backend tools / external API access | UI is forward-compatible — when each backend ships, no frontend change is needed |
 | **D2** | Typesense Cloud + `search-mcp` sync on `listing.created` / `listing.updated` | Typesense Cloud node ($80/mo) + cluster + API keys | Provision and add `TYPESENSE_HOST` / `TYPESENSE_API_KEY` |
 | **E (full migration)** | Move `apps/web-v2/src/app` under `[locale]` segment, swap to `next-intl`'s `useTranslations`, ship language switcher in top bar | FR-CA legal copy must be reviewed by a Quebec-resident speaker (Bill 96 risk) | Engage QC translator; flip `qc_market_open` only after sign-off |
 | **F (full)** | Real Freightera Shipper API (replace synthetic adapter), book + BOL flow | "Select accounts" approval has lead time | Submit Freightera access request now, in parallel |

@@ -125,8 +125,11 @@ export function CopilotPanel() {
       {/* Panel */}
       <div
         className={clsx(
-          "fixed bottom-6 right-6 z-50 flex flex-col",
-          "w-[380px] h-[500px] rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200",
+          "fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col",
+          // On narrow viewports (e.g. iPhone SE @ 375px) the original 380px width
+          // would overflow the right edge; cap to the viewport with a 1rem inset.
+          "w-[min(380px,calc(100vw-2rem))] h-[min(500px,calc(100vh-6rem))]",
+          "rounded-2xl bg-white shadow-2xl ring-1 ring-slate-200",
           "transition-all duration-200 origin-bottom-right",
           open
             ? "opacity-100 scale-100 pointer-events-auto"
