@@ -48,6 +48,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "review_verification", description: "Review and set KYC status", inputSchema: { type: "object", properties: { verification_id: { type: "string" }, status: { type: "string" }, reviewer_id: { type: "string" }, reviewer_notes: { type: "string" } }, required: ["verification_id", "status"] } },
     { name: "get_kyc_level", description: "Get current KYC level by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "assert_kyc_gate", description: "Assert user meets required KYC level", inputSchema: { type: "object", properties: { user_id: { type: "string" }, required_level: { type: "string" }, context: { type: "string" } }, required: ["user_id", "required_level"] } },
+    { name: "check_kyc_expiry", description: "Find users whose KYC review is overdue and downgrade/flag them", inputSchema: { type: "object", properties: { limit: { type: "number" } } } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -74,7 +75,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       current_status: "pending",
       submitted_at: now(),
     });
-    if (error) return fail("DB_ERROR", error.message);
+    if (error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("kyc.verification.started", { verification_id: verificationId, user_id: userId, target_level: targetLevel });
     return { content: [{ type: "text", text: ok({ verification_id: verificationId, status: "pending" }) }] };
   }
@@ -97,7 +98,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       file_url: fileUrl,
       file_hash: fileHash,
     });
-    if (error) return fail("DB_ERROR", error.message);
+    if (error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("kyc.document.submitted", { verification_id: verificationId, document_id: documentId, user_id: userId });
     return { content: [{ type: "text", text: ok({ document_id: documentId }) }] };
   }
@@ -122,12 +123,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .eq("verification_id", verificationId)
       .select("user_id,target_level")
       .maybeSingle();
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!updateResult.data) return fail("NOT_FOUND", "verification_id not found");
 
     if (status === "verified") {
       const userId = updateResult.data.user_id as string;
       const targetLevel = updateResult.data.target_level as string;
+
+      const currentLevelResult = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", userId).maybeSingle();
+      if (currentLevelResult.error) return fail("DB_ERROR", "Database operation failed");
+      const currentLevel = String(currentLevelResult.data?.current_level ?? "level_0");
+      if (levelRank(targetLevel) < levelRank(currentLevel)) {
+        return fail("KYC_DOWNGRADE_FORBIDDEN", `Cannot lower KYC level from ${currentLevel} to ${targetLevel}.`);
+      }
+
       const upsertPayload: Record<string, unknown> = {
         user_id: userId,
         current_level: targetLevel,
@@ -138,7 +147,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (targetLevel === "level_2") upsertPayload.level_2_at = now();
       if (targetLevel === "level_3") upsertPayload.level_3_at = now();
       const levelUpsert = await supabase.schema("kyc_mcp").from("kyc_levels").upsert(upsertPayload, { onConflict: "user_id" });
-      if (levelUpsert.error) return fail("DB_ERROR", levelUpsert.error.message);
+      if (levelUpsert.error) return fail("DB_ERROR", "Database operation failed");
     }
 
     await emitEvent("kyc.verification.reviewed", { verification_id: verificationId, status });
@@ -149,7 +158,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const userId = String(args.user_id ?? "");
     if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
     const result = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level,updated_at").eq("user_id", userId).maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ user_id: userId, current_level: result.data?.current_level ?? "level_0", updated_at: result.data?.updated_at ?? null }) }] };
   }
 
@@ -158,13 +167,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const requiredLevel = String(args.required_level ?? "");
     if (!userId || !requiredLevel) return fail("VALIDATION_ERROR", "user_id and required_level are required.");
     const result = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", userId).maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     const currentLevel = String(result.data?.current_level ?? "level_0");
     const allowed = levelRank(currentLevel) >= levelRank(requiredLevel);
     if (!allowed) {
       return fail("KYC_GATE_BLOCKED", `Required ${requiredLevel}, current ${currentLevel} for context '${String(args.context ?? "unknown")}'.`);
     }
     return { content: [{ type: "text", text: ok({ user_id: userId, current_level: currentLevel, required_level: requiredLevel, allowed: true }) }] };
+  }
+
+  if (tool === "check_kyc_expiry") {
+    const limit = Math.min(Number(args.limit ?? 50), 200);
+    const now_ = now();
+    const { data: expiredRows, error: expiredError } = await supabase
+      .schema("kyc_mcp")
+      .from("kyc_levels")
+      .select("user_id,current_level,next_review_at")
+      .lt("next_review_at", now_)
+      .limit(limit);
+    if (expiredError) return fail("DB_ERROR", "Database operation failed");
+    const rows = expiredRows ?? [];
+    const flagged: string[] = [];
+    for (const row of rows) {
+      const userId = String(row.user_id);
+      const { error: updateError } = await supabase
+        .schema("kyc_mcp")
+        .from("kyc_levels")
+        .update({ kyc_status: "review_required", updated_at: now_ })
+        .eq("user_id", userId);
+      if (!updateError) {
+        flagged.push(userId);
+        await emitEvent("kyc.expiry.flagged", { user_id: userId, current_level: row.current_level, next_review_at: row.next_review_at });
+      }
+    }
+    return { content: [{ type: "text", text: ok({ flagged_count: flagged.length, flagged_user_ids: flagged }) }] };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };

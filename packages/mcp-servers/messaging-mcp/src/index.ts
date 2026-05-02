@@ -92,7 +92,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         participants,
         thread_type: "general",
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("messaging.thread.created", { thread_id: threadId, participants: thread.participants });
       return { content: [{ type: "text", text: ok({ thread_id: threadId }) }] };
     }
@@ -105,8 +105,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "send_message") {
     const threadId = String(args.thread_id ?? "");
     if (!threadId) return fail("VALIDATION_ERROR", "thread_id is required.");
-    // sender_id may be injected by the gateway via x-matex-user-id; accept either path
-    const senderId = String(args.sender_id ?? args._user_id ?? "").trim();
+    // Prefer _user_id injected by the gateway; fall back to explicit sender_id only when _user_id is absent.
+    const senderId = String(args._user_id ?? args.sender_id ?? "").trim();
     if (!senderId) return fail("VALIDATION_ERROR", "sender_id is required.");
     if (!String(args.content ?? "").trim()) return fail("VALIDATION_ERROR", "content is required.");
 
@@ -117,7 +117,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("thread_id")
         .eq("thread_id", threadId)
         .maybeSingle();
-      if (threadCheckError) return fail("DB_ERROR", threadCheckError.message);
+      if (threadCheckError) return fail("DB_ERROR", "Database operation failed");
       if (!threadExists) return fail("NOT_FOUND", "Thread not found");
 
       const messageId = generateId();
@@ -129,7 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: String(args.content ?? ""),
         created_at: createdAt,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await supabase
         .schema("messaging_mcp")
         .from("threads")
@@ -164,7 +164,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("thread_id", threadId)
         .maybeSingle();
-      if (threadError) return fail("DB_ERROR", threadError.message);
+      if (threadError) return fail("DB_ERROR", "Database operation failed");
       if (!thread) return { content: [{ type: "text", text: ok({ thread: null }) }] };
       const { data: messages, error: messagesError } = await supabase
         .schema("messaging_mcp")
@@ -172,7 +172,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("thread_id", threadId)
         .order("created_at", { ascending: true });
-      if (messagesError) return fail("DB_ERROR", messagesError.message);
+      if (messagesError) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ thread: { ...thread, messages: messages ?? [] } }) }] };
     }
 
@@ -194,7 +194,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .contains("participants", [userId])
         .order("last_message_at", { ascending: false })
         .range(offset, offset + limit - 1);
-      if (threadError) return fail("DB_ERROR", threadError.message);
+      if (threadError) return fail("DB_ERROR", "Database operation failed");
       const list = (threadRows ?? []).map((t) => {
         const parts = Array.isArray(t.participants) ? (t.participants as string[]) : [];
         const otherId = parts.find((p) => p !== userId) ?? "";
@@ -251,7 +251,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .eq("thread_id", threadId)
         .order("created_at", { ascending: true })
         .range(offset, offset + limit - 1);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ messages: messages ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -272,7 +272,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("threads")
         .select("thread_id,participants")
         .contains("participants", [userId]);
-      if (threadError) return fail("DB_ERROR", threadError.message);
+      if (threadError) return fail("DB_ERROR", "Database operation failed");
       const threadIds = (joinedThreads ?? []).map((row) => row.thread_id);
       if (threadIds.length === 0) return { content: [{ type: "text", text: ok({ total_unread: 0, thread_count: 0 }) }] };
 
@@ -282,7 +282,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("sender_id")
         .in("thread_id", threadIds)
         .neq("sender_id", userId);
-      if (messagesError) return fail("DB_ERROR", messagesError.message);
+      if (messagesError) return fail("DB_ERROR", "Database operation failed");
       return {
         content: [
           {

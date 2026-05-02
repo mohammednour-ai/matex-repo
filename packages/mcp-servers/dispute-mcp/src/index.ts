@@ -60,11 +60,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "file_dispute") {
     const orderId = String(args.order_id ?? "");
-    const filedBy = String(args.filed_by ?? "");
+    const filedBy = String(args._user_id ?? args.filed_by ?? "");
     const againstUserId = String(args.against_user_id ?? "");
     const disputeType = String(args.dispute_type ?? "");
     const description = String(args.description ?? "");
-    if (!orderId || !filedBy || !againstUserId || !disputeType || !description) return fail("VALIDATION_ERROR", "order_id, filed_by, against_user_id, dispute_type, description are required.");
+    if (!orderId || !filedBy || !againstUserId || !disputeType || !description) return fail("VALIDATION_ERROR", "order_id, against_user_id, dispute_type, description are required.");
+    if (filedBy === againstUserId) return fail("VALIDATION_ERROR", "Cannot file a dispute against yourself.");
 
     const disputeId = generateId();
     const insertResult = await supabase.schema("dispute_mcp").from("disputes").insert({
@@ -80,7 +81,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.dispute.created", { dispute_id: disputeId, order_id: orderId, filed_by: filedBy, dispute_type: disputeType });
     return { content: [{ type: "text", text: ok({ dispute_id: disputeId, status: "open", resolution_tier: "mediation" }) }] };
@@ -102,7 +103,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       description: args.description ? String(args.description) : null,
       submitted_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.evidence.submitted", { dispute_id: disputeId, evidence_id: evidenceId });
     return { content: [{ type: "text", text: ok({ evidence_id: evidenceId, dispute_id: disputeId }) }] };
@@ -125,7 +126,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: "proposed",
       created_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("dispute.settlement.proposed", { dispute_id: disputeId, proposal_id: proposalId });
     return { content: [{ type: "text", text: ok({ proposal_id: proposalId, dispute_id: disputeId, status: "proposed" }) }] };
@@ -133,18 +134,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "escalate_dispute") {
     const disputeId = String(args.dispute_id ?? "");
-    const escalatedBy = String(args.escalated_by ?? "");
+    const escalatedBy = String(args._user_id ?? args.escalated_by ?? "");
     const reason = String(args.reason ?? "");
+    const VALID_TIERS = ["mediation", "arbitration", "legal"] as const;
+    const nextTier = String(args.next_tier ?? "arbitration");
+    if (!VALID_TIERS.includes(nextTier as typeof VALID_TIERS[number])) {
+      return fail("VALIDATION_ERROR", `next_tier must be one of: ${VALID_TIERS.join(", ")}`);
+    }
     if (!disputeId || !escalatedBy || !reason) return fail("VALIDATION_ERROR", "dispute_id, escalated_by, reason are required.");
 
+    const resolutionDeadline = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
     const updateResult = await supabase.schema("dispute_mcp").from("disputes")
-      .update({ resolution_tier: "arbitration", escalated_by: escalatedBy, escalation_reason: reason, updated_at: now() })
+      .update({ resolution_tier: nextTier, escalated_by: escalatedBy, escalation_reason: reason, resolution_deadline: resolutionDeadline, updated_at: now() })
       .eq("dispute_id", disputeId)
       .eq("status", "open");
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
-    await emitEvent("dispute.dispute.escalated", { dispute_id: disputeId, escalated_by: escalatedBy, reason });
-    return { content: [{ type: "text", text: ok({ dispute_id: disputeId, resolution_tier: "arbitration" }) }] };
+    await emitEvent("dispute.dispute.escalated", { dispute_id: disputeId, escalated_by: escalatedBy, reason, resolution_tier: nextTier, resolution_deadline: resolutionDeadline });
+    return { content: [{ type: "text", text: ok({ dispute_id: disputeId, resolution_tier: nextTier, resolution_deadline: resolutionDeadline }) }] };
   }
 
   if (tool === "resolve_dispute") {
@@ -157,7 +164,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const updateResult = await supabase.schema("dispute_mcp").from("disputes")
       .update({ status: "resolved", resolved_by: resolvedBy, resolution, resolution_type: resolutionType, resolved_at: now(), updated_at: now() })
       .eq("dispute_id", disputeId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
 
     if (typeof args.penalty_amount === "number" && args.penalty_user_id) {
       const penaltyId = generateId();
@@ -181,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!disputeId) return fail("VALIDATION_ERROR", "dispute_id is required.");
 
     const disputeResult = await supabase.schema("dispute_mcp").from("disputes").select("*").eq("dispute_id", disputeId).maybeSingle();
-    if (disputeResult.error) return fail("DB_ERROR", disputeResult.error.message);
+    if (disputeResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!disputeResult.data) return fail("NOT_FOUND", "Dispute not found.");
 
     const evidenceResult = await supabase.schema("dispute_mcp").from("evidence").select("*").eq("dispute_id", disputeId).order("submitted_at", { ascending: true });
@@ -198,6 +205,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const existing = await supabase.schema("dispute_mcp").from("platform_integrity_scores").select("*").eq("user_id", userId).maybeSingle();
     const currentScore = existing.data ? Number((existing.data as Record<string, unknown>).score ?? 100) : 100;
+    const previousTier = String((existing.data as Record<string, unknown> | null)?.tier ?? "excellent");
     const newScore = Math.max(0, Math.min(100, currentScore + scoreDelta));
 
     let tier: string;
@@ -215,9 +223,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       dispute_id: args.dispute_id ? String(args.dispute_id) : null,
       updated_at: now(),
     }, { onConflict: "user_id" });
-    if (upsertResult.error) return fail("DB_ERROR", upsertResult.error.message);
+    if (upsertResult.error) return fail("DB_ERROR", "Database operation failed");
 
-    if (tier === "critical") {
+    if (tier === "critical" && previousTier !== "critical") {
       await emitEvent("dispute.pis.critical", { user_id: userId, score: newScore, reason });
     }
 

@@ -69,6 +69,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "save_search", description: "Save a user search configuration", inputSchema: { type: "object", properties: { user_id: { type: "string" }, query: { type: "string" }, filters: { type: "object" } }, required: ["user_id"] } },
     { name: "get_saved_searches", description: "Get saved searches by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "index_listing", description: "Index listing document (internal utility)", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, category: { type: "string" }, lat: { type: "number" }, lng: { type: "number" }, price: { type: "number" } }, required: ["listing_id", "title", "description", "category", "lat", "lng"] } },
+    { name: "remove_from_index", description: "Remove a listing from the in-memory search index (call on archive/delete)", inputSchema: { type: "object", properties: { listing_id: { type: "string" } }, required: ["listing_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -85,8 +86,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!String(args.listing_id ?? "").trim()) return fail("VALIDATION_ERROR", "listing_id is required.");
     if (!String(args.title ?? "").trim()) return fail("VALIDATION_ERROR", "title is required.");
     if (!String(args.category ?? "").trim()) return fail("VALIDATION_ERROR", "category is required.");
+    const listingId = String(args.listing_id ?? "");
+    // Replace existing entry if already indexed, otherwise append.
+    const existingIdx = listingIndex.findIndex((d) => d.listing_id === listingId);
     const doc: SearchDoc = {
-      listing_id: String(args.listing_id ?? ""),
+      listing_id: listingId,
       title: String(args.title ?? ""),
       description: String(args.description ?? ""),
       category: String(args.category ?? ""),
@@ -94,9 +98,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       lng: Number(args.lng ?? 0),
       price: typeof args.price === "number" ? args.price : undefined,
     };
-    listingIndex.push(doc);
+    if (existingIdx >= 0) {
+      listingIndex[existingIdx] = doc;
+    } else {
+      listingIndex.push(doc);
+    }
     await emitEvent("search.index.updated", { listing_id: doc.listing_id, category: doc.category });
     return { content: [{ type: "text", text: ok({ indexed: true, listing_id: doc.listing_id, total_indexed: listingIndex.length }) }] };
+  }
+
+  if (tool === "remove_from_index") {
+    const listingId = String(args.listing_id ?? "");
+    if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
+    const before = listingIndex.length;
+    const idx = listingIndex.findIndex((d) => d.listing_id === listingId);
+    if (idx >= 0) listingIndex.splice(idx, 1);
+    return { content: [{ type: "text", text: ok({ removed: idx >= 0, listing_id: listingId, total_indexed: listingIndex.length, was_indexed: before }) }] };
   }
 
   if (tool === "search_materials") {
@@ -115,7 +132,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (typeof args.price_min === "number") dbQuery = dbQuery.gte("asking_price", args.price_min);
       if (typeof args.price_max === "number") dbQuery = dbQuery.lte("asking_price", args.price_max);
       const { data, error, count } = await dbQuery;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -148,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("listing_id,title,description,category_id,asking_price,pickup_address,status", { count: "exact" })
         .eq("status", "active")
         .range(offset, offset + limit - 1);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset, note: "PostGIS radius filter pending migration" }) }] };
     }
 
@@ -174,7 +191,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .eq("status", "active")
         .eq("category_id", category)
         .range(offset, offset + limit - 1);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ results: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 
@@ -200,7 +217,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         query: entry.query,
         filters: entry.filters,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("search.saved_search.created", { user_id: userId, saved_search_id: entry.saved_search_id });
       return { content: [{ type: "text", text: ok({ saved_search_id: entry.saved_search_id }) }] };
     }
@@ -221,7 +238,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ saved_searches: data ?? [], total: (data ?? []).length }) }] };
     }
     const results = savedSearches.get(userId) ?? [];
@@ -244,4 +261,20 @@ if (process.env.MCP_HTTP_MODE === "1") {
     console.error(`[${SERVER_NAME}] fatal`, error);
     process.exit(1);
   });
+}
+
+// Evict archived/cancelled listings from the in-memory index automatically.
+if (eventBus) {
+  eventBus.startConsumerLoop("search-index-eviction", async (event, payload) => {
+    if (event === "listing.listing.archived" || event === "listing.listing.cancelled" || event === "listing.listing.deleted") {
+      const listingId = String(payload.listing_id ?? "");
+      if (!listingId) return;
+      const idx = listingIndex.findIndex((d) => d.listing_id === listingId);
+      if (idx >= 0) {
+        listingIndex.splice(idx, 1);
+        console.error(`[search-mcp] evicted listing ${listingId} from index (event: ${event})`);
+      }
+    }
+  });
+  console.error("[search-mcp] index eviction consumer started");
 }

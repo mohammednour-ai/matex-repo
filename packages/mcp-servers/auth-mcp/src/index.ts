@@ -21,7 +21,7 @@ import * as jwt from "jsonwebtoken";
 import { randomBytes, randomInt, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { AccountType, AuthTokens, User } from "@matex/types";
-import { isValidCanadianPhone, isValidEmail, MatexEventBus, now } from "@matex/utils";
+import { isValidCanadianPhone, isValidEmail, MatexEventBus, now, sha256 } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const scryptAsync = promisify(scrypt);
@@ -132,7 +132,6 @@ function issueOtp(targetType: "email" | "phone", targetValue: string): { challen
   return {
     challenge_id: challengeId,
     expires_at: expiresAt,
-    code: process.env.NODE_ENV === "production" ? undefined : rawCode,
   };
 }
 
@@ -147,7 +146,7 @@ function verifyOtp(targetType: "email" | "phone", targetValue: string, otpCode: 
   }
 
   if (latest.verified) {
-    return latest;
+    throw new Error("OTP already used. Request a new OTP.");
   }
 
   if (new Date(latest.expires_at).getTime() < Date.now()) {
@@ -206,8 +205,8 @@ async function register(args: Record<string, unknown>): Promise<Record<string, u
       status: "pending_review",
       verification_required: true,
       challenges: {
-        email: { challenge_id: emailChallenge.challenge_id, expires_at: emailChallenge.expires_at, code: emailChallenge.code },
-        phone: { challenge_id: phoneChallenge.challenge_id, expires_at: phoneChallenge.expires_at, code: phoneChallenge.code },
+        email: { challenge_id: emailChallenge.challenge_id, expires_at: emailChallenge.expires_at },
+        phone: { challenge_id: phoneChallenge.challenge_id, expires_at: phoneChallenge.expires_at },
       },
     };
   }
@@ -363,7 +362,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const rawCode = String(Math.floor(100000 + Math.random() * 900000));
       resetTokens.set(email, { email, code: sha256(rawCode), expires_at: Date.now() + 600_000 });
       await emitEvent("auth.password_reset.requested", { email });
-      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString(), ...(process.env.NODE_ENV !== "production" ? { code: rawCode } : {}) } }) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { challenge_id: randomUUID(), expires_at: new Date(Date.now() + 600_000).toISOString() } }) }] };
     }
     if (tool === "confirm_password_reset") {
       const email = String(args.email ?? "").toLowerCase().trim();

@@ -43,6 +43,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "complete_inspection", description: "Complete inspection and publish result", inputSchema: { type: "object", properties: { inspection_id: { type: "string" }, result: { type: "string" }, weight_actual_kg: { type: "number" }, deduction_amount: { type: "number" }, notes: { type: "string" } }, required: ["inspection_id", "result"] } },
     { name: "evaluate_discrepancy", description: "Compare expected and actual weights", inputSchema: { type: "object", properties: { order_id: { type: "string" }, expected_weight_kg: { type: "number" }, tolerance_pct: { type: "number" } }, required: ["order_id", "expected_weight_kg"] } },
     { name: "get_inspection", description: "Get inspection with related weight records", inputSchema: { type: "object", properties: { inspection_id: { type: "string" } }, required: ["inspection_id"] } },
+    { name: "reconcile_weights", description: "Compare W1–W4 weight checkpoints for an order and compute net weight", inputSchema: { type: "object", properties: { order_id: { type: "string" } }, required: ["order_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -57,10 +58,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for inspection-mcp.");
 
   if (tool === "request_inspection") {
-    const requestedBy = String(args.requested_by ?? "");
+    const requestedBy = String(args._user_id ?? args.requested_by ?? "");
     const inspectionType = String(args.inspection_type ?? "");
     const location = args.location as Record<string, unknown> | undefined;
     if (!requestedBy || !inspectionType || !location) return fail("VALIDATION_ERROR", "requested_by, inspection_type, location are required.");
+
+    // Verify requester is the buyer or seller of the associated order or listing owner.
+    if (args.order_id) {
+      const orderId = String(args.order_id);
+      const { data: order, error: orderErr } = await supabase
+        .schema("orders_mcp")
+        .from("orders")
+        .select("buyer_id,seller_id")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (orderErr) return fail("DB_ERROR", "Database operation failed");
+      if (!order) return fail("NOT_FOUND", "Order not found.");
+      if (order.buyer_id !== requestedBy && order.seller_id !== requestedBy) {
+        return fail("FORBIDDEN", "Requester must be the buyer or seller of the order.");
+      }
+    } else if (args.listing_id) {
+      const listingId = String(args.listing_id);
+      const { data: listing, error: listingErr } = await supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .select("seller_id")
+        .eq("listing_id", listingId)
+        .maybeSingle();
+      if (listingErr) return fail("DB_ERROR", "Database operation failed");
+      if (!listing) return fail("NOT_FOUND", "Listing not found.");
+      if (listing.seller_id !== requestedBy) {
+        return fail("FORBIDDEN", "Requester must be the listing owner.");
+      }
+    }
+
     const inspectionId = generateId();
     const insertResult = await supabase.schema("inspection_mcp").from("inspections").insert({
       inspection_id: inspectionId,
@@ -75,7 +106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.inspection.requested", { inspection_id: inspectionId, order_id: args.order_id ? String(args.order_id) : null, listing_id: args.listing_id ? String(args.listing_id) : null });
     return { content: [{ type: "text", text: ok({ inspection_id: inspectionId, status: "requested" }) }] };
   }
@@ -98,7 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       scale_certificate: args.scale_certificate ? String(args.scale_certificate) : null,
       recorded_at: now(),
     }, { onConflict: "order_id,weight_point" });
-    if (insertResult.error) return fail("DB_ERROR", insertResult.error.message);
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.weight.recorded", { order_id: orderId, weight_point: weightPoint, weight_kg: weightKg });
     return { content: [{ type: "text", text: ok({ order_id: orderId, weight_point: weightPoint, weight_kg: weightKg }) }] };
   }
@@ -120,7 +151,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         updated_at: now(),
       })
       .eq("inspection_id", inspectionId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("inspection.inspection.completed", { inspection_id: inspectionId, result });
     return { content: [{ type: "text", text: ok({ inspection_id: inspectionId, status: "completed", result }) }] };
   }
@@ -137,7 +168,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("weight_point,weight_kg,recorded_at")
       .eq("order_id", orderId)
       .order("recorded_at", { ascending: false });
-    if (weightsResult.error) return fail("DB_ERROR", weightsResult.error.message);
+    if (weightsResult.error) return fail("DB_ERROR", "Database operation failed");
     const latest = weightsResult.data?.[0];
     if (!latest) return fail("NOT_FOUND", "No weight records for order_id.");
     const actualWeight = Number(latest.weight_kg ?? 0);
@@ -176,14 +207,52 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const inspectionId = String(args.inspection_id ?? "");
     if (!inspectionId) return fail("VALIDATION_ERROR", "inspection_id is required.");
     const inspection = await supabase.schema("inspection_mcp").from("inspections").select("*").eq("inspection_id", inspectionId).maybeSingle();
-    if (inspection.error) return fail("DB_ERROR", inspection.error.message);
+    if (inspection.error) return fail("DB_ERROR", "Database operation failed");
     if (!inspection.data) return fail("NOT_FOUND", "inspection_id not found");
     const orderId = inspection.data.order_id as string | null;
     const weights = orderId
       ? await supabase.schema("inspection_mcp").from("weight_records").select("*").eq("order_id", orderId).order("recorded_at", { ascending: true })
       : { data: [], error: null };
-    if (weights.error) return fail("DB_ERROR", weights.error.message);
+    if (weights.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ inspection: inspection.data, weight_records: weights.data ?? [] }) }] };
+  }
+
+  if (tool === "reconcile_weights") {
+    const orderId = String(args.order_id ?? "");
+    if (!orderId) return fail("VALIDATION_ERROR", "order_id is required.");
+
+    const weightsResult = await supabase
+      .schema("inspection_mcp")
+      .from("weight_records")
+      .select("weight_point,weight_kg,scale_certified,recorded_at")
+      .eq("order_id", orderId)
+      .order("recorded_at", { ascending: true });
+    if (weightsResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    const rows = (weightsResult.data ?? []) as Array<Record<string, unknown>>;
+    const byPoint: Record<string, number> = {};
+    for (const r of rows) {
+      byPoint[String(r.weight_point)] = Number(r.weight_kg ?? 0);
+    }
+
+    // W1=origin tare, W2=origin gross, W3=destination gross, W4=destination tare.
+    const w1 = byPoint["W1"] ?? null;
+    const w2 = byPoint["W2"] ?? null;
+    const w3 = byPoint["W3"] ?? null;
+    const w4 = byPoint["W4"] ?? null;
+
+    const originNet = w1 !== null && w2 !== null ? Number((w2 - w1).toFixed(3)) : null;
+    const destinationNet = w3 !== null && w4 !== null ? Number((w3 - w4).toFixed(3)) : null;
+    const discrepancyKg = originNet !== null && destinationNet !== null ? Number((destinationNet - originNet).toFixed(3)) : null;
+    const discrepancyPct = originNet && originNet > 0 && discrepancyKg !== null ? Number(((discrepancyKg / originNet) * 100).toFixed(2)) : null;
+
+    await emitEvent("inspection.weights.reconciled", { order_id: orderId, origin_net_kg: originNet, destination_net_kg: destinationNet, discrepancy_kg: discrepancyKg });
+    return {
+      content: [{
+        type: "text",
+        text: ok({ order_id: orderId, checkpoints: byPoint, origin_net_kg: originNet, destination_net_kg: destinationNet, discrepancy_kg: discrepancyKg, discrepancy_pct: discrepancyPct }),
+      }],
+    };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };

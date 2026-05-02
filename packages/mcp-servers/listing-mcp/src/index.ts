@@ -110,7 +110,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         pickup_address: listing.pickup_address,
         status: listing.status,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("listing.listing.created", { listing_id: listingId, seller_id: listing.seller_id });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, status: listing.status }) }] };
     }
@@ -125,22 +125,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
     if (typeof args.fields !== "object" || !args.fields) return fail("VALIDATION_ERROR", "fields must be an object.");
 
+    const ALLOWED_FIELDS = ["title", "description", "asking_price", "quantity"] as const;
+    const rawFields = args.fields as Record<string, unknown>;
+    const safeFields: Record<string, unknown> = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (key in rawFields) safeFields[key] = rawFields[key];
+    }
+    if (Object.keys(safeFields).length === 0) return fail("VALIDATION_ERROR", "No valid fields provided. Allowed: title, description, asking_price, quantity.");
+
     if (supabase) {
       const { error } = await supabase
         .schema("listing_mcp")
         .from("listings")
-        .update(args.fields as Record<string, unknown>)
+        .update({ ...safeFields, updated_at: now() })
         .eq("listing_id", listingId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("listing.listing.updated", { listing_id: listingId });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, updated: true }) }] };
     }
 
     const current = listingStore.get(listingId);
     if (!current) return fail("NOT_FOUND", "Listing not found");
-    const fields = (args.fields ?? {}) as Partial<Listing>;
-    const updated = { ...current, ...fields };
-    listingStore.set(listingId, updated);
+    const updated = { ...current, ...safeFields };
+    listingStore.set(listingId, updated as Listing);
     await emitEvent("listing.listing.updated", { listing_id: listingId });
     return { content: [{ type: "text", text: ok({ listing: updated }) }] };
   }
@@ -162,7 +169,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("listings")
         .update({ images })
         .eq("listing_id", listingId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("listing.images.uploaded", { listing_id: listingId, images_count: images.length });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, images_count: images.length }) }] };
     }
@@ -187,7 +194,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .eq("listing_id", listingId)
         .select("listing_id,seller_id,status,published_at")
         .maybeSingle();
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       if (!data) return fail("NOT_FOUND", "Listing not found");
       await emitEvent("listing.listing.published", { listing_id: listingId, seller_id: data.seller_id });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, status: data.status, published_at: data.published_at }) }] };
@@ -211,7 +218,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("listing_id", listingId)
         .maybeSingle();
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ listing: data ?? null }) }] };
     }
     const listing = listingStore.get(listingId);
@@ -235,7 +242,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .range(offset, offset + limit - 1);
       if (statusFilter) query = query.eq("status", statusFilter);
       const { data, error, count } = await query;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ listings: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
     let listings = Array.from(listingStore.values()).filter((row) => row.seller_id === sellerId);
@@ -254,7 +261,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .from("listings")
         .update({ status: "archived" })
         .eq("listing_id", listingId);
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       await emitEvent("listing.listing.archived", { listing_id: listingId });
       return { content: [{ type: "text", text: ok({ listing_id: listingId, status: "archived" }) }] };
     }
@@ -284,7 +291,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (priceMin !== undefined) query = query.gte("asking_price", priceMin);
       if (priceMax !== undefined) query = query.lte("asking_price", priceMax);
       const { data, error, count } = await query;
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ listings: data ?? [], total: count ?? 0, limit, offset }) }] };
     }
 

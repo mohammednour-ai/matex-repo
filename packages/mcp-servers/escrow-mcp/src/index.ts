@@ -124,7 +124,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: createdAt,
       updated_at: createdAt,
     });
-    if (createResult.error) return fail("DB_ERROR", createResult.error.message);
+    if (createResult.error) return fail("DB_ERROR", "Database operation failed");
     await appendTimeline(escrowId, "created", amount, null, null, { currency });
     await emitEvent("escrow.escrow.created", { escrow_id: escrowId, order_id: orderId, amount });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: "created" }) }] };
@@ -139,7 +139,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     .select("*")
     .eq("escrow_id", escrowId)
     .maybeSingle();
-  if (escrowResult.error) return fail("DB_ERROR", escrowResult.error.message);
+  if (escrowResult.error) return fail("DB_ERROR", "Database operation failed");
   const escrow = escrowResult.data;
   if (!escrow) return fail("NOT_FOUND", "escrow_id not found");
   const status = String(escrow.status) as EscrowStatus;
@@ -153,8 +153,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .schema("escrow_mcp")
       .from("escrows")
       .update({ status: "funds_held", held_amount: heldAmount, updated_at: now() })
-      .eq("escrow_id", escrowId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+      .eq("escrow_id", escrowId)
+      .eq("status", status);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await appendTimeline(escrowId, "funds_held", amount, args.performed_by ? String(args.performed_by) : null, null, {});
     await emitEvent("escrow.funds.held", { escrow_id: escrowId, amount });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: "funds_held", held_amount: heldAmount }) }] };
@@ -180,10 +181,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         released_at: nextStatus === "released" ? now() : null,
         updated_at: now(),
       })
-      .eq("escrow_id", escrowId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+      .eq("escrow_id", escrowId)
+      .eq("held_amount", escrow.held_amount);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await appendTimeline(escrowId, nextStatus === "released" ? "released" : "partial_release", amount, args.performed_by ? String(args.performed_by) : null, args.reason ? String(args.reason) : null, {});
-    await emitEvent("escrow.funds.released", { escrow_id: escrowId, amount, status: nextStatus });
+    await emitEvent("escrow.funds.released", { escrow_id: escrowId, amount, status: nextStatus, performed_by: args.performed_by ? String(args.performed_by) : null });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: nextStatus, held_amount: nextHeld, released_amount: nextReleased }) }] };
   }
 
@@ -196,7 +198,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .from("escrows")
       .update({ status: "frozen", frozen_reason: reason, frozen_by: args.performed_by ? String(args.performed_by) : null, frozen_at: now(), updated_at: now() })
       .eq("escrow_id", escrowId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await appendTimeline(escrowId, "frozen", null, args.performed_by ? String(args.performed_by) : null, reason, {});
     await emitEvent("escrow.escrow.frozen", { escrow_id: escrowId, reason });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: "frozen", reason }) }] };
@@ -209,7 +211,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (amount <= 0 || !reason) return fail("VALIDATION_ERROR", "amount>0 and reason are required.");
     const heldAmount = Number(escrow.held_amount ?? 0);
     const refundedAmount = Number(escrow.refunded_amount ?? 0);
+    const originalAmount = Number(escrow.original_amount ?? 0);
     if (amount > heldAmount) return fail("VALIDATION_ERROR", "Refund amount exceeds held_amount.");
+    if (refundedAmount + amount > originalAmount) return fail("VALIDATION_ERROR", "Total refunds would exceed original_amount.");
     const nextHeld = roundToTwoDecimals(heldAmount - amount);
     const nextRefunded = roundToTwoDecimals(refundedAmount + amount);
     const nextStatus: EscrowStatus = "refunded";
@@ -224,7 +228,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         updated_at: now(),
       })
       .eq("escrow_id", escrowId);
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     await appendTimeline(escrowId, "refunded", amount, args.performed_by ? String(args.performed_by) : null, reason, {});
     await emitEvent("escrow.funds.refunded", { escrow_id: escrowId, amount, reason });
     return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: nextStatus, held_amount: nextHeld, refunded_amount: nextRefunded }) }] };
@@ -237,7 +241,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .select("*")
       .eq("escrow_id", escrowId)
       .order("created_at", { ascending: true });
-    if (timeline.error) return fail("DB_ERROR", timeline.error.message);
+    if (timeline.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ escrow, timeline: timeline.data ?? [] }) }] };
   }
 

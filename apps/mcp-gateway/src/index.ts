@@ -108,6 +108,7 @@ const JWT_ACCESS_TOKEN_EXPIRY = process.env.JWT_ACCESS_TOKEN_EXPIRY ?? "15m";
 const JWT_REFRESH_TOKEN_EXPIRY = process.env.JWT_REFRESH_TOKEN_EXPIRY ?? "7d";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = Number(process.env.GATEWAY_RATE_LIMIT_MAX ?? 120);
+const AUTH_RATE_LIMIT_MAX = Number(process.env.GATEWAY_AUTH_RATE_LIMIT_MAX ?? 10);
 const EVENT_STREAM = process.env.GATEWAY_EVENT_STREAM ?? "matex.events";
 const FORWARD_TIMEOUT_MS = Number(process.env.GATEWAY_FORWARD_TIMEOUT_MS ?? 10_000);
 
@@ -1268,11 +1269,13 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
       const uid = String(args.user_id ?? "");
       if (!uid) return fail("VALIDATION_ERROR", "user_id is required.");
       await dbGrantPlatformAdmin(uid);
+      await publishEvent("admin.role.granted", { user_id: uid, role: "platform_admin", granted_by: userId });
       return ok({ user_id: uid, granted: true });
     }
     if (tool === "admin.revoke_platform_admin") {
       const uid = String(args.user_id ?? "");
       await dbRevokePlatformAdmin(uid);
+      await publishEvent("admin.role.revoked", { user_id: uid, role: "platform_admin", revoked_by: userId });
       return ok({ user_id: uid, revoked: true });
     }
     if (tool === "admin.list_platform_config") {
@@ -1447,20 +1450,37 @@ async function routeToolRequest(
 }
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "*";
+const ALLOWED_ORIGINS: Set<string> = CORS_ORIGIN === "*"
+  ? new Set()
+  : new Set(CORS_ORIGIN.split(",").map((o) => o.trim().toLowerCase()).filter(Boolean));
 
 if (process.env.NODE_ENV === "production" && CORS_ORIGIN === "*") {
   console.warn("[mcp-gateway] WARNING: CORS_ORIGIN is wildcard '*' in production. Set CORS_ORIGIN to your app domain.");
 }
 
-function setCors(res: ServerResponse): void {
-  res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+function setCors(req: IncomingMessage, res: ServerResponse): boolean {
+  const origin = (req.headers.origin ?? "").trim().toLowerCase();
+  if (CORS_ORIGIN === "*") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  } else if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  } else if (origin) {
+    // Origin not in allowlist — block.
+    return false;
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
+  return true;
 }
 
 const server = createServer(async (req, res) => {
-  setCors(res);
+  const corsOk = setCors(req, res);
+  if (!corsOk) {
+    writeJson(res, 403, { success: false, error: { code: "CORS_BLOCKED", message: "Origin not allowed" } });
+    return;
+  }
 
   if (req.method === "OPTIONS") {
     res.statusCode = 204;
@@ -1509,6 +1529,29 @@ const server = createServer(async (req, res) => {
     if (!ipOk || !userOk) {
       writeJson(res, 429, { success: false, error: { code: "RATE_LIMITED", message: "Rate limit exceeded" } });
       return;
+    }
+
+    // Tighter rate limit for auth credential tools to limit brute-force attempts.
+    const AUTH_SENSITIVE_TOOLS = new Set(["auth.login", "auth.register", "auth.confirm_password_reset"]);
+    if (AUTH_SENSITIVE_TOOLS.has(body.tool)) {
+      const authKey = `auth:${ipAddress}`;
+      const authAllowed = await (async () => {
+        if (redis) {
+          const count = await redis.incr(authKey);
+          if (count === 1) await redis.pexpire(authKey, RATE_LIMIT_WINDOW_MS);
+          return count <= AUTH_RATE_LIMIT_MAX;
+        }
+        const currentTime = Date.now();
+        const bucket = requestLog.get(authKey) ?? [];
+        const recent = bucket.filter((ts) => currentTime - ts < RATE_LIMIT_WINDOW_MS);
+        recent.push(currentTime);
+        requestLog.set(authKey, recent);
+        return recent.length <= AUTH_RATE_LIMIT_MAX;
+      })();
+      if (!authAllowed) {
+        writeJson(res, 429, { success: false, error: { code: "RATE_LIMITED", message: "Too many auth attempts. Try again in 1 minute." } });
+        return;
+      }
     }
 
     const result = await routeToolRequest(claims, body, ipAddress);

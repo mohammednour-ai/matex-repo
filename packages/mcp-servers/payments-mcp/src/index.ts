@@ -51,6 +51,22 @@ async function emitEvent(event: string, payload: Record<string, unknown>): Promi
   }
 }
 
+const DEFAULT_COMMISSION_RATE = 0.035;
+
+async function getCommissionRate(): Promise<number> {
+  if (!supabase) return DEFAULT_COMMISSION_RATE;
+  try {
+    const { data } = await supabase.schema("log_mcp").from("platform_config").select("config_value").eq("config_key", "commission_rate").maybeSingle();
+    if (data?.config_value) {
+      const parsed = parseFloat(String(data.config_value));
+      if (Number.isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_COMMISSION_RATE;
+}
+
 const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -83,7 +99,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("user_id,balance,pending_balance")
         .eq("user_id", userId)
         .maybeSingle();
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       const wallet = data ?? { user_id: userId, balance: 0, pending_balance: 0 };
       return { content: [{ type: "text", text: ok({ wallet }) }] };
     }
@@ -107,25 +123,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .maybeSingle();
 
       const nextBalance = roundToTwoDecimals(Number(existing?.balance ?? 0) + amount);
-      if (existing?.wallet_id) {
-        const { error: updateError } = await supabase
-          .schema("payments_mcp")
-          .from("wallets")
-          .update({ balance: nextBalance, updated_at: now() })
-          .eq("wallet_id", existing.wallet_id);
-        if (updateError) return fail("DB_ERROR", updateError.message);
-      } else {
-        const { error: insertError } = await supabase.schema("payments_mcp").from("wallets").insert({
-          user_id: userId,
-          balance: nextBalance,
-          pending_balance: 0,
-          currency: "CAD",
-        });
-        if (insertError) return fail("DB_ERROR", insertError.message);
-      }
-
       const transactionId = generateId();
       const createdAt = now();
+
+      // Insert transaction record first so a crash after this point leaves an auditable record.
       const { error: txError } = await supabase.schema("payments_mcp").from("transactions").insert({
         transaction_id: transactionId,
         payer_id: userId,
@@ -138,7 +139,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         updated_at: createdAt,
         completed_at: createdAt,
       });
-      if (txError) return fail("DB_ERROR", txError.message);
+      if (txError) return fail("DB_ERROR", "Database operation failed");
+
+      if (existing?.wallet_id) {
+        const { error: updateError } = await supabase
+          .schema("payments_mcp")
+          .from("wallets")
+          .update({ balance: nextBalance, updated_at: now() })
+          .eq("wallet_id", existing.wallet_id);
+        if (updateError) return fail("DB_ERROR", "Database operation failed");
+      } else {
+        const { error: insertError } = await supabase.schema("payments_mcp").from("wallets").insert({
+          user_id: userId,
+          balance: nextBalance,
+          pending_balance: 0,
+          currency: "CAD",
+        });
+        if (insertError) return fail("DB_ERROR", "Database operation failed");
+      }
+
       await emitEvent("payments.wallet.topped_up", { user_id: userId, amount, transaction_id: transactionId });
       return {
         content: [
@@ -189,7 +208,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         label: String(args.label ?? "Payment Method"),
         is_default: setDefault,
       });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       const { data: rows } = await supabase
         .schema("payments_mcp")
         .from("payment_methods")
@@ -222,7 +241,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!Number.isFinite(amount) || amount <= 0) return fail("VALIDATION_ERROR", "amount must be greater than 0.");
     if (!method) return fail("VALIDATION_ERROR", "method is required.");
     const orderId = args.order_id ? String(args.order_id) : undefined;
-    const commission = calculateCommission(amount, { rate: 0.035, minimum: 25, cap: 5000 });
+    const commissionRate = await getCommissionRate();
+    const commission = calculateCommission(amount, { rate: commissionRate, minimum: 25, cap: 5000 });
     const transaction = {
       transaction_id: generateId(),
       order_id: orderId,
@@ -250,22 +270,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         currency: "CAD",
         payment_method: method,
         transaction_type: "purchase",
-        status: "completed",
+        status: "pending_capture",
         commission_amount: commission,
         tax_amount: roundToTwoDecimals(commission * 0.13),
         metadata: { escrow_reference: transaction.escrow_reference },
         created_at: transaction.created_at,
         updated_at: transaction.created_at,
-        completed_at: transaction.created_at,
       });
-      if (error) return fail("DB_ERROR", error.message);
-      await emitEvent("payments.payment.processed", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-      return { content: [{ type: "text", text: ok({ transaction }) }] };
+      if (error) return fail("DB_ERROR", "Database operation failed");
+      const pendingTx = { ...transaction, status: "pending_capture" };
+      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
+      return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
     }
 
-    transactions.push(transaction);
-    await emitEvent("payments.payment.processed", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-    return { content: [{ type: "text", text: ok({ transaction }) }] };
+    const pendingTx = { ...transaction, status: "pending_capture" };
+    transactions.push(pendingTx);
+    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
+    return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
   }
 
   if (tool === "get_transaction_history") {
@@ -279,7 +300,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("*")
         .eq("payer_id", userId)
         .order("created_at", { ascending: false });
-      if (error) return fail("DB_ERROR", error.message);
+      if (error) return fail("DB_ERROR", "Database operation failed");
       return { content: [{ type: "text", text: ok({ transactions: data ?? [], total: (data ?? []).length }) }] };
     }
 

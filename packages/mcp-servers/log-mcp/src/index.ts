@@ -229,17 +229,17 @@ const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_
 if (EVENT_REDIS_URL) {
   const bus = new MatexEventBus({ redisUrl: EVENT_REDIS_URL, groupName: "log-mcp-consumer" });
   bus.startConsumerLoop("log-mcp-worker", async (event, payload, _id) => {
-    const entry = {
-      log_id: generateId(),
-      level: "info" as const,
-      category: "event" as const,
-      server_name: String(payload.publisher ?? "unknown"),
-      tool_name: event,
-      input_hash: sha256(JSON.stringify(payload)),
-      output_summary: JSON.stringify(payload).slice(0, 500),
-      created_at: now(),
-    };
-    memoryLogStore.push(entry as AuditLogEntry);
+    const entry = toAuditLogEntry({
+      category: "event",
+      level: "info",
+      action: event,
+      event_name: event,
+      success: true,
+      tool: undefined,
+      metadata: sanitizeForLog(payload) as Record<string, unknown>,
+    });
+    (entry as unknown as Record<string, unknown>).input_hash = sha256(JSON.stringify(payload));
+    memoryLogStore.push(entry);
     if (memoryLogStore.length > MAX_IN_MEMORY) memoryLogStore.shift();
     console.error(`[log-mcp] consumed event: ${event}`);
   });

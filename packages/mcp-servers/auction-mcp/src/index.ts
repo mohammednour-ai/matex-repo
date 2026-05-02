@@ -75,7 +75,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       created_at: now(),
       updated_at: now(),
     });
-    if (createResult.error) return fail("DB_ERROR", createResult.error.message);
+    if (createResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("auction.auction.created", { auction_id: auctionId, organizer_id: organizerId });
     return { content: [{ type: "text", text: ok({ auction_id: auctionId, status: "scheduled" }) }] };
   }
@@ -98,7 +98,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       total_bids: 0,
       extensions_used: 0,
     });
-    if (createResult.error) return fail("DB_ERROR", createResult.error.message);
+    if (createResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("auction.lot.added", { auction_id: auctionId, lot_id: lotId, listing_id: listingId });
     return { content: [{ type: "text", text: ok({ lot_id: lotId }) }] };
   }
@@ -106,13 +106,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (tool === "start_auction") {
     const auctionId = String(args.auction_id ?? "");
     if (!auctionId) return fail("VALIDATION_ERROR", "auction_id is required.");
+
+    const auctionCheck = await supabase
+      .schema("auction_mcp")
+      .from("auctions")
+      .select("status")
+      .eq("auction_id", auctionId)
+      .maybeSingle();
+    if (auctionCheck.error) return fail("DB_ERROR", "Database operation failed");
+    if (!auctionCheck.data) return fail("NOT_FOUND", "Auction not found.");
+    if (auctionCheck.data.status !== "scheduled") return fail("INVALID_STATE", `Auction must be in 'scheduled' state, current: ${auctionCheck.data.status}.`);
+
+    const startTs = now();
     const startResult = await supabase
       .schema("auction_mcp")
       .from("auctions")
-      .update({ status: "live", actual_start: now(), updated_at: now() })
-      .eq("auction_id", auctionId);
-    if (startResult.error) return fail("DB_ERROR", startResult.error.message);
-    await supabase.schema("auction_mcp").from("lots").update({ status: "open", opened_at: now() }).eq("auction_id", auctionId).eq("status", "pending");
+      .update({ status: "live", actual_start: startTs, updated_at: startTs })
+      .eq("auction_id", auctionId)
+      .eq("status", "scheduled");
+    if (startResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    const lotsResult = await supabase
+      .schema("auction_mcp")
+      .from("lots")
+      .update({ status: "open", opened_at: startTs })
+      .eq("auction_id", auctionId)
+      .eq("status", "pending");
+    if (lotsResult.error) return fail("DB_ERROR", "Database operation failed");
+
     await emitEvent("auction.auction.started", { auction_id: auctionId });
     return { content: [{ type: "text", text: ok({ auction_id: auctionId, status: "live" }) }] };
   }
@@ -124,7 +145,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!lotId || !bidderId || amount <= 0) return fail("VALIDATION_ERROR", "lot_id, bidder_id, amount>0 are required.");
 
     const lotResult = await supabase.schema("auction_mcp").from("lots").select("*").eq("lot_id", lotId).maybeSingle();
-    if (lotResult.error) return fail("DB_ERROR", lotResult.error.message);
+    if (lotResult.error) return fail("DB_ERROR", "Database operation failed");
     const lot = lotResult.data;
     if (!lot) return fail("NOT_FOUND", "lot not found");
     if (lot.status !== "open" && lot.status !== "closing") return fail("LOT_NOT_OPEN", `Lot status is ${lot.status}`);
@@ -154,7 +175,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: "active",
       server_timestamp: serverTs,
     });
-    if (bidInsert.error) return fail("DB_ERROR", bidInsert.error.message);
+    if (bidInsert.error) return fail("DB_ERROR", "Database operation failed");
 
     const updateResult = await supabase
       .schema("auction_mcp")
@@ -169,7 +190,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .eq("current_highest_bid", lot.current_highest_bid ?? null)
       .select("lot_id")
       .maybeSingle();
-    if (updateResult.error) return fail("DB_ERROR", updateResult.error.message);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!updateResult.data) return fail("OPTIMISTIC_CONCURRENCY_CONFLICT", "Lot highest bid changed, retry.");
 
     await emitEvent("auction.bid.placed", { lot_id: lotId, bid_id: bidId, bidder_id: bidderId, amount, server_timestamp: serverTs, server_sequence: serverSequence });
@@ -180,7 +201,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const lotId = String(args.lot_id ?? "");
     if (!lotId) return fail("VALIDATION_ERROR", "lot_id is required.");
     const lotResult = await supabase.schema("auction_mcp").from("lots").select("*").eq("lot_id", lotId).maybeSingle();
-    if (lotResult.error) return fail("DB_ERROR", lotResult.error.message);
+    if (lotResult.error) return fail("DB_ERROR", "Database operation failed");
     const lot = lotResult.data;
     if (!lot) return fail("NOT_FOUND", "lot not found");
     const sold = lot.highest_bidder_id ? "sold" : "unsold";
@@ -189,7 +210,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .from("lots")
       .update({ status: sold, closed_at: now() })
       .eq("lot_id", lotId);
-    if (closeResult.error) return fail("DB_ERROR", closeResult.error.message);
+    if (closeResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("auction.lot.closed", { lot_id: lotId, status: sold, highest_bidder_id: lot.highest_bidder_id ?? null, final_bid: lot.current_highest_bid ?? null });
     return { content: [{ type: "text", text: ok({ lot_id: lotId, status: sold }) }] };
   }
@@ -198,7 +219,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const lotId = String(args.lot_id ?? "");
     if (!lotId) return fail("VALIDATION_ERROR", "lot_id is required.");
     const lot = await supabase.schema("auction_mcp").from("lots").select("*").eq("lot_id", lotId).maybeSingle();
-    if (lot.error) return fail("DB_ERROR", lot.error.message);
+    if (lot.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ lot: lot.data ?? null }) }] };
   }
 

@@ -69,17 +69,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!listingId || !bidderId || amount <= 0) return fail("VALIDATION_ERROR", "listing_id, bidder_id, amount>0 are required.");
 
     const listingResult = await supabase.schema("listing_mcp").from("listings").select("status").eq("listing_id", listingId).maybeSingle();
-    if (listingResult.error) return fail("DB_ERROR", listingResult.error.message);
+    if (listingResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!listingResult.data || listingResult.data.status !== "active") return fail("LISTING_NOT_BIDDABLE", "Listing is not active.");
 
-    // KYC gate for high-value bids.
-    if (amount >= 5000) {
-      const kyc = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", bidderId).maybeSingle();
-      if (kyc.error) return fail("DB_ERROR", kyc.error.message);
-      const currentLevel = String(kyc.data?.current_level ?? "level_0");
-      if (rankLevel(currentLevel) < rankLevel("level_2")) {
-        return fail("KYC_GATE_BLOCKED", `Bids >= 5000 require level_2. Current ${currentLevel}.`);
-      }
+    // KYC gate: level_1 required for all bids, level_2 required for bids >= 5000.
+    const kyc = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", bidderId).maybeSingle();
+    if (kyc.error) return fail("DB_ERROR", "Database operation failed");
+    const currentLevel = String(kyc.data?.current_level ?? "level_0");
+    const requiredLevel = amount >= 5000 ? "level_2" : "level_1";
+    if (rankLevel(currentLevel) < rankLevel(requiredLevel)) {
+      return fail("KYC_GATE_BLOCKED", `Bids require ${requiredLevel}. Current ${currentLevel}.`);
     }
 
     const highestResult = await supabase
@@ -91,14 +90,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .order("amount", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (highestResult.error) return fail("DB_ERROR", highestResult.error.message);
+    if (highestResult.error) return fail("DB_ERROR", "Database operation failed");
     const currentHighest = Number(highestResult.data?.amount ?? 0);
     const expectedHighest = typeof args.expected_highest === "number" ? Number(args.expected_highest) : null;
     if (expectedHighest !== null && expectedHighest !== currentHighest) {
       return fail("OPTIMISTIC_CONCURRENCY_CONFLICT", `Expected highest ${expectedHighest} but current highest is ${currentHighest}.`);
     }
-    if (amount <= currentHighest) {
-      return fail("BID_TOO_LOW", `Bid amount must be greater than current highest ${currentHighest}.`);
+    const MIN_BID_INCREMENT = 1;
+    if (amount < currentHighest + MIN_BID_INCREMENT) {
+      return fail("BID_TOO_LOW", `Bid must be at least ${currentHighest + MIN_BID_INCREMENT} (current highest + minimum increment of ${MIN_BID_INCREMENT}).`);
     }
 
     const nextSeq = (bidSequence.get(listingId) ?? 0) + 1;
@@ -114,7 +114,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: "active",
       server_timestamp: serverTs,
     });
-    if (bidInsert.error) return fail("DB_ERROR", bidInsert.error.message);
+    if (bidInsert.error) return fail("DB_ERROR", "Database operation failed");
 
     await emitEvent("bidding.bid.placed", { listing_id: listingId, bid_id: bidId, bidder_id: bidderId, amount, server_timestamp: serverTs, server_sequence: nextSeq });
     return { content: [{ type: "text", text: ok({ bid_id: bidId, amount, server_timestamp: serverTs, server_sequence: nextSeq, previous_highest: currentHighest }) }] };
@@ -135,7 +135,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       })
       .eq("bid_id", bidId)
       .eq("bidder_id", bidderId);
-    if (retractResult.error) return fail("DB_ERROR", retractResult.error.message);
+    if (retractResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("bidding.bid.retracted", { bid_id: bidId, bidder_id: bidderId, reason });
     return { content: [{ type: "text", text: ok({ bid_id: bidId, status: "retracted" }) }] };
   }
@@ -152,7 +152,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .order("amount", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (result.error) return fail("DB_ERROR", result.error.message);
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ listing_id: listingId, highest_bid: result.data ?? null }) }] };
   }
 
@@ -174,7 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       details: (args.details ?? {}) as Record<string, unknown>,
       created_at: now(),
     });
-    if (createResult.error) return fail("DB_ERROR", createResult.error.message);
+    if (createResult.error) return fail("DB_ERROR", "Database operation failed");
     await emitEvent("bidding.anti_manipulation.flagged", { flag_id: flagId, listing_id: listingId, flagged_user_id: flaggedUserId, severity });
     return { content: [{ type: "text", text: ok({ flag_id: flagId }) }] };
   }
