@@ -118,7 +118,7 @@ export default function CreateEscrowPage() {
             <h3 className="text-sm font-semibold text-slate-700 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
-                { label: "Inspection booking", href: "/inspection", cta: "Book Inspection" },
+                { label: "Inspection booking", href: "/inspections", cta: "Book Inspection" },
                 { label: "Logistics arrangement", href: "/logistics", cta: "Get Quotes" },
                 { label: "Confirm delivery & release escrow", href: "/escrow", cta: "View Escrow" },
               ].map((s, i) => (

@@ -5,7 +5,6 @@ import {
   ClipboardList,
   Calendar,
   List,
-  Weight,
   AlertTriangle,
   CheckCircle,
   ChevronDown,
@@ -105,7 +104,7 @@ function normalizeInspection(raw: RawInspection): Inspection {
   };
 }
 
-export default function InspectionPage() {
+export default function InspectionsPage() {
   const [view, setView] = useState<ViewMode>("list");
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,23 +184,22 @@ export default function InspectionPage() {
         }
       />
 
-      {/* Summary cards — reserve red for Failed > 0; other KPIs stay neutral when zero. */}
+      {/* Summary cards — neutral-by-default; reserve red for Failed so zeroed KPIs don't feel alarming. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {(() => {
-          const scheduledN = inspections.filter((i) => i.status === "scheduled").length;
-          const weekN = upcomingThisWeek.length;
-          const completedN = inspections.filter((i) => i.status === "completed").length;
-          const failedN = inspections.filter((i) => i.status === "failed").length;
-          const stats: { label: string; value: number; color: string }[] = [
-            { label: "Scheduled", value: scheduledN, color: "text-steel-900" },
-            { label: "This Week", value: weekN, color: "text-steel-900" },
-            { label: "Completed", value: completedN, color: completedN > 0 ? "text-emerald-600" : "text-steel-900" },
-            { label: "Failed", value: failedN, color: failedN > 0 ? "text-red-600" : "text-steel-900" },
+          const scheduledCount = inspections.filter((i) => i.status === "scheduled").length;
+          const completedCount = inspections.filter((i) => i.status === "completed").length;
+          const failedCount = inspections.filter((i) => i.status === "failed").length;
+          const cards: { label: string; value: number; valueClass: string }[] = [
+            { label: "Scheduled", value: scheduledCount, valueClass: "text-steel-900" },
+            { label: "This Week", value: upcomingThisWeek.length, valueClass: "text-steel-900" },
+            { label: "Completed", value: completedCount, valueClass: completedCount > 0 ? "text-emerald-600" : "text-steel-900" },
+            { label: "Failed", value: failedCount, valueClass: failedCount > 0 ? "text-red-600" : "text-steel-900" },
           ];
-          return stats.map((c) => (
+          return cards.map((c) => (
             <div key={c.label} className="marketplace-card p-4">
               <p className="text-xs text-slate-500">{c.label}</p>
-              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
+              <p className={`mt-1 text-2xl font-bold ${c.valueClass}`}>{c.value}</p>
             </div>
           ));
         })()}

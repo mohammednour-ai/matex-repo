@@ -112,3 +112,80 @@ flowchart LR
   - `VALIDATE_ENV_TARGET=production VALIDATE_ENV_PROFILE=full pnpm validate-env`
   - `HEALTHCHECK_URL=https://api.matexhub.ca/health pnpm healthcheck`
 
+## Local Supabase wiring (DB-backed dev mode)
+
+When you want the local stack to read/write a real Supabase Postgres (so registered users, listings, etc. survive process restarts) instead of the gateway's in-memory dev mode:
+
+### 1. Apply the schema once
+
+The repo ships `docs/database/matex_complete_schema.sql` (22 MCP schemas + log/orders schemas, ~64 tables). Apply it through the **session pooler** (port 5432) so session-level commands like `CREATE EXTENSION` are accepted:
+
+```powershell
+$env:SUPABASE_DIRECT_URL = "postgresql://postgres.<ref>:<urlencoded-password>@aws-1-<region>.pooler.supabase.com:5432/postgres"
+node scripts/apply-supabase-schema.mjs
+```
+
+The script connects via `pg`, runs the SQL in one shot, and prints a per-schema row count so you can confirm it succeeded.
+
+### 2. Configure `.env.local`
+
+Two files (both gitignored). The repo-root one is the source of truth for the gateway and adapters; the web-v2 one is what Next.js bakes into the browser bundle.
+
+`.env.local` (repo root):
+
+```
+DATABASE_URL=postgresql://postgres.<ref>:<urlencoded-password>@aws-1-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
+SUPABASE_DIRECT_URL=postgresql://postgres.<ref>:<urlencoded-password>@aws-1-<region>.pooler.supabase.com:5432/postgres
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
+SUPABASE_SERVICE_ROLE_KEY=               # optional; only needed for storage signed URLs
+JWT_SECRET=<32+ char random>
+NEXT_PUBLIC_APP_URL=http://localhost:3002
+NEXT_PUBLIC_GATEWAY_URL=http://localhost:3001
+MCP_GATEWAY_URL=http://localhost:3001
+MCP_DOMAIN_ENDPOINTS_JSON={ ...localhost map from .env.local.example... }
+```
+
+`apps/web-v2/.env.local` only needs the public keys:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
+NEXT_PUBLIC_APP_URL=http://localhost:3002
+NEXT_PUBLIC_GATEWAY_URL=http://localhost:3001
+MCP_GATEWAY_URL=http://localhost:3001
+```
+
+### 3. Pooler endpoints — which port for what
+
+- **Schema apply / migrations** → port `5432` (session mode pooler). Supports `CREATE EXTENSION`, advisory locks, etc.
+- **Runtime adapters** → port `6543` (transaction mode pooler) with `?pgbouncer=true`. Required for free tier without IPv6.
+
+Direct `db.<ref>.supabase.co:5432` is IPv6-only on free tier; if your network has no IPv6 (most home Windows setups don't), use the pooler for both jobs as above.
+
+### 4. Boot the stack
+
+The startup scripts in [package.json](../package.json) and [apps/mcp-gateway/package.json](../apps/mcp-gateway/package.json) load `.env.local` via Node's built-in `--env-file`:
+
+- `pnpm dev:http-adapters` — 22 listeners on 4101–4122, each with a `pg.Pool` to Supabase pooler
+- `pnpm dev:gateway` — gateway on 3001 (sees `MCP_DOMAIN_ENDPOINTS_JSON`, forwards to adapters)
+- `pnpm --filter @matex/web-v2 dev` — UI on 3002
+
+Or in one shot:
+
+- `pnpm dev:db-stack` — runs all three concurrently with prefixed labels (uses `concurrently`).
+
+### 5. Verify persistence end-to-end
+
+```powershell
+# 1) register
+$body = @{ tool="auth.register"; args=@{ email="me@matex.local"; phone="+15551112222"; password="LocalDev12345!"; account_type="both" } } | ConvertTo-Json -Compress
+Invoke-RestMethod "http://localhost:3001/tool" -Method POST -ContentType "application/json" -Body $body
+# 2) kill adapters + gateway, restart them
+# 3) login with the same email/password — must succeed
+$body2 = @{ tool="auth.login"; args=@{ email="me@matex.local"; password="LocalDev12345!" } } | ConvertTo-Json -Compress
+Invoke-RestMethod "http://localhost:3001/tool" -Method POST -ContentType "application/json" -Body $body2
+```
+
+If step 3 returns `success:true` with the same `user_id`, you're hitting Supabase, not in-memory dev state.
+

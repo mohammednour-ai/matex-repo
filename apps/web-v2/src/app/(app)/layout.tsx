@@ -148,6 +148,7 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
         subtitle: "Source verified materials with industrial-grade confidence.",
         eyebrow: "Buy",
       };
+    case "auction":
     case "auctions":
       return {
         title: "Auctions",
@@ -178,6 +179,7 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
         subtitle: "Coordinate dispatch, transport, and delivery readiness.",
         eyebrow: "Operations",
       };
+    case "inspection":
     case "inspections":
       return {
         title: "Inspections",

@@ -55,8 +55,8 @@ test.describe("Smoke Suite", () => {
     });
 
     const routes = [
-      "/dashboard", "/listings", "/search", "/auction", "/messages",
-      "/checkout", "/escrow", "/logistics", "/inspection", "/contracts",
+      "/dashboard", "/listings", "/search", "/auctions", "/messages",
+      "/checkout", "/escrow", "/logistics", "/inspections", "/contracts",
       "/settings", "/notifications",
     ];
 

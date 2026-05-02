@@ -14,7 +14,8 @@
     "dev": "pnpm --filter @matex/web dev",
     "dev:gateway": "pnpm --filter @matex/mcp-gateway dev",
     "dev:web-v2-stack": "pnpm -r --parallel --filter @matex/mcp-gateway --filter @matex/web-v2 dev",
-    "dev:http-adapters": "tsx scripts/start-http-adapters.ts",
+    "dev:http-adapters": "tsx --env-file=.env.local scripts/start-http-adapters.ts",
+    "dev:db-stack": "concurrently -n adapters,gateway,web -c blue,magenta,green \"pnpm dev:http-adapters\" \"pnpm dev:gateway\" \"pnpm --filter @matex/web-v2 dev\"",
     "dev:all": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
@@ -32,11 +33,13 @@
     "smoke:phase2": "node scripts/phase2-db-smoke-sql.mjs",
     "smoke:phase3": "node scripts/phase3-db-smoke-sql.mjs",
     "smoke:phase4": "node scripts/phase4-db-smoke-sql.mjs",
-    "smoke": "node scripts/phase1-db-smoke-sql.mjs && node scripts/phase2-db-smoke-sql.mjs && node scripts/phase3-db-smoke-sql.mjs && node scripts/phase4-db-smoke-sql.mjs"
+    "smoke": "node scripts/phase1-db-smoke-sql.mjs && node scripts/phase2-db-smoke-sql.mjs && node scripts/phase3-db-smoke-sql.mjs && node scripts/phase4-db-smoke-sql.mjs",
+    "mcp:tools-manifest": "node scripts/extract-mcp-tools.mjs"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.40.0",
     "@types/node": "^20.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^8.57.0",
     "pg": "^8.20.0",
     "prettier": "^3.2.0",

@@ -66,5 +66,20 @@ export default defineConfig({
       testMatch: /happy-path\.spec\.ts$/,
       timeout: 90_000,
     },
+    {
+      name: "visual",
+      testDir: "./e2e/visual",
+      timeout: 90_000,
+      fullyParallel: false,
+      expect: {
+        toHaveScreenshot: {
+          maxDiffPixels: 1200,
+          animations: "disabled",
+        },
+      },
+      use: {
+        reducedMotion: "reduce",
+      },
+    },
   ],
 });

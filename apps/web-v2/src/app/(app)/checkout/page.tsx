@@ -441,7 +441,7 @@ export default function CheckoutPage() {
             <h3 className="text-sm font-semibold text-slate-700 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
-                { label: "Book inspection", href: "/inspection", cta: "Schedule" },
+                { label: "Book inspection", href: "/inspections", cta: "Schedule" },
                 { label: "Arrange logistics", href: "/logistics", cta: "Get Quotes" },
                 { label: "Confirm delivery & release escrow", href: "/escrow", cta: "View Escrow" },
               ].map((s, i) => (
