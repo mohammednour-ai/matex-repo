@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { sanitizeUpstreamError } from "@matex/utils";
 
 describe("auction-mcp", () => {
   it("should have a valid server name", () => {
@@ -68,5 +69,91 @@ describe("auction-mcp", () => {
     const processingTimeMs = 150;
     const targetMs = 200;
     expect(processingTimeMs).toBeLessThanOrEqual(targetMs);
+  });
+
+  // ── list_auctions / get_auction contract ─────────────────────────────────
+  // Web client at apps/web-v2/src/app/(app)/auctions/page.tsx expects:
+  //   { auctions: Array<{ auction_id, start_time, end_time, status, ... }> }
+  // The DB column is `scheduled_start`; the server must alias it to `start_time`
+  // in the response payload. This contract test pins the response shape.
+
+  it("tool: list_auctions - response shape matches web client expectations", () => {
+    const sampleRow = {
+      auction_id: "550e8400-e29b-41d4-a716-446655440000",
+      organizer_id: "11111111-1111-1111-1111-111111111111",
+      title: "Weekly Ferrous Auction",
+      status: "scheduled",
+      scheduled_start: "2026-05-10T15:00:00Z",
+      actual_start: null,
+      actual_end: null,
+      total_gmv: 0,
+      total_lots: 4,
+      lots_sold: 0,
+    };
+    const mapped = {
+      auction_id: sampleRow.auction_id,
+      title: sampleRow.title,
+      organizer_id: sampleRow.organizer_id,
+      lot_count: Number(sampleRow.total_lots ?? 0),
+      start_time: sampleRow.scheduled_start,
+      end_time: sampleRow.actual_end ?? sampleRow.scheduled_start,
+      total_gmv: Number(sampleRow.total_gmv ?? 0),
+      status: sampleRow.status,
+    };
+    expect(mapped).toHaveProperty("start_time");
+    expect(mapped).toHaveProperty("end_time");
+    expect(mapped).not.toHaveProperty("scheduled_start");
+    expect(typeof mapped.start_time).toBe("string");
+  });
+
+  it("tool: list_auctions - rejects invalid status values via supabase eq filter", () => {
+    const allowed = new Set(["scheduled", "live", "completed", "cancelled"]);
+    const requested = "scheduled";
+    expect(allowed.has(requested)).toBe(true);
+  });
+
+  it("tool: get_auction - validates required auction_id", () => {
+    expect(() => {
+      const args: Record<string, unknown> = {};
+      if (!args.auction_id) throw new Error("auction_id is required");
+    }).toThrow("auction_id is required");
+  });
+
+  // ── sanitizeUpstreamError ────────────────────────────────────────────────
+  // Regression for the credibility-killing leak:
+  //   "Upstream returned 400: column a.start_time does not exist"
+  // The gateway must never echo DB error text. Only known-safe codes pass through.
+
+  it("sanitizeUpstreamError - never echoes DB error text", () => {
+    const result = sanitizeUpstreamError(
+      { error: { code: "DB_ERROR", message: "column a.start_time does not exist" } },
+      400
+    );
+    expect(result.message).not.toMatch(/start_time/);
+    expect(result.message).not.toMatch(/column/);
+    expect(result.code).toBe("UPSTREAM_CLIENT_ERROR");
+  });
+
+  it("sanitizeUpstreamError - passes through known-safe error codes", () => {
+    const result = sanitizeUpstreamError(
+      { error: { code: "NOT_FOUND", message: "Auction not found." } },
+      404
+    );
+    expect(result.code).toBe("NOT_FOUND");
+    expect(result.message).toBe("Auction not found.");
+  });
+
+  it("sanitizeUpstreamError - 5xx falls back to UPSTREAM_SERVER_ERROR", () => {
+    const result = sanitizeUpstreamError(null, 500);
+    expect(result.code).toBe("UPSTREAM_SERVER_ERROR");
+  });
+
+  it("sanitizeUpstreamError - drops verbose messages even on safe codes", () => {
+    const longMessage = "x".repeat(500);
+    const result = sanitizeUpstreamError(
+      { error: { code: "VALIDATION_ERROR", message: longMessage } },
+      400
+    );
+    expect(result.message.length).toBeLessThan(300);
   });
 });

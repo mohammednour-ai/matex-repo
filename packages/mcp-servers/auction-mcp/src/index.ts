@@ -45,6 +45,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "place_auction_bid", description: "Place bid on lot with optimistic concurrency", inputSchema: { type: "object", properties: { lot_id: { type: "string" }, bidder_id: { type: "string" }, amount: { type: "number" }, expected_highest: { type: "number" } }, required: ["lot_id", "bidder_id", "amount"] } },
     { name: "close_lot", description: "Close lot and finalize winner", inputSchema: { type: "object", properties: { lot_id: { type: "string" } }, required: ["lot_id"] } },
     { name: "get_lot_state", description: "Get lot state", inputSchema: { type: "object", properties: { lot_id: { type: "string" } }, required: ["lot_id"] } },
+    { name: "list_auctions", description: "List auctions filtered by status. Returns auction summary records.", inputSchema: { type: "object", properties: { status: { type: "string", enum: ["scheduled", "live", "completed", "cancelled"] }, limit: { type: "number" } } } },
+    { name: "get_auction", description: "Get one auction with its lots", inputSchema: { type: "object", properties: { auction_id: { type: "string" } }, required: ["auction_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -221,6 +223,79 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const lot = await supabase.schema("auction_mcp").from("lots").select("*").eq("lot_id", lotId).maybeSingle();
     if (lot.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ lot: lot.data ?? null }) }] };
+  }
+
+  if (tool === "list_auctions") {
+    const requestedStatus = typeof args.status === "string" ? args.status : undefined;
+    const limit = Math.min(Math.max(Number(args.limit ?? 50), 1), 200);
+    let query = supabase
+      .schema("auction_mcp")
+      .from("auctions")
+      .select(
+        "auction_id, organizer_id, title, status, scheduled_start, actual_start, actual_end, total_gmv, total_lots, lots_sold"
+      )
+      .order("scheduled_start", { ascending: true })
+      .limit(limit);
+    if (requestedStatus) query = query.eq("status", requestedStatus);
+    const result = await query;
+    if (result.error) return fail("DB_ERROR", "Database operation failed");
+    const auctions = (result.data ?? []).map((row) => ({
+      auction_id: row.auction_id,
+      title: row.title,
+      organizer_id: row.organizer_id,
+      lot_count: Number(row.total_lots ?? 0),
+      // Web client expects start_time / end_time fields.
+      start_time: row.scheduled_start,
+      end_time: row.actual_end ?? row.scheduled_start,
+      total_gmv: Number(row.total_gmv ?? 0),
+      status: row.status,
+    }));
+    return { content: [{ type: "text", text: ok({ auctions, total: auctions.length }) }] };
+  }
+
+  if (tool === "get_auction") {
+    const auctionId = String(args.auction_id ?? "");
+    if (!auctionId) return fail("VALIDATION_ERROR", "auction_id is required.");
+    const auction = await supabase
+      .schema("auction_mcp")
+      .from("auctions")
+      .select(
+        "auction_id, organizer_id, title, description, status, scheduled_start, actual_start, actual_end, total_gmv, total_lots, lots_sold, min_bid_increment"
+      )
+      .eq("auction_id", auctionId)
+      .maybeSingle();
+    if (auction.error) return fail("DB_ERROR", "Database operation failed");
+    if (!auction.data) return fail("NOT_FOUND", "Auction not found.");
+    const lots = await supabase
+      .schema("auction_mcp")
+      .from("lots")
+      .select("*")
+      .eq("auction_id", auctionId)
+      .order("lot_number", { ascending: true });
+    if (lots.error) return fail("DB_ERROR", "Database operation failed");
+    return {
+      content: [
+        {
+          type: "text",
+          text: ok({
+            auction: {
+              auction_id: auction.data.auction_id,
+              title: auction.data.title,
+              description: auction.data.description,
+              organizer_id: auction.data.organizer_id,
+              status: auction.data.status,
+              start_time: auction.data.scheduled_start,
+              end_time: auction.data.actual_end ?? auction.data.scheduled_start,
+              total_gmv: Number(auction.data.total_gmv ?? 0),
+              total_lots: Number(auction.data.total_lots ?? 0),
+              lots_sold: Number(auction.data.lots_sold ?? 0),
+              min_bid_increment: Number(auction.data.min_bid_increment ?? 0),
+            },
+            lots: lots.data ?? [],
+          }),
+        },
+      ],
+    };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };

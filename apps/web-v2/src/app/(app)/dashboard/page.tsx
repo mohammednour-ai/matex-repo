@@ -425,13 +425,13 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {kycLevel < 2 && (
-        <div className="dashboard-status-strip border-brand-200 bg-brand-50/80 text-sm text-steel-800">
-          <CircleAlert className="h-4 w-4 text-brand-700" />
+        <div className="dashboard-status-strip border-warning-200 bg-warning-50 text-sm text-warning-900">
+          <CircleAlert className="h-4 w-4 text-warning-700" />
           <span>
-            <strong className="text-brand-800">Complete verification</strong> — Higher KYC levels unlock
+            <strong className="text-warning-800">Complete verification</strong> — Higher KYC levels unlock
             larger trades and faster payouts.
           </span>
-          <Link href="/settings" className="font-semibold text-brand-700 underline-offset-2 hover:underline">
+          <Link href="/settings" className="font-semibold text-warning-800 underline-offset-2 hover:underline">
             Continue in Settings
           </Link>
         </div>
