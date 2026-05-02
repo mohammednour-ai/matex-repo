@@ -32,8 +32,16 @@ import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Modal } from "@/components/ui/shadcn/modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/shadcn/dialog";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { ConfidenceStack } from "@/components/listings/ConfidenceStack";
+import { CertifiedWeightCard } from "@/components/listings/CertifiedWeightCard";
+import { InspectionReportSection } from "@/components/listings/InspectionReportSection";
+import { StickyBidPanel } from "@/components/listings/StickyBidPanel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,6 +89,16 @@ type Listing = {
   auction_session_id?: string;
   auction_session_date?: string;
   auction_deposit_amount?: number;
+  // Confidence stack (C7) — all optional; UI degrades gracefully when absent.
+  certified_weight_kg?: number | null;
+  certifier_name?: string | null;
+  certified_at?: string | null;
+  inspection_report_url?: string | null;
+  inspector_name?: string | null;
+  inspected_at?: string | null;
+  /** LME / Fastmarkets reference price (CAD/mt). Populated by price-mcp once
+   *  Metals-API access is provisioned; null until then. */
+  lme_reference_cad_per_mt?: number | null;
 };
 
 type ShippingQuote = {
@@ -142,6 +160,7 @@ const ENV_CLASS_CONFIG: Record<string, { label: string; variant: "success" | "wa
 function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?: string; title: string }) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const media = [...photos];
 
   const goTo = (idx: number) => setActiveIdx(Math.max(0, Math.min(idx, media.length - 1)));
@@ -163,7 +182,14 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
             </button>
           </div>
         ) : media[activeIdx] ? (
-          <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            aria-label="Open photo in lightbox"
+          >
+            <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
+          </button>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-200 to-slate-300">
             <Package size={48} className="text-slate-400" />
@@ -237,6 +263,50 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           )}
         </div>
       )}
+
+      {/* Lightbox */}
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent
+          size="xl"
+          className="bg-black/95 ring-0 max-w-5xl p-0 overflow-hidden"
+        >
+          <DialogTitle className="sr-only">{`${title} — photo ${activeIdx + 1} of ${media.length}`}</DialogTitle>
+          <div className="relative aspect-[16/10] w-full">
+            {media[activeIdx] && (
+              <img
+                src={media[activeIdx]}
+                alt={`${title} — photo ${activeIdx + 1}`}
+                className="w-full h-full object-contain"
+              />
+            )}
+            {media.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => goTo(activeIdx - 1)}
+                  disabled={activeIdx === 0}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-30 flex items-center justify-center transition"
+                  aria-label="Previous photo"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goTo(activeIdx + 1)}
+                  disabled={activeIdx === media.length - 1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-30 flex items-center justify-center transition"
+                  aria-label="Next photo"
+                >
+                  <ChevronRight size={20} />
+                </button>
+                <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                  {activeIdx + 1} / {media.length}
+                </span>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1211,6 +1281,14 @@ export default function ListingDetailPage() {
             </div>
           )}
 
+          {/* Inspection report PDF (when uploaded) */}
+          <InspectionReportSection
+            reportUrl={listing.inspection_report_url ?? null}
+            inspectorName={listing.inspector_name ?? null}
+            inspectedAt={listing.inspected_at ?? null}
+            inspectionRequired={listing.inspection_required}
+          />
+
           {/* Description */}
           <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
             <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
@@ -1238,13 +1316,38 @@ export default function ListingDetailPage() {
         {/* ======== RIGHT COLUMN (1/3) ======== */}
         <div className="w-full lg:w-80 flex-shrink-0 space-y-4 lg:sticky lg:top-24">
 
-          {/* Trust signals — first thing a buyer sees in the side rail. */}
+          {/* Sticky bid panel — primary CTA always visible in the side rail. */}
+          <StickyBidPanel
+            saleMode={listing.sale_mode}
+            unit={listing.unit}
+            price={listing.price}
+            quantity={listing.quantity}
+            currentBid={listing.current_bid ?? null}
+            bidCount={listing.bid_count ?? null}
+            biddingEndsAt={listing.bidding_ends_at ?? null}
+            auctionSessionDate={listing.auction_session_date ?? null}
+            auctionDepositAmount={listing.auction_deposit_amount ?? null}
+            onBuy={() => setBuyModal(true)}
+            onBid={() => setBidModal(true)}
+            onRegister={() => setAuctionModal(true)}
+          />
+
+          {/* Trust signals */}
           <ConfidenceStack
             sellerKycLevel={listing.seller_kyc_level}
             photosCount={(listing.photos ?? []).length}
             certifications={listing.certifications ?? []}
             inspectionRequired={listing.inspection_required}
-            lmeReferenceCadPerMt={null}
+            lmeReferenceCadPerMt={listing.lme_reference_cad_per_mt ?? null}
+          />
+
+          {/* Certified weight (with verification-pending fallback) */}
+          <CertifiedWeightCard
+            declaredQuantity={listing.quantity}
+            unit={listing.unit}
+            certifiedWeightKg={listing.certified_weight_kg ?? null}
+            certifierName={listing.certifier_name ?? null}
+            certifiedAt={listing.certified_at ?? null}
           />
 
           {/* Seller card */}
@@ -1266,34 +1369,6 @@ export default function ListingDetailPage() {
             taxEstimate={taxEstimate}
             lowestShipping={lowestShipping}
           />
-
-          {/* Quick CTA repeat */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
-            {listing.sale_mode === "fixed" && (
-              <button
-                onClick={() => setBuyModal(true)}
-                className="w-full py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-              >
-                Buy Now
-              </button>
-            )}
-            {listing.sale_mode === "bidding" && (
-              <button
-                onClick={() => setBidModal(true)}
-                className="w-full py-2.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 rounded-lg transition-colors"
-              >
-                Place Bid
-              </button>
-            )}
-            {listing.sale_mode === "auction" && (
-              <button
-                onClick={() => setAuctionModal(true)}
-                className="w-full py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"
-              >
-                Register for Auction
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
