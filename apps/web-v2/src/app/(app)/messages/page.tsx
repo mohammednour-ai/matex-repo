@@ -301,9 +301,9 @@ export default function MessagesPage() {
         description="Negotiate with buyers and sellers in secure threads."
         className="mb-0 shrink-0 sm:mb-0"
       />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-steel-200/80 bg-white/95 shadow-card md:h-[min(720px,calc(100vh-12rem))]">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-sky-200/80 bg-white/95 shadow-card md:h-[min(720px,calc(100vh-12rem))]">
       {/* ── Left: Thread List ───────────────────────────────────────────── */}
-      <aside className="flex w-80 shrink-0 flex-col border-r border-steel-200/80 bg-white">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-sky-200/80 bg-white">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
           <h2 className="font-semibold text-slate-800">Messages</h2>

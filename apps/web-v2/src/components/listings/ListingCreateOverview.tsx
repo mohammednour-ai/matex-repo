@@ -48,14 +48,12 @@ export function ListingCreateOverview() {
   return (
     <section
       data-testid="listing-create-overview"
-      className="relative overflow-hidden rounded-2xl border border-steel-200/80 bg-gradient-to-br from-steel-950/5 via-white to-surface-50 shadow-card"
+      className="relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-900/[0.04] via-white to-orange-50/40 shadow-card"
     >
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px)] bg-[length:20px_20px] opacity-70"
         aria-hidden
-      >
-        <div className="metal-texture absolute inset-0" />
-      </div>
+      />
       <div className="relative space-y-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600">
@@ -65,10 +63,10 @@ export function ListingCreateOverview() {
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
               Seller workspace · MCP-connected
             </p>
-            <h2 className="mt-1 text-lg font-black tracking-tight text-steel-900 sm:text-xl">
+            <h2 className="mt-1 text-lg font-black tracking-tight text-sky-950 sm:text-xl">
               Industrial materials exchange
             </h2>
-            <p className="mt-1.5 max-w-2xl text-sm font-medium text-steel-600">
+            <p className="mt-1.5 max-w-2xl text-sm font-medium text-sky-700">
               Structured listings, live auctions, and escrow-backed settlement—wired through Matex
               Copilot to the same MCP tools your ops stack uses.
             </p>
@@ -77,7 +75,7 @@ export function ListingCreateOverview() {
             type="button"
             onClick={dismiss}
             aria-label="Dismiss panel"
-            className="shrink-0 self-start rounded-xl p-1.5 text-steel-400 transition-colors hover:bg-steel-100 hover:text-steel-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="shrink-0 self-start rounded-xl p-1.5 text-sky-500 transition-colors hover:bg-sky-100 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <X className="h-4 w-4" />
           </button>
@@ -87,13 +85,13 @@ export function ListingCreateOverview() {
           {PILLARS.map(({ icon: Icon, title, body }) => (
             <li
               key={title}
-              className="rounded-xl border border-steel-200/70 bg-white/80 p-3.5 backdrop-blur-sm"
+              className="rounded-xl border border-sky-200/70 bg-white/80 p-3.5 backdrop-blur-sm"
             >
               <div className="mb-2 flex items-center gap-2">
                 <Icon className="h-4 w-4 shrink-0 text-brand-600" aria-hidden />
-                <span className="text-xs font-bold text-steel-900">{title}</span>
+                <span className="text-xs font-bold text-sky-950">{title}</span>
               </div>
-              <p className="text-xs leading-snug text-steel-600">{body}</p>
+              <p className="text-xs leading-snug text-sky-700">{body}</p>
             </li>
           ))}
         </ul>

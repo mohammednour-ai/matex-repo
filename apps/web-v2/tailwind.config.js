@@ -63,6 +63,9 @@ module.exports = {
         "card-hover": "0 4px 12px -2px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.06)",
         "glow-brand": "0 0 20px -4px rgba(234,88,12,.28)",
         "glow-accent": "0 0 20px -4px rgba(254,124,17,.25)",
+        /** Industrial control-room panels */
+        "industrial-panel":
+          "0 1px 0 0 rgba(30,34,43,0.06), 0 18px 48px -28px rgba(15,23,42,0.35), inset 0 1px 0 0 rgba(255,255,255,0.65)",
       },
     },
   },

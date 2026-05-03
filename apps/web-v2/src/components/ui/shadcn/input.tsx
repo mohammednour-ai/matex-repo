@@ -15,7 +15,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="text-sm font-medium text-steel-700">
+          <label htmlFor={inputId} className="text-sm font-medium text-sky-800">
             {label}
           </label>
         )}
@@ -27,14 +27,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined
           }
           className={cn(
-            "w-full rounded-xl border px-3 py-2 text-sm text-steel-900",
-            "placeholder:text-steel-400",
+            "w-full rounded-xl border px-3 py-2 text-sm text-sky-950",
+            "placeholder:text-sky-400",
             "focus:outline-none focus:ring-2 focus:ring-offset-0",
             "transition-colors duration-150",
             error
               ? "border-danger-400 focus:border-danger-500 focus:ring-danger-500/30"
-              : "border-steel-300 focus:border-brand-500 focus:ring-brand-500/35",
-            "disabled:bg-steel-50 disabled:text-steel-500 disabled:cursor-not-allowed",
+              : "border-sky-300 focus:border-brand-500 focus:ring-brand-500/35",
+            "disabled:bg-sky-50 disabled:text-sky-500 disabled:cursor-not-allowed",
             className,
           )}
           {...props}
@@ -45,7 +45,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           </p>
         )}
         {hint && !error && (
-          <p id={`${inputId}-hint`} className="text-xs text-steel-500">
+          <p id={`${inputId}-hint`} className="text-xs text-sky-600">
             {hint}
           </p>
         )}

@@ -127,28 +127,28 @@ export default function AuctionsPage() {
         description="Bid on recycled material lots from verified sellers across Canada."
         actions={
           <div className="relative w-full min-w-0 sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-400" />
             <input
               type="search"
               placeholder="Search auctions…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-steel-200/80 bg-white/95 py-2 pl-9 pr-3 text-sm text-steel-900 shadow-sm placeholder:text-steel-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+              className="w-full rounded-xl border border-sky-200/80 bg-white/95 py-2 pl-9 pr-3 text-sm text-sky-900 shadow-sm placeholder:text-sky-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
             />
           </div>
         }
       />
 
       {/* Tabs */}
-      <div className="flex w-fit gap-1 rounded-2xl border border-steel-200/80 bg-steel-100/80 p-1">
+      <div className="flex w-fit gap-1 rounded-2xl border border-sky-200/80 bg-sky-100/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`relative flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.key
-                ? "bg-white text-steel-900 shadow-sm"
-                : "text-steel-500 hover:text-steel-800"
+                ? "bg-white text-sky-900 shadow-sm"
+                : "text-sky-500 hover:text-sky-800"
             }`}
           >
             {t.key === "live" && t.count > 0 && (
@@ -160,7 +160,7 @@ export default function AuctionsPage() {
             {t.label}
             <span
               className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-steel-200 text-steel-500"
+                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-sky-200 text-sky-500"
               }`}
             >
               {loading && t.key === "live" ? "…" : t.count}

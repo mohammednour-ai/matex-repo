@@ -392,6 +392,9 @@ async function mergeAuthenticatedIdentity(
     args.user_id = sub;
     if (tool === "booking.create_booking") args.organizer_id = sub;
   }
+  if (tool === "analytics.get_dashboard_stats" && sub) {
+    args.user_id = sub;
+  }
   if (tool === "search.save_search" || tool === "search.get_saved_searches") {
     args.user_id = sub;
   }
@@ -1229,20 +1232,124 @@ async function handleTool(
 
   // phase4: analytics (cross-schema reads)
   if (tool === "analytics.get_dashboard_stats") {
-    const listings = (await pool.query(`select count(*)::int as cnt from listing_mcp.listings where status='active'`)).rows[0]?.cnt ?? 0;
-    const users = (await pool.query(`select count(*)::int as cnt from auth_mcp.users`)).rows[0]?.cnt ?? 0;
-    const escrowHeld = (await pool.query(`select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held'`)).rows[0]?.total ?? 0;
-    const auctions = (await pool.query(`select count(*)::int as cnt from auction_mcp.auctions where status='live'`)).rows[0]?.cnt ?? 0;
-    const escrowCount = (await pool.query(`select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held')`)).rows[0]?.cnt ?? 0;
+    const scopeUser = String(args.user_id ?? "").trim() || null;
+
+    const [
+      listingsRes,
+      usersRes,
+      escrowHeldRes,
+      auctionsRes,
+      escrowCountRes,
+      ordersPendingRes,
+      ordersTransitRes,
+      wowRes,
+    ] = await Promise.all([
+      pool.query(`select count(*)::int as cnt from listing_mcp.listings where status='active'`),
+      pool.query(`select count(*)::int as cnt from auth_mcp.users`),
+      pool.query(
+        `select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held'`,
+      ),
+      pool.query(`select count(*)::int as cnt from auction_mcp.auctions where status='live'`),
+      pool.query(
+        `select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held')`,
+      ),
+      pool.query(
+        `select count(*)::int as cnt from orders_mcp.orders where status in ('pending','confirmed')`,
+      ),
+      pool.query(
+        `select count(*)::int as cnt from orders_mcp.orders where status in ('shipped','delivered')`,
+      ),
+      pool.query(`
+        with w as (
+          select
+            (select count(*)::int from listing_mcp.listings where created_at >= now() - interval '7 days') as n0,
+            (select count(*)::int from listing_mcp.listings where created_at >= now() - interval '14 days' and created_at < now() - interval '7 days') as n1
+        )
+        select case when n1 = 0 then null else round(((n0 - n1)::numeric / n1) * 100, 1) end as pct from w
+      `),
+    ]);
+
+    const base: Record<string, unknown> = {
+      active_listings: Number(listingsRes.rows[0]?.cnt ?? 0),
+      total_users: Number(usersRes.rows[0]?.cnt ?? 0),
+      escrow_held: Number(escrowHeldRes.rows[0]?.total ?? 0),
+      active_escrows: Number(escrowCountRes.rows[0]?.cnt ?? 0),
+      active_auctions: Number(auctionsRes.rows[0]?.cnt ?? 0),
+      listings_change_pct: wowRes.rows[0]?.pct != null ? Number(wowRes.rows[0].pct) : null,
+      orders_pending_action: Number(ordersPendingRes.rows[0]?.cnt ?? 0),
+      orders_in_transit: Number(ordersTransitRes.rows[0]?.cnt ?? 0),
+    };
+
+    if (!scopeUser) {
+      return ok(base);
+    }
+
+    const uid = scopeUser;
+    const [
+      myListings,
+      myEscrowHeld,
+      myEscrowCount,
+      myOrdersPend,
+      myOrdersTransit,
+      myWow,
+      mySpark,
+      myBids,
+    ] = await Promise.all([
+      pool.query(
+        `select count(*)::int as cnt from listing_mcp.listings where seller_id=$1::uuid and status='active'`,
+        [uid],
+      ),
+      pool.query(
+        `select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held' and (buyer_id=$1::uuid or seller_id=$1::uuid)`,
+        [uid],
+      ),
+      pool.query(
+        `select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held') and (buyer_id=$1::uuid or seller_id=$1::uuid)`,
+        [uid],
+      ),
+      pool.query(
+        `select count(*)::int as cnt from orders_mcp.orders where (buyer_id=$1::uuid or seller_id=$1::uuid) and status in ('pending','confirmed')`,
+        [uid],
+      ),
+      pool.query(
+        `select count(*)::int as cnt from orders_mcp.orders where (buyer_id=$1::uuid or seller_id=$1::uuid) and status in ('shipped','delivered')`,
+        [uid],
+      ),
+      pool.query(
+        `with w as (
+           select
+             (select count(*)::int from listing_mcp.listings where seller_id=$1::uuid and created_at >= now() - interval '7 days') as n0,
+             (select count(*)::int from listing_mcp.listings where seller_id=$1::uuid and created_at >= now() - interval '14 days' and created_at < now() - interval '7 days') as n1
+         )
+         select case when n1 = 0 then null else round(((n0 - n1)::numeric / n1) * 100, 1) end as pct from w`,
+        [uid],
+      ),
+      pool.query(
+        `select coalesce(array_agg(cnt order by d), array_fill(0, array[7])) as arr from (
+           select gs::date as d,
+                  (select count(*)::int from listing_mcp.listings l
+                   where l.seller_id = $1::uuid and l.created_at::date = gs::date) as cnt
+           from generate_series((current_date - 6), current_date, interval '1 day') as gs
+         ) q`,
+        [uid],
+      ),
+      pool.query(
+        `select count(*)::int as cnt from bidding_mcp.bids where bidder_id=$1::uuid and status='active'`,
+        [uid],
+      ),
+    ]);
+
+    const sparkRaw = mySpark.rows[0]?.arr as number[] | undefined;
     return ok({
-      active_listings: listings,
-      total_users: users,
-      escrow_held: Number(escrowHeld),
-      active_escrows: escrowCount,
-      active_auctions: auctions,
-      listings_change_pct: null,
-      orders_pending_action: 0,
-      orders_in_transit: 0,
+      ...base,
+      active_listings: Number(myListings.rows[0]?.cnt ?? 0),
+      escrow_held: Number(myEscrowHeld.rows[0]?.total ?? 0),
+      active_escrows: Number(myEscrowCount.rows[0]?.cnt ?? 0),
+      listings_change_pct: myWow.rows[0]?.pct != null ? Number(myWow.rows[0].pct) : null,
+      orders_pending_action: Number(myOrdersPend.rows[0]?.cnt ?? 0),
+      orders_in_transit: Number(myOrdersTransit.rows[0]?.cnt ?? 0),
+      listings_spark_7d: Array.isArray(sparkRaw) ? sparkRaw : null,
+      active_bids: Number(myBids.rows[0]?.cnt ?? 0),
     });
   }
   if (tool === "analytics.get_revenue_report") {

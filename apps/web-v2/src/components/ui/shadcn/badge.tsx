@@ -13,7 +13,7 @@ const badgeVariants = cva(
         warning: "bg-warning-50 text-warning-700 ring-warning-500/20",
         danger: "bg-danger-50 text-danger-700 ring-danger-500/20",
         info: "bg-brand-50 text-brand-700 ring-brand-500/20",
-        gray: "bg-steel-100 text-steel-600 ring-steel-300/40",
+        gray: "bg-sky-100 text-sky-700 ring-sky-300/40",
         accent: "bg-accent-50 text-accent-700 ring-accent-500/20",
       },
     },

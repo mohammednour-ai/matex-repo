@@ -322,7 +322,7 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={() => void fetchNotifications()}
-              className="rounded-xl p-2 text-steel-400 transition-colors hover:bg-steel-100 hover:text-steel-800"
+              className="rounded-xl p-2 text-sky-400 transition-colors hover:bg-sky-100 hover:text-sky-800"
               aria-label="Refresh notifications"
               title="Refresh"
             >
@@ -342,7 +342,7 @@ export default function NotificationsPage() {
 
       <div className="marketplace-card overflow-hidden">
       {/* Tabs */}
-      <div className="mb-0 border-b border-steel-200/80">
+      <div className="mb-0 border-b border-sky-200/80">
         <div className="-mb-px flex gap-0 overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => {
             const count = tabCount(tab.id);

@@ -805,6 +805,126 @@ export async function dbGetDashboardStats(): Promise<Record<string, number> | nu
   return rows[0] ?? null;
 }
 
+/** Dashboard home stats: platform-wide plus user-scoped overlays (matches analytics HTTP adapter). */
+export async function dbGetUserDashboardStats(userId: string): Promise<Record<string, unknown> | null> {
+  const pool = getPool();
+  if (!pool) return null;
+
+  const [
+    listingsRes,
+    usersRes,
+    escrowHeldRes,
+    auctionsRes,
+    escrowCountRes,
+    ordersPendingRes,
+    ordersTransitRes,
+    wowRes,
+  ] = await Promise.all([
+    pool.query(`select count(*)::int as cnt from listing_mcp.listings where status='active'`),
+    pool.query(`select count(*)::int as cnt from auth_mcp.users`),
+    pool.query(
+      `select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held'`,
+    ),
+    pool.query(`select count(*)::int as cnt from auction_mcp.auctions where status='live'`),
+    pool.query(
+      `select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held')`,
+    ),
+    pool.query(
+      `select count(*)::int as cnt from orders_mcp.orders where status in ('pending','confirmed')`,
+    ),
+    pool.query(
+      `select count(*)::int as cnt from orders_mcp.orders where status in ('shipped','delivered')`,
+    ),
+    pool.query(`
+      with w as (
+        select
+          (select count(*)::int from listing_mcp.listings where created_at >= now() - interval '7 days') as n0,
+          (select count(*)::int from listing_mcp.listings where created_at >= now() - interval '14 days' and created_at < now() - interval '7 days') as n1
+      )
+      select case when n1 = 0 then null else round(((n0 - n1)::numeric / n1) * 100, 1) end as pct from w
+    `),
+  ]);
+
+  const base: Record<string, unknown> = {
+    active_listings: Number(listingsRes.rows[0]?.cnt ?? 0),
+    total_users: Number(usersRes.rows[0]?.cnt ?? 0),
+    escrow_held: Number(escrowHeldRes.rows[0]?.total ?? 0),
+    active_escrows: Number(escrowCountRes.rows[0]?.cnt ?? 0),
+    active_auctions: Number(auctionsRes.rows[0]?.cnt ?? 0),
+    listings_change_pct: wowRes.rows[0]?.pct != null ? Number(wowRes.rows[0].pct) : null,
+    orders_pending_action: Number(ordersPendingRes.rows[0]?.cnt ?? 0),
+    orders_in_transit: Number(ordersTransitRes.rows[0]?.cnt ?? 0),
+  };
+
+  const uid = userId;
+  const [
+    myListings,
+    myEscrowHeld,
+    myEscrowCount,
+    myOrdersPend,
+    myOrdersTransit,
+    myWow,
+    mySpark,
+    myBids,
+  ] = await Promise.all([
+    pool.query(
+      `select count(*)::int as cnt from listing_mcp.listings where seller_id=$1::uuid and status='active'`,
+      [uid],
+    ),
+    pool.query(
+      `select coalesce(sum(held_amount),0)::numeric as total from escrow_mcp.escrows where status='funds_held' and (buyer_id=$1::uuid or seller_id=$1::uuid)`,
+      [uid],
+    ),
+    pool.query(
+      `select count(*)::int as cnt from escrow_mcp.escrows where status in ('created','funds_held') and (buyer_id=$1::uuid or seller_id=$1::uuid)`,
+      [uid],
+    ),
+    pool.query(
+      `select count(*)::int as cnt from orders_mcp.orders where (buyer_id=$1::uuid or seller_id=$1::uuid) and status in ('pending','confirmed')`,
+      [uid],
+    ),
+    pool.query(
+      `select count(*)::int as cnt from orders_mcp.orders where (buyer_id=$1::uuid or seller_id=$1::uuid) and status in ('shipped','delivered')`,
+      [uid],
+    ),
+    pool.query(
+      `with w as (
+         select
+           (select count(*)::int from listing_mcp.listings where seller_id=$1::uuid and created_at >= now() - interval '7 days') as n0,
+           (select count(*)::int from listing_mcp.listings where seller_id=$1::uuid and created_at >= now() - interval '14 days' and created_at < now() - interval '7 days') as n1
+       )
+       select case when n1 = 0 then null else round(((n0 - n1)::numeric / n1) * 100, 1) end as pct from w`,
+      [uid],
+    ),
+    pool.query(
+      `select coalesce(array_agg(cnt order by d), array_fill(0, array[7])) as arr from (
+         select gs::date as d,
+                (select count(*)::int from listing_mcp.listings l
+                 where l.seller_id = $1::uuid and l.created_at::date = gs::date) as cnt
+         from generate_series((current_date - 6), current_date, interval '1 day') as gs
+       ) q`,
+      [uid],
+    ),
+    pool.query(
+      `select count(*)::int as cnt from bidding_mcp.bids where bidder_id=$1::uuid and status='active'`,
+      [uid],
+    ),
+  ]);
+
+  const sparkRaw = mySpark.rows[0]?.arr as number[] | undefined;
+  return {
+    ...base,
+    active_listings: Number(myListings.rows[0]?.cnt ?? 0),
+    escrow_held: Number(myEscrowHeld.rows[0]?.total ?? 0),
+    active_escrows: Number(myEscrowCount.rows[0]?.cnt ?? 0),
+    listings_change_pct: myWow.rows[0]?.pct != null ? Number(myWow.rows[0].pct) : null,
+    orders_pending_action: Number(myOrdersPend.rows[0]?.cnt ?? 0),
+    orders_in_transit: Number(myOrdersTransit.rows[0]?.cnt ?? 0),
+    listings_spark_7d: Array.isArray(sparkRaw) ? sparkRaw : null,
+    active_bids: Number(myBids.rows[0]?.cnt ?? 0),
+  };
+}
+
 export async function dbGetRevenueReport(period: string): Promise<Record<string, unknown>> {
   const pool = getPool();
   if (!pool) return { period, transactions: 0, volume: 0, commission_estimate: 0 };

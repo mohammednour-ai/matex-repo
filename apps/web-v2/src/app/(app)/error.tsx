@@ -19,15 +19,15 @@ export default function AppRouteError({
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
         Something went wrong
       </p>
-      <h1 className="text-2xl font-semibold text-steel-900">
+      <h1 className="text-2xl font-semibold text-sky-900">
         We couldn&apos;t load this page
       </h1>
-      <p className="max-w-md text-sm text-steel-600">
+      <p className="max-w-md text-sm text-sky-600">
         The service is temporarily unavailable. Try again, or head back to the
         dashboard.
       </p>
       {error?.digest ? (
-        <code className="rounded-lg bg-steel-100 px-2 py-1 text-xs text-steel-600">
+        <code className="rounded-lg bg-sky-100 px-2 py-1 text-xs text-sky-600">
           ref: {error.digest}
         </code>
       ) : null}
@@ -41,7 +41,7 @@ export default function AppRouteError({
         </button>
         <Link
           href="/dashboard"
-          className="rounded-xl border border-steel-300 px-4 py-2 text-sm font-semibold text-steel-700 hover:bg-steel-50"
+          className="rounded-xl border border-sky-300 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-50"
         >
           Go to dashboard
         </Link>

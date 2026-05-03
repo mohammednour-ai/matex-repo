@@ -75,6 +75,7 @@ import {
   dbGetContract,
   dbListContracts,
   dbGetDashboardStats,
+  dbGetUserDashboardStats,
   dbGetRevenueReport,
   dbGetConversionFunnel,
   dbGrantPlatformAdmin,
@@ -553,10 +554,11 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
 
   // ── Analytics ──
   if (tool === "analytics.get_dashboard_stats") {
-    const activeListings = Array.from(devListings.values()).filter((l) => l.status === "active").length;
-    // listings_change_pct: server-sourced only; null until analytics computes real deltas
+    const mineActive = Array.from(devListings.values()).filter(
+      (l) => l.status === "active" && l.seller_id === userId,
+    ).length;
     return ok({
-      active_listings: activeListings,
+      active_listings: mineActive,
       total_users: devUsers.size,
       escrow_held: 0,
       active_escrows: 0,
@@ -564,6 +566,8 @@ function handleDevTool(tool: string, args: Record<string, JsonValue>, userId: st
       listings_change_pct: null,
       orders_pending_action: 0,
       orders_in_transit: 0,
+      listings_spark_7d: null,
+      active_bids: 0,
     });
   }
   if (tool === "analytics.get_revenue_report") { return ok({ period: String(args.period ?? "30d"), transactions: 0, volume: 0, commission_estimate: 0 }); }
@@ -1210,8 +1214,8 @@ async function handleDbTool(tool: string, args: Record<string, JsonValue>, userI
 
     // ── Analytics ──
     if (tool === "analytics.get_dashboard_stats") {
-      const stats = await dbGetDashboardStats();
-      if (stats) return ok(stats as Record<string, unknown>);
+      const stats = await dbGetUserDashboardStats(userId);
+      if (stats) return ok(stats as Record<string, JsonValue>);
     }
     if (tool === "analytics.get_revenue_report") {
       const report = await dbGetRevenueReport(String(args.period ?? "30d"));

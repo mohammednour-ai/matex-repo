@@ -530,7 +530,7 @@ export default function MyListingsPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-steel-200">
+      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-sky-200">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -539,7 +539,7 @@ export default function MyListingsPage() {
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
               activeTab === tab.id
                 ? "border-brand-600 text-brand-600"
-                : "border-transparent text-steel-500 hover:border-steel-300 hover:text-steel-800"
+                : "border-transparent text-sky-500 hover:border-sky-300 hover:text-sky-800"
             )}
           >
             {tab.label}
@@ -549,7 +549,7 @@ export default function MyListingsPage() {
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold min-w-[18px] text-center",
                   activeTab === tab.id
                     ? "bg-brand-100 text-brand-700"
-                    : "bg-steel-100 text-steel-600"
+                    : "bg-sky-100 text-sky-600"
                 )}
               >
                 {tabCounts[tab.id]}
@@ -575,13 +575,13 @@ export default function MyListingsPage() {
         <>
           {tableViewEnabled && (
             <div className="mb-3 flex justify-end">
-              <div className="inline-flex rounded-lg border border-steel-200 bg-white p-0.5 text-xs font-semibold">
+              <div className="inline-flex rounded-lg border border-sky-200 bg-white p-0.5 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setViewMode("cards")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "cards" ? "bg-brand-50 text-brand-700" : "text-steel-500 hover:text-steel-800",
+                    viewMode === "cards" ? "bg-brand-50 text-brand-700" : "text-sky-500 hover:text-sky-800",
                   )}
                 >
                   Cards
@@ -591,7 +591,7 @@ export default function MyListingsPage() {
                   onClick={() => setViewMode("table")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "table" ? "bg-brand-50 text-brand-700" : "text-steel-500 hover:text-steel-800",
+                    viewMode === "table" ? "bg-brand-50 text-brand-700" : "text-sky-500 hover:text-sky-800",
                   )}
                 >
                   Table
