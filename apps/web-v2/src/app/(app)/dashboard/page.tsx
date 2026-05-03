@@ -38,6 +38,7 @@ import { MiniSparkBars } from "@/components/dashboard/MiniSparkBars";
 import { DashboardIdentityBar } from "@/components/dashboard/DashboardIdentityBar";
 import { DashboardPulseStrip } from "@/components/dashboard/DashboardPulseStrip";
 import { MATEXUI_TO_WEB_V2_ROUTES } from "@/data/matexui-route-map";
+import { DashboardMarketSummary } from "@/components/intelligence/DashboardMarketSummary";
 
 type KycLevel = 0 | 1 | 2 | 3;
 
@@ -520,6 +521,8 @@ export default function DashboardPage() {
           className="w-full max-w-4xl lg:max-w-5xl"
         />
       )}
+
+      <DashboardMarketSummary />
 
       <div className="grid grid-cols-2 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((card) => (
