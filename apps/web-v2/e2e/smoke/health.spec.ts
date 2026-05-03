@@ -57,13 +57,21 @@ test.describe("Smoke Suite", () => {
     const routes = [
       "/dashboard", "/listings", "/search", "/auctions", "/messages",
       "/checkout", "/escrow", "/logistics", "/inspections", "/contracts",
-      "/settings", "/notifications",
+      "/settings", "/notifications", "/market", "/market/copper_2",
     ];
 
     for (const route of routes) {
       const res = await page.goto(route, { waitUntil: "domcontentloaded" });
       expect(res?.status(), `${route} should not 500`).not.toBe(500);
     }
+  });
+
+  test("SMOKE-07: /api/intelligence/summary returns snapshots without auth", async ({ request }) => {
+    const res = await request.get("/api/intelligence/summary");
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.snapshots)).toBe(true);
+    expect(body.snapshots.length).toBeGreaterThan(0);
   });
 
   test("SMOKE-06: copilot chat endpoint responds", async ({ request }) => {

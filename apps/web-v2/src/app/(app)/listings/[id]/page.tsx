@@ -42,6 +42,7 @@ import { ConfidenceStack } from "@/components/listings/ConfidenceStack";
 import { CertifiedWeightCard } from "@/components/listings/CertifiedWeightCard";
 import { InspectionReportSection } from "@/components/listings/InspectionReportSection";
 import { StickyBidPanel } from "@/components/listings/StickyBidPanel";
+import { ListingPerformanceCard } from "@/components/intelligence/ListingPerformanceCard";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1280,6 +1281,19 @@ export default function ListingDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Listing performance — visible to the seller only. */}
+          {(() => {
+            const u = getUser();
+            if (!u || u.userId !== listing.seller_id) return null;
+            return (
+              <ListingPerformanceCard
+                listingId={listing.listing_id}
+                materialLabel={listing.title}
+                askingPrice={listing.price}
+              />
+            );
+          })()}
 
           {/* Inspection report PDF (when uploaded) */}
           <InspectionReportSection
