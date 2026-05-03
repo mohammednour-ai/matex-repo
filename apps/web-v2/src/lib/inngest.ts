@@ -181,9 +181,33 @@ export const fnEmailDailyDigest = inngest.createFunction(
   },
 );
 
+// ─── intelligence.daily_market_analysis ─────────────────────────────────────
+// Refreshes `intelligence_mcp.market_intelligence` for every material in the
+// catalog, then dispatches any price alerts that crossed a threshold. Runs
+// nightly at 06:00 UTC; can also be invoked ad-hoc via the
+// `intelligence.daily_run_requested` event (the /api/intelligence/run-daily
+// route emits this for manual debugging).
+export const fnDailyMarketAnalysis = inngest.createFunction(
+  {
+    id: "intelligence-daily-market-analysis",
+    retries: 2,
+    triggers: [
+      { cron: "0 6 * * *" },
+      { event: "intelligence.daily_run_requested" },
+    ],
+  },
+  async ({ step }) => {
+    return step.run("run-pipeline", async () => {
+      const { runDailyMarketAnalysis } = await import("./intelligence/pipeline");
+      return runDailyMarketAnalysis();
+    });
+  },
+);
+
 export const inngestFunctions = [
   fnAuctionScheduledEnd,
   fnEscrowReleaseTimer,
   fnKycPollStatus,
   fnEmailDailyDigest,
+  fnDailyMarketAnalysis,
 ];

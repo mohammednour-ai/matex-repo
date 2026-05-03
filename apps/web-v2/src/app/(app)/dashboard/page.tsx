@@ -33,6 +33,7 @@ import type {
 import clsx from "clsx";
 import { AppSectionCard } from "@/components/layout/AppSectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { DashboardMarketSummary } from "@/components/intelligence/DashboardMarketSummary";
 
 type KycLevel = 0 | 1 | 2 | 3;
 
@@ -480,6 +481,8 @@ export default function DashboardPage() {
           </Link>
         </div>
       )}
+
+      <DashboardMarketSummary />
 
       <TrendStrip
         activeListings={stats?.active_listings ?? null}

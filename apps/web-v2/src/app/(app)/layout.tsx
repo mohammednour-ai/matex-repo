@@ -17,6 +17,7 @@ import {
   FileText,
   Settings,
   BarChart3,
+  LineChart,
   ChevronLeft,
   ChevronRight,
   Bell,
@@ -68,6 +69,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: "Insights",
     items: [
+      { label: "Market Intelligence", href: "/market", icon: <LineChart size={iconSize} />, accent: true },
       { label: "Analytics", href: "/analytics", icon: <BarChart3 size={iconSize} /> },
     ],
   },
@@ -196,6 +198,12 @@ function getPageMeta(pathname: string): { title: string; subtitle: string; eyebr
       return {
         title: "Analytics",
         subtitle: "Platform-wide metrics on users, listings, orders, and revenue.",
+        eyebrow: "Insights",
+      };
+    case "market":
+      return {
+        title: "Market Intelligence",
+        subtitle: "Daily AI-driven market signals, price forecasts, and alerts.",
         eyebrow: "Insights",
       };
     case "settings":
