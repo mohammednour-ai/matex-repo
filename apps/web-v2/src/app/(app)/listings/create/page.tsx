@@ -24,6 +24,7 @@ import { callTool, getUser, extractId } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { ListingCreateOverview } from "@/components/listings/ListingCreateOverview";
+import { PriceRecommendation } from "@/components/intelligence/PriceRecommendation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -612,8 +613,24 @@ function Step3({
       : parseFloat(data.reservePrice) || 0;
   const commission = calcCommission(price, data.saleMode);
 
+  function handleApplyAi(value: number) {
+    const formatted = value.toFixed(2);
+    if (data.saleMode === "fixed") onChange({ askingPrice: formatted });
+    else if (data.saleMode === "bidding") onChange({ startingBid: formatted });
+    else if (data.saleMode === "auction") onChange({ reservePrice: formatted });
+    else onChange({ saleMode: "fixed", askingPrice: formatted });
+  }
+
   return (
     <div className="space-y-5">
+      <PriceRecommendation
+        material={data.title || data.qualityGrade || data.category}
+        quantity={data.quantity}
+        unit={data.unit}
+        sellerRegion={undefined}
+        onApply={handleApplyAi}
+      />
+
       <div className="space-y-3">
         <SaleModeCard
           mode="fixed"
