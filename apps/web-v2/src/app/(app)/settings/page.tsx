@@ -768,7 +768,7 @@ export default function SettingsPage() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Sidebar nav */}
-        <nav className="flex shrink-0 gap-1 rounded-2xl border border-steel-200/80 bg-white/80 p-1 lg:w-52 lg:flex-col">
+        <nav className="flex shrink-0 gap-1 rounded-2xl border border-sky-200/80 bg-white/80 p-1 lg:w-52 lg:flex-col">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -778,7 +778,7 @@ export default function SettingsPage() {
                 "flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "bg-brand-50 text-brand-700"
-                  : "text-steel-600 hover:bg-steel-100"
+                  : "text-sky-600 hover:bg-sky-100"
               )}
             >
               <tab.icon className="h-4 w-4 shrink-0" />

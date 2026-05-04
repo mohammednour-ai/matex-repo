@@ -369,7 +369,7 @@ function Step1({
                   )}
                 >
                   {c.icon ? (
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-steel-50 overflow-hidden">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sky-50 overflow-hidden">
                       <Image src={c.icon} alt="" width={28} height={28} className="object-contain" />
                     </span>
                   ) : null}
@@ -1837,12 +1837,12 @@ export default function CreateListingPage() {
 
   return (
     <>
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <button
             type="button"
             onClick={() => router.push("/listings")}
-            className="mb-3 flex items-center gap-1.5 text-sm text-steel-500 transition-colors hover:text-steel-800"
+            className="mb-3 flex items-center gap-1.5 text-sm text-sky-500 transition-colors hover:text-sky-800"
           >
             <ChevronLeft className="h-4 w-4" />
             My Listings

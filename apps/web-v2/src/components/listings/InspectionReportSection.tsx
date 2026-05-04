@@ -28,11 +28,11 @@ export function InspectionReportSection({
     <div
       className={cn(
         "rounded-xl border bg-white p-4 space-y-3",
-        hasReport ? "border-emerald-200" : "border-steel-200",
+        hasReport ? "border-emerald-200" : "border-sky-200",
         className,
       )}
     >
-      <h3 className="font-semibold text-steel-900 text-sm flex items-center gap-2">
+      <h3 className="font-semibold text-sky-950 text-sm flex items-center gap-2">
         <ClipboardCheck className="h-4 w-4 text-brand-600" />
         Inspection report
       </h3>
@@ -58,8 +58,8 @@ export function InspectionReportSection({
             <Download className="h-4 w-4 shrink-0" />
           </a>
           {(inspectorName || inspectedAt) && (
-            <p className="text-xs text-steel-600">
-              {inspectorName && <>Inspector: <span className="font-medium text-steel-700">{inspectorName}</span></>}
+            <p className="text-xs text-sky-700">
+              {inspectorName && <>Inspector: <span className="font-medium text-sky-800">{inspectorName}</span></>}
               {inspectorName && inspectedAt && " · "}
               {inspectedAt && (
                 <>
@@ -75,7 +75,7 @@ export function InspectionReportSection({
           )}
         </>
       ) : (
-        <p className="text-xs text-steel-600">
+        <p className="text-xs text-sky-700">
           {inspectionRequired
             ? "An independent inspection is required before escrow releases on this listing. Use the booking widget in the side rail to schedule one — the resulting PDF will appear here once the inspector files it."
             : "No inspection report has been uploaded for this listing. You can still book a third-party inspection via the side-rail widget; the PDF will appear here when ready."}

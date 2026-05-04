@@ -238,18 +238,18 @@ export function MediaUploader({
           "flex flex-col items-center justify-center rounded-xl border-2 border-dashed",
           "px-6 py-8 transition-colors duration-150",
           blocked || files.length >= maxFiles
-            ? "border-slate-200 bg-slate-50 cursor-not-allowed"
+            ? "border-sky-200 bg-sky-50 cursor-not-allowed"
             : isDragActive
             ? "border-blue-400 bg-blue-50 cursor-pointer"
-            : "border-slate-300 bg-white cursor-pointer hover:border-blue-400 hover:bg-blue-50/40",
+            : "border-sky-300 bg-white cursor-pointer hover:border-orange-400 hover:bg-orange-50/50",
         )}
       >
         <input {...getInputProps()} />
-        <UploadCloud className="h-8 w-8 text-slate-400 mb-2" />
-        <p className="text-sm font-medium text-slate-700">
+        <UploadCloud className="h-8 w-8 text-sky-400 mb-2" />
+        <p className="text-sm font-medium text-sky-700">
           {blocked ? "Upload locked until draft exists" : isDragActive ? "Drop files here" : "Drag & drop or click to upload"}
         </p>
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="text-xs text-sky-400 mt-1">
           JPG, PNG, WebP, MP4, MOV · Up to {maxFiles} files
         </p>
       </div>
@@ -259,7 +259,7 @@ export function MediaUploader({
           {files.map((entry) => (
             <li
               key={entry.id}
-              className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-50 aspect-square"
+              className="relative rounded-lg overflow-hidden border border-sky-200 bg-sky-50 aspect-square"
             >
               {entry.preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -270,8 +270,8 @@ export function MediaUploader({
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center w-full h-full gap-1 p-2">
-                  <FileVideo className="h-6 w-6 text-slate-400" />
-                  <p className="text-[10px] text-slate-500 text-center leading-tight line-clamp-2">
+                  <FileVideo className="h-6 w-6 text-sky-400" />
+                  <p className="text-[10px] text-sky-500 text-center leading-tight line-clamp-2">
                     {entry.file.name}
                   </p>
                 </div>

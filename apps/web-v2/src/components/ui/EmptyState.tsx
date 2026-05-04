@@ -37,7 +37,7 @@ function CTAButton({ cta, primary }: { cta: CTA; primary: boolean }) {
     "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
     primary
       ? "bg-brand-600 text-white hover:bg-brand-700"
-      : "border border-steel-200 bg-white text-steel-700 hover:bg-steel-50"
+      : "border border-sky-200 bg-white text-sky-800 hover:bg-sky-50"
   );
 
   if (cta.href) {
@@ -85,9 +85,9 @@ export function EmptyState({
         className="mb-4 h-auto w-auto max-w-full select-none"
         aria-hidden
       />
-      <h3 className="text-base font-bold text-steel-900">{title}</h3>
+      <h3 className="text-base font-bold text-sky-950">{title}</h3>
       {description && (
-        <p className="mt-1.5 max-w-md text-sm text-steel-500">{description}</p>
+        <p className="mt-1.5 max-w-md text-sm text-sky-600">{description}</p>
       )}
       {(cta || secondaryCta) && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">

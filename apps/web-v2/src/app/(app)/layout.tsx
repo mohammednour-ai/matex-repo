@@ -25,10 +25,10 @@ import {
   X,
   UserCog,
   LogOut,
-  Sparkles,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
+import clsx from "clsx";
 
 type NavItem = {
   label: string;
@@ -106,16 +106,14 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-steel-950 px-6">
+      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[linear-gradient(165deg,#dbeafe_0%,#f0f7ff_42%,#fff7ed_100%)] px-6">
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.07)_1px,transparent_1px)] bg-[length:24px_24px] opacity-60"
           aria-hidden
-        >
-          <div className="metal-texture absolute inset-0" />
-        </div>
+        />
         <div className="relative flex flex-col items-center gap-3">
           <div className="h-11 w-11 rounded-2xl border-2 border-brand-500/40 border-t-brand-500 animate-spin shadow-[0_0_20px_-4px_rgba(234,88,12,0.45)]" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-steel-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
             Loading Matex
           </p>
         </div>
@@ -126,17 +124,17 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-const COLLAPSED_W = 68;
-const EXPANDED_W = 256;
+const COLLAPSED_W = 72;
+const EXPANDED_W = 312;
 
 function getPageMeta(pathname: string): { title: string; subtitle: string; eyebrow: string } {
   const segment = pathname.split("/")[1] || "dashboard";
   switch (segment) {
     case "dashboard":
       return {
-        title: "Overview",
-        subtitle: "Stay on top of marketplace activity, execution, and next actions.",
-        eyebrow: "Control Center",
+        title: "",
+        subtitle: "",
+        eyebrow: "",
       };
     case "listings":
       return {
@@ -252,39 +250,34 @@ function Sidebar({
       : user?.accountType === "seller"
         ? "Seller workspace"
         : "Marketplace workspace";
-  const emailLabel = user?.email ?? "Industrial materials exchange";
+  const emailLabel = user?.email ?? "";
 
   const logo = (
     <Link
       href="/dashboard"
-      className="flex min-w-0 flex-shrink-0 items-center gap-3"
+      className="flex min-w-0 flex-shrink-0 items-center"
       onClick={onMobileClose}
     >
-      <span className="app-sidebar-logo-badge">
+      <span
+        className={
+          collapsed
+            ? "app-sidebar-logo-badge app-sidebar-logo-badge--collapsed"
+            : "app-sidebar-logo-badge app-sidebar-logo-badge--expanded"
+        }
+      >
         <Image
-          src="/MatexLogo.png"
+          src="/LogoOrangeTrns.png"
           alt="Matex"
-          width={200}
-          height={64}
+          width={320}
+          height={110}
           className={
             collapsed
-              ? "h-9 w-9 rounded-md object-cover object-left drop-shadow-md"
-              : "h-10 w-auto max-w-[11rem] object-contain object-left drop-shadow-md"
+              ? "h-full w-full object-contain object-center drop-shadow-md"
+              : "h-14 w-auto max-w-[16rem] object-contain object-left drop-shadow-lg sm:h-16 sm:max-w-[18rem]"
           }
           priority
         />
       </span>
-      {!collapsed && (
-        <span className="min-w-0">
-          <span className="block text-[10px] font-bold uppercase tracking-[0.26em] text-brand-300">
-            Matex Platform
-          </span>
-          <span className="mt-0.5 block truncate text-sm font-semibold text-steel-200">
-            Industrial Exchange
-          </span>
-        </span>
-      )}
-      <span className="sr-only">Matex — Industrial Materials Exchange</span>
     </Link>
   );
 
@@ -376,7 +369,9 @@ function Sidebar({
             <div className="app-sidebar-meta">
               <p className="app-sidebar-meta-label">Workspace</p>
               <p className="app-sidebar-meta-value">{accountLabel}</p>
-              <p className="mt-1 truncate text-xs text-steel-400">{emailLabel}</p>
+              {emailLabel ? (
+                <p className="mt-1 truncate text-xs text-slate-400">{emailLabel}</p>
+              ) : null}
             </div>
           </div>
         )}
@@ -389,15 +384,15 @@ function Sidebar({
           <div className={collapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-steel-500">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">
                   Experience
                 </p>
-                <p className="mt-1 text-xs text-steel-300">Premium hybrid industrial UI</p>
+                <p className="mt-1 text-xs text-slate-400">Production-grade workspace</p>
               </div>
             )}
             <button
               onClick={onToggle}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 transition-colors hover:text-white hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition-colors hover:text-white hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -432,29 +427,21 @@ function Sidebar({
               <div className="app-shell-sidebar-content">
                 <div className="app-sidebar-logo-wrap flex items-center justify-between">
                   <Link href="/dashboard" className="flex items-center gap-3" onClick={onMobileClose}>
-                    <span className="app-sidebar-logo-badge">
+                    <span className="app-sidebar-logo-badge app-sidebar-logo-badge--expanded">
                       <Image
-                        src="/MatexLogo.png"
+                        src="/LogoOrangeTrns.png"
                         alt="Matex"
-                        width={200}
-                        height={64}
-                        className="h-9 w-auto max-w-[10rem] object-contain object-left drop-shadow-md"
+                        width={320}
+                        height={110}
+                        className="h-14 w-auto max-w-[15rem] object-contain object-left drop-shadow-lg sm:h-16 sm:max-w-[18rem]"
                         priority
                       />
-                    </span>
-                    <span>
-                      <span className="block text-[10px] font-bold uppercase tracking-[0.26em] text-brand-300">
-                        Matex Platform
-                      </span>
-                      <span className="block text-sm font-semibold text-steel-200">
-                        Industrial Exchange
-                      </span>
                     </span>
                   </Link>
                   <button
                     onClick={onMobileClose}
                     aria-label="Close navigation"
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-steel-400 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
                     <X size={18} />
                   </button>
@@ -463,7 +450,9 @@ function Sidebar({
                   <div className="app-sidebar-meta">
                     <p className="app-sidebar-meta-label">Workspace</p>
                     <p className="app-sidebar-meta-value">{accountLabel}</p>
-                    <p className="mt-1 truncate text-xs text-steel-400">{emailLabel}</p>
+                    {emailLabel ? (
+                      <p className="mt-1 truncate text-xs text-slate-400">{emailLabel}</p>
+                    ) : null}
                   </div>
                 </div>
                 <nav className="flex-1 py-3 overflow-y-auto">
@@ -495,6 +484,9 @@ function Header({
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const pageMeta = getPageMeta(pathname);
+  const hasPageHeading = Boolean(
+    pageMeta.eyebrow.trim() || pageMeta.title.trim() || pageMeta.subtitle.trim(),
+  );
 
   useEffect(() => {
     setUser(getUser());
@@ -550,26 +542,37 @@ function Header({
     >
       <div className="app-header-surface">
         <button
-          className="rounded-2xl border border-white/10 bg-white/[0.06] p-2.5 text-steel-300 transition-colors hover:bg-white/[0.1] hover:text-white md:hidden"
+          className="rounded-2xl border border-slate-600/40 bg-slate-900/40 p-2.5 text-slate-300 transition-colors hover:border-orange-400/35 hover:bg-slate-800/70 hover:text-white md:hidden"
           onClick={onMobileMenuOpen}
           aria-label="Open navigation"
         >
           <Menu size={20} />
         </button>
 
-        <div className="min-w-0">
-          <div className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-brand-300 sm:block">
-            {pageMeta.eyebrow}
+        {hasPageHeading ? (
+          <div className="min-w-0">
+            {pageMeta.eyebrow ? (
+              <div className="app-page-eyebrow hidden sm:block">{pageMeta.eyebrow}</div>
+            ) : null}
+            {pageMeta.title ? <h1 className="app-page-title truncate">{pageMeta.title}</h1> : null}
+            {pageMeta.subtitle ? (
+              <p className="app-page-sub hidden truncate sm:block">{pageMeta.subtitle}</p>
+            ) : null}
           </div>
-          <h1 className="app-page-title truncate">{pageMeta.title}</h1>
-          <p className="app-page-sub hidden truncate sm:block">{pageMeta.subtitle}</p>
-        </div>
+        ) : (
+          <>
+            <h1 className="sr-only">
+              {pathname.split("/").filter(Boolean)[0] === "dashboard" ? "Dashboard" : "Matex"}
+            </h1>
+            <div className="min-w-0 flex-1 md:flex-[0.5] lg:flex-[0.35]" aria-hidden />
+          </>
+        )}
 
         <form onSubmit={handleSearch} className="ml-2 hidden max-w-md flex-1 xl:block">
           <div className="relative">
             <Search
               size={15}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-steel-500"
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
             />
             <input
               type="search"
@@ -583,11 +586,6 @@ function Header({
         </form>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <div className="app-header-chip">
-            <Sparkles className="h-3.5 w-3.5 text-brand-300" />
-            Matex {companyLabel}
-          </div>
-
           <button
             type="button"
             className="app-header-icon-button relative"
@@ -600,7 +598,7 @@ function Header({
           >
             <Bell size={18} />
             {unreadNotifications > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-steel-950">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-sky-950">
                 {unreadNotifications > 9 ? "9+" : unreadNotifications}
               </span>
             )}
@@ -613,16 +611,16 @@ function Header({
               aria-label="Account menu"
               aria-expanded={avatarOpen}
               aria-haspopup="true"
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-2.5 py-2 text-left text-white transition-all hover:border-white/20 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="flex items-center gap-3 rounded-2xl border border-slate-600/40 bg-slate-900/40 px-2.5 py-2 text-left text-white transition-all hover:border-orange-400/35 hover:bg-slate-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-black text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.75)]">
                 {userInitial}
               </span>
               <span className="hidden min-w-0 sm:block">
-                <span className="block truncate text-sm font-semibold text-steel-100">
+                <span className="block truncate text-sm font-semibold text-slate-100">
                   {user?.email?.split("@")[0] ?? "Matex user"}
                 </span>
-                <span className="text-xs text-steel-400">{companyLabel}</span>
+                <span className="text-xs text-slate-400">{companyLabel}</span>
               </span>
             </button>
 
@@ -633,18 +631,18 @@ function Header({
                   onClick={() => setAvatarOpen(false)}
                   aria-hidden
                 />
-                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-steel-900 py-1 shadow-2xl">
+                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 py-1 shadow-2xl">
                   <div className="border-b border-white/5 px-4 py-3">
-                    <p className="truncate text-sm font-semibold text-steel-100">
+                    <p className="truncate text-sm font-semibold text-slate-100">
                       {user?.email?.split("@")[0] ?? "Matex user"}
                     </p>
-                    <p className="truncate text-xs text-steel-400">{user?.email}</p>
+                    <p className="truncate text-xs text-slate-400">{user?.email}</p>
                   </div>
                   <div className="py-1">
                     <button
                       type="button"
                       onClick={() => { setAvatarOpen(false); router.push("/settings"); }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-steel-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     >
                       <Settings size={15} />
                       Settings
@@ -652,7 +650,7 @@ function Header({
                     <button
                       type="button"
                       onClick={() => { setAvatarOpen(false); handleSignOut(); }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-steel-300 transition-colors hover:bg-white/[0.06] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                     >
                       <LogOut size={15} />
                       Sign out
@@ -669,10 +667,12 @@ function Header({
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const sidebarWidth = collapsed ? COLLAPSED_W : EXPANDED_W;
+  const isDashboard = pathname === "/dashboard" || pathname === "/dashboard/";
 
   return (
     <ClientAuthGuard>
@@ -689,7 +689,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       />
 
       <main
-        className="app-shell-canvas min-h-screen pt-20 transition-all duration-200"
+        className={clsx(
+          "app-shell-canvas min-h-screen pt-20 transition-all duration-200",
+          isDashboard && "dashboard-canvas",
+        )}
         style={{ marginLeft: sidebarWidth }}
       >
         <div className="app-shell-canvas-texture" aria-hidden>

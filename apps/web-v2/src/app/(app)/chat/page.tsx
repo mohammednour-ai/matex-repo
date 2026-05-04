@@ -461,16 +461,16 @@ export default function ChatPage() {
     <>
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
 
-      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-steel-200/80 bg-white/95 shadow-card">
+      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-sky-200/80 bg-white/95 shadow-card">
         {/* Page header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-steel-200/80 bg-white/90 px-6 py-4 backdrop-blur-sm">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-sky-200/80 bg-white/90 px-6 py-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
               <Bot size={20} />
             </div>
             <div>
               <h1 className="app-inpage-title text-lg sm:text-xl">Matex AI</h1>
-              <p className="text-xs text-steel-500">
+              <p className="text-xs text-sky-500">
                 Ask me anything about your listings, auctions, escrow, logistics, and more.
               </p>
             </div>

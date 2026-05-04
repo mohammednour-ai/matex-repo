@@ -12,6 +12,10 @@ export type DashboardStats = {
   next_auction_end?: string;
   /** Period-over-period change; render only when non-null */
   listings_change_pct?: number | null;
+  /** Daily counts (Mon→Sun) for seller listing velocity; optional */
+  listings_spark_7d?: number[] | null;
+  /** Open bids for the authenticated user (buyer side) */
+  active_bids?: number;
   orders_pending_action?: number;
   orders_in_transit?: number;
 };

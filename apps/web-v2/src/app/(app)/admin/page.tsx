@@ -60,7 +60,7 @@ const TABS: { id: TabId; label: string; icon: typeof Users }[] = [
 function JsonPreview({ value }: { value: unknown }) {
   const text = JSON.stringify(value, null, 2);
   return (
-    <pre className="text-[11px] leading-snug bg-steel-950 text-steel-200 p-3 rounded-lg overflow-x-auto max-h-48 border border-white/10">
+    <pre className="text-[11px] leading-snug bg-slate-950 text-slate-200 p-3 rounded-lg overflow-x-auto max-h-48 border border-white/10">
       {text}
     </pre>
   );
@@ -294,7 +294,7 @@ export default function AdminPage() {
         <div className="rounded-lg border border-danger-200 bg-danger-50 text-danger-800 text-sm px-4 py-2">{err}</div>
       )}
 
-      <div className="flex flex-wrap gap-2 border-b border-steel-200 pb-3">
+      <div className="flex flex-wrap gap-2 border-b border-sky-200 pb-3">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -305,7 +305,7 @@ export default function AdminPage() {
               onClick={() => setTab(t.id)}
               className={clsx(
                 "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active ? "bg-brand-600 text-white shadow-sm" : "bg-steel-100 text-steel-600 hover:bg-steel-200",
+                active ? "bg-brand-600 text-white shadow-sm" : "bg-sky-100 text-sky-600 hover:bg-sky-200",
               )}
             >
               <Icon size={16} />
@@ -319,18 +319,18 @@ export default function AdminPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {overview &&
             ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => (
-              <div key={k} className="rounded-xl border border-steel-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-steel-500">{k.replace(/_/g, " ")}</p>
-                <p className="text-2xl font-bold text-steel-900 mt-1">{String(overview[k] ?? "—")}</p>
+              <div key={k} className="rounded-xl border border-sky-200 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-500">{k.replace(/_/g, " ")}</p>
+                <p className="text-2xl font-bold text-sky-900 mt-1">{String(overview[k] ?? "—")}</p>
               </div>
             ))}
-          {!overview && <p className="text-steel-500 text-sm">Loading overview…</p>}
+          {!overview && <p className="text-sky-500 text-sm">Loading overview…</p>}
         </div>
       )}
 
       {tab === "users" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-steel-200 bg-white p-4">
+          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-sky-200 bg-white p-4">
             <Input
               label="Grant platform admin (user UUID)"
               value={grantUserId}
@@ -353,9 +353,9 @@ export default function AdminPage() {
               Grant
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-steel-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-sky-200 bg-white">
             <table className="min-w-full text-sm">
-              <thead className="bg-steel-50 text-left text-xs font-semibold text-steel-600 uppercase">
+              <thead className="bg-sky-50 text-left text-xs font-semibold text-sky-600 uppercase">
                 <tr>
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Status</th>
@@ -368,15 +368,15 @@ export default function AdminPage() {
                 {users.map((u) => {
                   const id = String(u.user_id ?? "");
                   return (
-                    <tr key={id} className="border-t border-steel-100">
-                      <td className="px-3 py-2 font-medium text-steel-900">{String(u.email ?? "")}</td>
+                    <tr key={id} className="border-t border-sky-100">
+                      <td className="px-3 py-2 font-medium text-sky-900">{String(u.email ?? "")}</td>
                       <td className="px-3 py-2">
                         <Badge variant={u.account_status === "active" ? "success" : "warning"}>
                           {String(u.account_status ?? "")}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2 text-steel-600">{String(u.account_type ?? "")}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-steel-500 max-w-[8rem] truncate" title={id}>
+                      <td className="px-3 py-2 text-sky-600">{String(u.account_type ?? "")}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-sky-500 max-w-[8rem] truncate" title={id}>
                         {id}
                       </td>
                       <td className="px-3 py-2">
@@ -423,9 +423,9 @@ export default function AdminPage() {
       )}
 
       {tab === "listings" && (
-        <div className="overflow-x-auto rounded-xl border border-steel-200 bg-white">
+        <div className="overflow-x-auto rounded-xl border border-sky-200 bg-white">
           <table className="min-w-full text-sm">
-            <thead className="bg-steel-50 text-left text-xs font-semibold text-steel-600 uppercase">
+            <thead className="bg-sky-50 text-left text-xs font-semibold text-sky-600 uppercase">
               <tr>
                 <th className="px-3 py-2">Title</th>
                 <th className="px-3 py-2">Status</th>
@@ -438,7 +438,7 @@ export default function AdminPage() {
               {listings.map((l) => {
                 const lid = String(l.listing_id ?? "");
                 return (
-                  <tr key={lid} className="border-t border-steel-100">
+                  <tr key={lid} className="border-t border-sky-100">
                     <td className="px-3 py-2 max-w-xs truncate">{String(l.title ?? "")}</td>
                     <td className="px-3 py-2">{String(l.status ?? "")}</td>
                     <td className="px-3 py-2">{String(l.asking_price ?? "")}</td>
@@ -493,14 +493,14 @@ export default function AdminPage() {
 
       {tab === "orders" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-steel-200 bg-white p-4">
+          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-sky-200 bg-white p-4">
             <Input label="Order ID" value={orderIdStatus} onChange={(e) => setOrderIdStatus(e.target.value)} className="max-w-md" />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-slate-700">New status</label>
               <select
                 value={orderNewStatus}
                 onChange={(e) => setOrderNewStatus(e.target.value)}
-                className="rounded-lg border border-steel-200 px-3 py-2 text-sm"
+                className="rounded-lg border border-sky-200 px-3 py-2 text-sm"
               >
                 {["pending", "confirmed", "shipped", "delivered", "completed", "cancelled", "disputed"].map((s) => (
                   <option key={s} value={s}>
@@ -526,9 +526,9 @@ export default function AdminPage() {
               Update order
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-steel-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-sky-200 bg-white">
             <table className="min-w-full text-sm">
-              <thead className="bg-steel-50 text-left text-xs font-semibold text-steel-600 uppercase">
+              <thead className="bg-sky-50 text-left text-xs font-semibold text-sky-600 uppercase">
                 <tr>
                   <th className="px-3 py-2">Order</th>
                   <th className="px-3 py-2">Status</th>
@@ -539,7 +539,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {orders.map((o) => (
-                  <tr key={String(o.order_id)} className="border-t border-steel-100">
+                  <tr key={String(o.order_id)} className="border-t border-sky-100">
                     <td className="px-3 py-2 font-mono text-xs">{String(o.order_id ?? "").slice(0, 8)}…</td>
                     <td className="px-3 py-2">{String(o.status ?? "")}</td>
                     <td className="px-3 py-2">{String(o.original_amount ?? "")}</td>
@@ -555,8 +555,8 @@ export default function AdminPage() {
 
       {tab === "escrow" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-steel-200 bg-white p-4 space-y-3">
-            <p className="text-sm font-semibold text-steel-800">Escrow actions</p>
+          <div className="rounded-xl border border-sky-200 bg-white p-4 space-y-3">
+            <p className="text-sm font-semibold text-sky-800">Escrow actions</p>
             <div className="flex flex-wrap gap-3 items-end">
               <Input label="Escrow ID" value={escrowIdInput} onChange={(e) => setEscrowIdInput(e.target.value)} className="max-w-md" />
               <Input label="Amount" value={escrowAmt} onChange={(e) => setEscrowAmt(e.target.value)} className="w-28" />
@@ -597,7 +597,7 @@ export default function AdminPage() {
           </div>
           <div className="space-y-2">
             {escrows.map((e) => (
-              <div key={String(e.escrow_id)} className="rounded-lg border border-steel-200 bg-white p-3">
+              <div key={String(e.escrow_id)} className="rounded-lg border border-sky-200 bg-white p-3">
                 <JsonPreview value={e} />
               </div>
             ))}
@@ -607,7 +607,7 @@ export default function AdminPage() {
 
       {tab === "auctions" && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-steel-200 bg-white p-4">
+          <div className="flex flex-wrap gap-3 items-end rounded-xl border border-sky-200 bg-white p-4">
             <Input
               label="Filter lots by auction ID (optional)"
               value={auctionIdFilter}
@@ -618,13 +618,13 @@ export default function AdminPage() {
               Load lots
             </Button>
           </div>
-          <h3 className="text-sm font-bold text-steel-800">Auctions</h3>
+          <h3 className="text-sm font-bold text-sky-800">Auctions</h3>
           <div className="space-y-2">
             {auctions.map((a) => (
-              <div key={String(a.auction_id)} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-steel-200 bg-white p-3">
+              <div key={String(a.auction_id)} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-white p-3">
                 <div>
-                  <p className="font-medium text-steel-900">{String(a.title ?? "")}</p>
-                  <p className="text-xs text-steel-500 font-mono">{String(a.auction_id)}</p>
+                  <p className="font-medium text-sky-900">{String(a.title ?? "")}</p>
+                  <p className="text-xs text-sky-500 font-mono">{String(a.auction_id)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="info">{String(a.status ?? "")}</Badge>
@@ -645,12 +645,12 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
-          <h3 className="text-sm font-bold text-steel-800">Lots</h3>
+          <h3 className="text-sm font-bold text-sky-800">Lots</h3>
           <div className="space-y-2">
             {lots.map((lot) => (
-              <div key={String(lot.lot_id)} className="rounded-lg border border-steel-200 bg-white p-3">
+              <div key={String(lot.lot_id)} className="rounded-lg border border-sky-200 bg-white p-3">
                 <div className="flex flex-wrap justify-between gap-2 mb-2">
-                  <span className="text-sm font-mono text-steel-600">{String(lot.lot_id)}</span>
+                  <span className="text-sm font-mono text-sky-600">{String(lot.lot_id)}</span>
                   <Badge>{String(lot.status ?? "")}</Badge>
                 </div>
                 <JsonPreview value={lot} />
@@ -678,7 +678,7 @@ export default function AdminPage() {
       {tab === "bids" && (
         <div className="space-y-2">
           {bids.map((b) => (
-            <div key={String(b.bid_id)} className="rounded-lg border border-steel-200 bg-white p-3">
+            <div key={String(b.bid_id)} className="rounded-lg border border-sky-200 bg-white p-3">
               <JsonPreview value={b} />
             </div>
           ))}
@@ -687,7 +687,7 @@ export default function AdminPage() {
 
       {tab === "purchases" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-steel-200 bg-white p-4 flex flex-wrap gap-3 items-end">
+          <div className="rounded-xl border border-sky-200 bg-white p-4 flex flex-wrap gap-3 items-end">
             <Input label="Buyer user ID" value={payUserId} onChange={(e) => setPayUserId(e.target.value)} className="max-w-md" />
             <Input label="Amount (CAD)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-32" />
             <Button
@@ -708,10 +708,10 @@ export default function AdminPage() {
               Record purchase
             </Button>
           </div>
-          <h3 className="text-sm font-bold text-steel-800">Recent transactions</h3>
+          <h3 className="text-sm font-bold text-sky-800">Recent transactions</h3>
           <div className="space-y-2">
             {txs.map((t) => (
-              <div key={String(t.transaction_id)} className="rounded-lg border border-steel-200 bg-white p-3">
+              <div key={String(t.transaction_id)} className="rounded-lg border border-sky-200 bg-white p-3">
                 <JsonPreview value={t} />
               </div>
             ))}
@@ -721,7 +721,7 @@ export default function AdminPage() {
 
       {tab === "config" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-steel-200 bg-white p-4 flex flex-wrap gap-3 items-end">
+          <div className="rounded-xl border border-sky-200 bg-white p-4 flex flex-wrap gap-3 items-end">
             <Input label="Key" value={cfgKey} onChange={(e) => setCfgKey(e.target.value)} className="max-w-xs" />
             <Input label="Value" value={cfgVal} onChange={(e) => setCfgVal(e.target.value)} className="max-w-md" />
             <Button
@@ -741,9 +741,9 @@ export default function AdminPage() {
               Save
             </Button>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-steel-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-sky-200 bg-white">
             <table className="min-w-full text-sm">
-              <thead className="bg-steel-50 text-left text-xs font-semibold text-steel-600 uppercase">
+              <thead className="bg-sky-50 text-left text-xs font-semibold text-sky-600 uppercase">
                 <tr>
                   <th className="px-3 py-2">Key</th>
                   <th className="px-3 py-2">Value</th>
@@ -752,12 +752,12 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {configEntries.map((row) => (
-                  <tr key={String(row.config_key)} className="border-t border-steel-100">
+                  <tr key={String(row.config_key)} className="border-t border-sky-100">
                     <td className="px-3 py-2 font-mono text-xs">{String(row.config_key)}</td>
                     <td className="px-3 py-2 max-w-md truncate" title={String(row.config_value)}>
                       {String(row.config_value)}
                     </td>
-                    <td className="px-3 py-2 text-steel-500 text-xs">{String(row.updated_at ?? "")}</td>
+                    <td className="px-3 py-2 text-sky-500 text-xs">{String(row.updated_at ?? "")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -769,7 +769,7 @@ export default function AdminPage() {
       {tab === "audit" && (
         <div className="space-y-2">
           {auditEntries.map((row, i) => (
-            <div key={String(row.log_id ?? i)} className="rounded-lg border border-steel-200 bg-white p-3">
+            <div key={String(row.log_id ?? i)} className="rounded-lg border border-sky-200 bg-white p-3">
               <JsonPreview value={row} />
             </div>
           ))}

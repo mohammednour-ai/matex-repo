@@ -21,19 +21,19 @@ export type KPICardProps = {
 };
 
 const TONE_TEXT: Record<KPITone, string> = {
-  neutral: "text-steel-900",
-  brand: "text-brand-700",
+  neutral: "text-sky-950",
+  brand: "text-orange-900",
   success: "text-emerald-700",
-  warning: "text-amber-700",
+  warning: "text-amber-800",
   danger: "text-danger-700",
   info: "text-sky-700",
 };
 
 const TONE_ICON_BG: Record<KPITone, string> = {
-  neutral: "bg-steel-100 text-steel-600",
-  brand: "bg-brand-100 text-brand-700",
+  neutral: "bg-sky-200/90 text-sky-800",
+  brand: "bg-orange-500/12 text-orange-800",
   success: "bg-emerald-100 text-emerald-700",
-  warning: "bg-amber-100 text-amber-700",
+  warning: "bg-amber-100 text-amber-800",
   danger: "bg-danger-100 text-danger-700",
   info: "bg-sky-100 text-sky-700",
 };
@@ -59,31 +59,35 @@ export function KPICard({
   return (
     <div
       className={clsx(
-        "rounded-2xl border border-steel-100 bg-white px-5 py-4 shadow-sm transition-all duration-150",
-        "hover:border-steel-200 hover:shadow-md",
+        "rounded-2xl border border-slate-300/70 bg-slate-50/95 px-5 py-4 shadow-industrial-panel transition-all duration-150",
+        "hover:border-orange-400/35 hover:shadow-card-hover",
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-steel-500">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
             {label}
           </p>
           <p
             className={clsx(
               "mt-2 text-2xl font-extrabold leading-tight",
               TONE_TEXT[effectiveTone],
-              loading && "animate-pulse text-steel-300"
+              loading && "animate-pulse text-sky-400"
             )}
           >
             {loading ? "—" : value}
           </p>
-          {subValue && <p className="mt-1 text-xs text-steel-500">{subValue}</p>}
+          {subValue && <p className="mt-1 text-xs text-sky-700">{subValue}</p>}
           {trend && (
             <p
               className={clsx(
                 "mt-1 text-xs font-semibold",
-                trend.startsWith("-") ? "text-danger-600" : "text-emerald-600"
+                trend.startsWith("-")
+                  ? "text-danger-600"
+                  : tone === "brand"
+                    ? "text-orange-600"
+                    : "text-emerald-600"
               )}
             >
               {trend}

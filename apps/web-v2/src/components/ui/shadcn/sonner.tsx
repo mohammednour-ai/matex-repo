@@ -20,16 +20,16 @@ export function Toaster() {
       toastOptions={{
         classNames: {
           toast: cn(
-            "group rounded-xl border border-steel-200 bg-white shadow-lg",
-            "text-sm text-steel-900",
+            "group rounded-xl border border-sky-200 bg-white shadow-lg",
+            "text-sm text-sky-950",
           ),
           title: "font-semibold",
-          description: "text-steel-600",
+          description: "text-sky-700",
           actionButton: cn(
             "bg-brand-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold",
           ),
           cancelButton: cn(
-            "bg-steel-100 text-steel-700 px-3 py-1.5 rounded-lg text-xs font-semibold",
+            "bg-sky-100 text-sky-800 px-3 py-1.5 rounded-lg text-xs font-semibold",
           ),
         },
       }}

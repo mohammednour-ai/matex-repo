@@ -18,11 +18,11 @@ import {
   TrendingUp,
   ArrowUpRight,
   CircleAlert,
+  Target,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
-import { TrendStrip } from "@/components/dashboard/TrendStrip";
 import type {
   DashboardBooking,
   DashboardNotification,
@@ -33,6 +33,11 @@ import type {
 import clsx from "clsx";
 import { AppSectionCard } from "@/components/layout/AppSectionCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ActivityTimeline } from "@/components/dashboard/ActivityTimeline";
+import { MiniSparkBars } from "@/components/dashboard/MiniSparkBars";
+import { DashboardIdentityBar } from "@/components/dashboard/DashboardIdentityBar";
+import { DashboardPulseStrip } from "@/components/dashboard/DashboardPulseStrip";
+import { MATEXUI_TO_WEB_V2_ROUTES } from "@/data/matexui-route-map";
 import { DashboardMarketSummary } from "@/components/intelligence/DashboardMarketSummary";
 
 type KycLevel = 0 | 1 | 2 | 3;
@@ -63,24 +68,24 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     label: "Create Listing",
     href: "/listings/create",
     icon: Plus,
-    color: "from-brand-500 to-brand-700 text-white",
-    glow: "shadow-brand-500/20",
+    color: "from-orange-500 to-orange-800 text-white",
+    glow: "shadow-orange-500/25",
     note: "Publish a new industrial offering with pricing and logistics details.",
   },
   {
     label: "Search Materials",
     href: "/search",
     icon: Search,
-    color: "from-steel-600 to-steel-800 text-white",
-    glow: "shadow-steel-500/20",
+    color: "from-slate-600 to-slate-900 text-white",
+    glow: "shadow-slate-900/25",
     note: "Browse verified inventory, compare offers, and source with confidence.",
   },
   {
     label: "Live Auctions",
     href: "/auctions",
     icon: Gavel,
-    color: "from-accent-500 to-accent-700 text-white",
-    glow: "shadow-accent-500/20",
+    color: "from-amber-500 to-orange-700 text-white",
+    glow: "shadow-orange-500/25",
     note: "Track active bids and act on time-sensitive market opportunities.",
   },
   {
@@ -95,16 +100,16 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     label: "Logistics",
     href: "/logistics",
     icon: Truck,
-    color: "from-violet-500 to-violet-700 text-white",
-    glow: "shadow-violet-500/20",
+    color: "from-slate-700 to-slate-950 text-white",
+    glow: "shadow-slate-900/25",
     note: "Coordinate shipments, delivery progress, and operational follow-through.",
   },
   {
     label: "AI Copilot",
     href: "/chat",
     icon: Bot,
-    color: "from-steel-600 to-steel-800 text-white",
-    glow: "shadow-steel-500/20",
+    color: "from-slate-700 to-slate-950 text-white",
+    glow: "shadow-slate-900/25",
     note: "Get assistance preparing listings, replies, and platform workflows.",
     copilotNote: true,
   },
@@ -141,6 +146,12 @@ function orderQuickActions(accountType: string | undefined): QuickAction[] {
 function normalizeStats(raw: Record<string, unknown> | null | undefined): DashboardStats | null {
   if (!raw || typeof raw !== "object") return null;
   const escrowCad = Number(raw.escrow_held ?? raw.total_escrow_held ?? 0);
+  const sparkRaw = raw.listings_spark_7d;
+  const listings_spark_7d = Array.isArray(sparkRaw)
+    ? sparkRaw.map((x) => Number(x ?? 0))
+    : sparkRaw === null
+      ? null
+      : undefined;
   return {
     active_listings: Number(raw.active_listings ?? 0),
     active_auctions: Number(raw.active_auctions ?? 0),
@@ -151,6 +162,8 @@ function normalizeStats(raw: Record<string, unknown> | null | undefined): Dashbo
       raw.listings_change_pct === null || raw.listings_change_pct === undefined
         ? null
         : Number(raw.listings_change_pct),
+    listings_spark_7d,
+    active_bids: raw.active_bids !== undefined ? Number(raw.active_bids) : undefined,
     orders_pending_action: Number(raw.orders_pending_action ?? 0),
     orders_in_transit: Number(raw.orders_in_transit ?? 0),
   };
@@ -158,16 +171,6 @@ function normalizeStats(raw: Record<string, unknown> | null | undefined): Dashbo
 
 function formatCAD(amount: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount);
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
 }
 
 function formatEventDate(iso: string): string {
@@ -180,39 +183,31 @@ function formatEventDate(iso: string): string {
   });
 }
 
-
-function notificationHref(n: DashboardNotification): string | null {
-  if (n.action_url) return n.action_url;
-  if (n.listing_id) return `/listings/${n.listing_id}`;
-  if (n.escrow_id) return `/escrow`;
-  if (n.order_id) return `/checkout`;
-  return null;
-}
-
 function statIconShadow(gradient: string): string {
+  if (gradient.includes("orange") || gradient.includes("amber")) return "shadow-orange-500/25";
   if (gradient.includes("brand")) return "shadow-brand-500/20";
   if (gradient.includes("emerald")) return "shadow-emerald-500/20";
   if (gradient.includes("accent")) return "shadow-accent-500/20";
-  if (gradient.includes("steel")) return "shadow-steel-500/20";
+  if (gradient.includes("steel") || gradient.includes("slate")) return "shadow-slate-900/20";
   if (gradient.includes("violet")) return "shadow-violet-500/20";
-  return "shadow-steel-500/20";
+  return "shadow-slate-900/20";
 }
 
 function DashboardSkeleton() {
-  const pulse = "animate-pulse rounded-lg bg-steel-200/80";
+  const pulse = "animate-pulse rounded-lg bg-sky-200/80";
   return (
     <div className="space-y-6" data-dashboard-skeleton aria-busy="true">
       <div className={clsx("h-56 rounded-[2rem]", pulse)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-steel-100", pulse)} />
+          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-sky-200/70", pulse)} />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(300px,0.95fr)_minmax(0,1.45fr)]">
-        <div className={clsx("h-72 rounded-[1.75rem] border border-steel-100", pulse)} />
-        <div className={clsx("h-72 rounded-[1.75rem] border border-steel-100", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-sky-200/70", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-sky-200/70", pulse)} />
       </div>
-      <div className={clsx("h-56 rounded-[1.75rem] border border-steel-100", pulse)} />
+      <div className={clsx("h-56 rounded-[1.75rem] border border-sky-200/70", pulse)} />
     </div>
   );
 }
@@ -246,10 +241,10 @@ export default function DashboardPage() {
     const errs: Partial<Record<SectionKey, string>> = {};
 
     const [statsRes, walletRes, unreadRes, notifRes, kycRes, bookingsRes] = await Promise.allSettled([
-      callTool("analytics.get_dashboard_stats", {}),
+      callTool("analytics.get_dashboard_stats", { user_id: userId }),
       callTool("payments.get_wallet_balance", { user_id: userId }),
       callTool("messaging.get_unread", { user_id: userId }),
-      callTool("notifications.get_notifications", { user_id: userId, limit: 5 }),
+      callTool("notifications.get_notifications", { user_id: userId, limit: 8 }),
       callTool("kyc.get_kyc_level", { user_id: userId }),
       callTool("booking.list_user_bookings", { user_id: userId, upcoming: true, limit: 3 }),
     ]);
@@ -294,7 +289,7 @@ export default function DashboardPage() {
 
     if (notifRes.status === "fulfilled" && notifRes.value.success) {
       const data = notifRes.value.data as unknown as { notifications?: DashboardNotification[] };
-      setNotifications(data?.notifications?.slice(0, 5) ?? []);
+      setNotifications(data?.notifications?.slice(0, 8) ?? []);
     } else {
       setNotifications([]);
       errs.notifications = "Could not load notifications.";
@@ -375,13 +370,17 @@ export default function DashboardPage() {
       subValue?: string | null;
       icon: typeof Package;
       gradient: string;
+      trend?: string | null;
+      footnote?: string | null;
     };
-    const cards: Card[] = [
+    const base: Card[] = [
       {
         label: "Active Listings",
         value: stats?.active_listings ?? "—",
         icon: Package,
-        gradient: "from-brand-500 to-brand-700",
+        gradient: "from-orange-500 to-orange-800",
+        trend: listingsTrend,
+        footnote: null,
       },
       {
         label: "Wallet Balance",
@@ -389,12 +388,14 @@ export default function DashboardPage() {
           wallet && !Number.isNaN(wallet.balance) ? formatCAD(wallet.balance) : "—",
         icon: Wallet,
         gradient: "from-emerald-500 to-emerald-700",
+        footnote: "Live balance",
       },
       {
         label: "Unread Messages",
         value: sectionErrors.unread ? "—" : unreadCount,
         icon: MessageSquare,
-        gradient: "from-brand-500 to-brand-700",
+        gradient: "from-slate-600 to-slate-900",
+        footnote: "Across threads",
       },
       {
         label: "Escrow Held",
@@ -404,19 +405,39 @@ export default function DashboardPage() {
             ? `${formatCAD(stats.escrow_held ?? 0)} in escrow`
             : null,
         icon: ShieldCheck,
-        gradient: "from-accent-500 to-accent-700",
+        gradient: "from-amber-500 to-orange-700",
+        footnote: null,
       },
     ];
-    return cards.map((c) => ({
-      ...c,
-      trend: c.label === "Active Listings" ? listingsTrend : null,
-    }));
-  }, [stats, wallet, unreadCount, listingsTrend, sectionErrors.unread]);
+    const bidCard: Card[] =
+      accountType === "buyer" || accountType === "both"
+        ? [
+            {
+              label: "Active Bids",
+              value: stats?.active_bids ?? "—",
+              icon: Target,
+              gradient: "from-orange-600 to-amber-500",
+              footnote: "Open bids on listings",
+            },
+          ]
+        : [];
+    return [...base, ...bidCard];
+  }, [stats, wallet, unreadCount, listingsTrend, sectionErrors.unread, accountType]);
 
 
   const ordersPending = stats?.orders_pending_action ?? 0;
   const ordersTransit = stats?.orders_in_transit ?? 0;
   const showOrdersStrip = ordersPending > 0 || ordersTransit > 0;
+
+  const walletDisplay = useMemo(() => {
+    if (!wallet || Number.isNaN(wallet.balance)) return null;
+    return formatCAD(wallet.balance);
+  }, [wallet]);
+
+  const escrowDisplay = useMemo(() => {
+    if (!stats || (stats.escrow_held ?? 0) <= 0) return null;
+    return formatCAD(stats.escrow_held ?? 0);
+  }, [stats]);
 
 
   if (initialLoad) {
@@ -424,16 +445,27 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className="dashboard-page"
+      data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
+    >
+      <DashboardIdentityBar />
+      <DashboardPulseStrip
+        stats={stats}
+        walletDisplay={walletDisplay}
+        escrowDisplay={escrowDisplay}
+        unread={unreadCount}
+        kycLevel={kycLevel}
+      />
 
       {kycLevel < 2 && (
-        <div className="dashboard-status-strip border-warning-200 bg-warning-50 text-sm text-warning-900">
-          <CircleAlert className="h-4 w-4 text-warning-700" />
+        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-slate-900">
+          <CircleAlert className="h-4 w-4 shrink-0 text-orange-700" />
           <span>
-            <strong className="text-warning-800">Complete verification</strong> — Higher KYC levels unlock
+            <strong className="text-orange-900">Complete verification</strong> — Higher KYC levels unlock
             larger trades and faster payouts.
           </span>
-          <Link href="/settings" className="font-semibold text-warning-800 underline-offset-2 hover:underline">
+          <Link href="/settings" className="font-semibold text-orange-800 underline-offset-2 hover:underline">
             Continue in Settings
           </Link>
         </div>
@@ -441,14 +473,14 @@ export default function DashboardPage() {
 
       {showOrdersStrip && (
         <div className="dashboard-status-strip text-sm">
-          <span className="font-semibold text-steel-700">Open orders</span>
+          <span className="font-semibold text-slate-800">Open orders</span>
           {ordersPending > 0 && (
-            <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-semibold text-warning-800">
+            <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-xs font-semibold text-orange-900 ring-1 ring-orange-400/30">
               {ordersPending} need action
             </span>
           )}
           {ordersTransit > 0 && (
-            <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800">
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-950 ring-1 ring-amber-400/35">
               {ordersTransit} in transit
             </span>
           )}
@@ -458,15 +490,15 @@ export default function DashboardPage() {
       {(stats?.active_auctions ?? 0) > 0 && (
         <div className="dashboard-alert">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500 shadow-lg shadow-accent-500/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500 shadow-lg shadow-orange-500/30">
               <Gavel className="h-5 w-5 text-white" />
             </div>
             <div>
-              <span className="font-bold text-accent-900">
+              <span className="font-bold text-slate-950">
                 {stats!.active_auctions} live auction{stats!.active_auctions > 1 ? "s" : ""} in progress
               </span>
               {stats?.next_auction_end && (
-                <p className="text-sm text-accent-600">
+                <p className="text-sm text-orange-800/90">
                   Closes in{" "}
                   <CountdownTimer targetDate={stats.next_auction_end} className="inline font-bold" />
                 </p>
@@ -475,52 +507,62 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/auctions"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-accent-500/20 transition-all hover:bg-accent-600"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-600"
           >
             Join Now <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
       )}
 
+      {stats?.listings_spark_7d && stats.listings_spark_7d.length > 0 && (
+        <MiniSparkBars
+          series={stats.listings_spark_7d}
+          label="Listing velocity (7d, your inventory)"
+          className="w-full max-w-4xl lg:max-w-5xl"
+        />
+      )}
+
       <DashboardMarketSummary />
 
-      <TrendStrip
-        activeListings={stats?.active_listings ?? null}
-        listingsChangePct={
-          stats?.listings_change_pct != null && !Number.isNaN(stats.listings_change_pct)
-            ? stats.listings_change_pct
-            : null
-        }
-        escrowHeldCad={stats?.escrow_held ?? null}
-        loading={!stats}
-      />
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-5">
         {statCards.map((card) => (
-          <div key={card.label} className="dashboard-stat-card">
+          <div key={card.label} className="dashboard-stat-card group">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-steel-500">
+                <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-600">
                   {card.label}
                 </p>
-                <p className="mt-2 text-2xl font-extrabold text-steel-900">{card.value}</p>
+                <p className="dashboard-metric-value mt-2.5 font-extrabold text-slate-950">
+                  {card.value}
+                </p>
                 {"subValue" in card && card.subValue && (
-                  <p className="mt-0.5 text-xs font-medium text-steel-500">{card.subValue}</p>
+                  <p className="mt-0.5 text-xs font-medium text-slate-600">{card.subValue}</p>
                 )}
-                {card.trend && (
-                  <p className="mt-1 flex items-center gap-0.5 text-xs font-semibold text-brand-600">
-                    <TrendingUp className="h-3 w-3" /> {card.trend}
+                {card.trend != null && card.trend !== "" && (
+                  <p
+                    className={clsx(
+                      "mt-1 flex items-center gap-0.5 text-xs font-semibold tabular-nums",
+                      String(card.trend).startsWith("-") ? "text-danger-600" : "text-orange-600",
+                    )}
+                  >
+                    <TrendingUp className="h-3 w-3" /> {card.trend} vs prior week
                   </p>
+                )}
+                {card.label === "Active Listings" && !card.trend && (
+                  <p className="dashboard-stat-delta text-slate-500">—</p>
+                )}
+                {card.footnote && (
+                  <p className="dashboard-stat-delta text-slate-500">{card.footnote}</p>
                 )}
               </div>
               <span
                 className={clsx(
                   "dashboard-stat-icon",
                   card.gradient,
-                  statIconShadow(card.gradient)
+                  statIconShadow(card.gradient),
                 )}
               >
-                <card.icon className="h-5 w-5 text-white" />
+                <card.icon className="h-6 w-6 text-white" />
               </span>
             </div>
           </div>
@@ -548,7 +590,7 @@ export default function DashboardPage() {
                     action.glow
                   )}
                 >
-                  <action.icon className="h-4 w-4" />
+                  <action.icon className="h-6 w-6" />
                 </span>
                 <span className="dashboard-action-label">{action.label}</span>
                 <span className="dashboard-action-note">{action.note}</span>
@@ -559,69 +601,30 @@ export default function DashboardPage() {
 
         <AppSectionCard
           className="overflow-hidden"
-          title="Recent Activity"
+          title="Activity feed"
           action={
             <Link
               href="/notifications"
-              className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800"
             >
               View all <ChevronRight className="h-3 w-3" />
             </Link>
           }
         >
-          {notifications.length === 0 ? (
+          {notifications.length === 0 && bookings.length === 0 ? (
             <EmptyState
               image="/illustrations/empty-notifications.png"
-              title="No recent notifications"
-              description="Activity will show up here as you trade."
+              title="No recent activity"
+              description="Notifications and scheduled visits will appear here as you trade."
               size="sm"
             />
           ) : (
-            <ol className="relative space-y-0 border-l-2 border-brand-100 pl-5">
-              {notifications.map((n) => {
-                const href = notificationHref(n);
-                const onActivate = () => {
-                  if (!n.read) void markNotificationRead(n.notification_id);
-                };
-                const inner = (
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-steel-800">{n.title}</p>
-                      <p className="mt-0.5 truncate text-xs text-steel-500">{n.message}</p>
-                    </div>
-                    <span className="shrink-0 text-xs font-medium text-steel-400">
-                      {timeAgo(n.created_at)}
-                    </span>
-                  </div>
-                );
-                if (href) {
-                  return (
-                    <li key={n.notification_id} className="relative pb-5 last:pb-0">
-                      <span className="absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full border-2 border-white bg-brand-500" />
-                      <Link
-                        href={href}
-                        onClick={onActivate}
-                        className="block rounded-2xl border border-transparent px-3 py-3 outline-none ring-brand-500/30 transition-colors hover:border-steel-100 hover:bg-surface-50 focus-visible:ring-2"
-                      >
-                        {inner}
-                      </Link>
-                    </li>
-                  );
-                }
-                return (
-                  <li key={n.notification_id} className="relative pb-5 last:pb-0">
-                    <span className="absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full border-2 border-white bg-brand-500" />
-                    <button
-                      type="button"
-                      onClick={onActivate}
-                      className="w-full rounded-2xl border border-transparent px-3 py-3 text-left outline-none ring-brand-500/30 transition-colors hover:border-steel-100 hover:bg-surface-50 focus-visible:ring-2"
-                    >
-                      {inner}
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
+            <ActivityTimeline
+              notifications={notifications}
+              bookings={bookings}
+              limit={10}
+              onActivateNotification={(id) => void markNotificationRead(id)}
+            />
           )}
         </AppSectionCard>
       </div>
@@ -636,7 +639,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/inspections"
-            className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+            className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800"
           >
             View inspections <ChevronRight className="h-3 w-3" />
           </Link>
@@ -651,21 +654,21 @@ export default function DashboardPage() {
             size="md"
           />
         ) : (
-          <div className="divide-y divide-steel-100">
+          <div className="divide-y divide-slate-200/90">
             {bookings.map((b) => (
               <div
                 key={b.booking_id}
                 className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-lg shadow-brand-500/15">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-800 shadow-lg shadow-orange-500/20">
                     <Calendar className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-steel-800">
+                    <p className="text-sm font-semibold text-slate-800">
                       {b.title ?? b.event_type.replace(/_/g, " ")}
                     </p>
-                    <p className="text-xs text-steel-500">{formatEventDate(b.scheduled_at)}</p>
+                    <p className="text-xs text-slate-600">{formatEventDate(b.scheduled_at)}</p>
                   </div>
                 </div>
                 <Badge variant={b.status === "confirmed" ? "success" : "warning"}>{b.status}</Badge>

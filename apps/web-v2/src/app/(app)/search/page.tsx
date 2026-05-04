@@ -387,7 +387,7 @@ function FilterSidebar({
                   <span
                     className={clsx(
                       "flex h-5 w-5 items-center justify-center rounded-full overflow-hidden",
-                      active ? "bg-white/20" : "bg-steel-50",
+                      active ? "bg-white/20" : "bg-sky-50",
                     )}
                   >
                     <Image src={cat.icon} alt="" width={20} height={20} className="object-contain" />
@@ -658,7 +658,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
       />
       {onSuggest && (
         <div className="mx-auto max-w-lg text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-steel-500">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-sky-500">
             Try searching for
           </p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -667,7 +667,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
                 key={s}
                 type="button"
                 onClick={() => onSuggest(s)}
-                className="rounded-full border border-steel-200 bg-white px-4 py-1.5 text-sm text-steel-700 shadow-sm transition-all hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="rounded-full border border-sky-200 bg-white px-4 py-1.5 text-sm text-sky-700 shadow-sm transition-all hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               >
                 {s}
               </button>
@@ -845,7 +845,7 @@ export default function SearchPage() {
         actions={
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-steel-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-steel-800 shadow-sm md:hidden"
+            className="flex items-center gap-2 rounded-xl border border-sky-200/80 bg-white/95 px-3 py-2 text-sm font-medium text-sky-800 shadow-sm md:hidden"
             onClick={() => setFilterOpen(true)}
           >
             <SlidersHorizontal size={15} />

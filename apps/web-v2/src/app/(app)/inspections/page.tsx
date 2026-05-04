@@ -166,7 +166,7 @@ export default function InspectionsPage() {
               type="button"
               onClick={() => setView("list")}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                view === "list" ? "bg-brand-600 text-white shadow-sm" : "border border-steel-300 text-steel-600 hover:bg-steel-50"
+                view === "list" ? "bg-brand-600 text-white shadow-sm" : "border border-sky-300 text-sky-600 hover:bg-sky-50"
               }`}
             >
               <List className="h-4 w-4" /> List
@@ -175,7 +175,7 @@ export default function InspectionsPage() {
               type="button"
               onClick={() => setView("calendar")}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                view === "calendar" ? "bg-brand-600 text-white shadow-sm" : "border border-steel-300 text-steel-600 hover:bg-steel-50"
+                view === "calendar" ? "bg-brand-600 text-white shadow-sm" : "border border-sky-300 text-sky-600 hover:bg-sky-50"
               }`}
             >
               <Calendar className="h-4 w-4" /> Week
@@ -191,10 +191,10 @@ export default function InspectionsPage() {
           const completedCount = inspections.filter((i) => i.status === "completed").length;
           const failedCount = inspections.filter((i) => i.status === "failed").length;
           const cards: { label: string; value: number; valueClass: string }[] = [
-            { label: "Scheduled", value: scheduledCount, valueClass: "text-steel-900" },
-            { label: "This Week", value: upcomingThisWeek.length, valueClass: "text-steel-900" },
-            { label: "Completed", value: completedCount, valueClass: completedCount > 0 ? "text-emerald-600" : "text-steel-900" },
-            { label: "Failed", value: failedCount, valueClass: failedCount > 0 ? "text-red-600" : "text-steel-900" },
+            { label: "Scheduled", value: scheduledCount, valueClass: "text-sky-900" },
+            { label: "This Week", value: upcomingThisWeek.length, valueClass: "text-sky-900" },
+            { label: "Completed", value: completedCount, valueClass: completedCount > 0 ? "text-emerald-600" : "text-sky-900" },
+            { label: "Failed", value: failedCount, valueClass: failedCount > 0 ? "text-red-600" : "text-sky-900" },
           ];
           return cards.map((c) => (
             <div key={c.label} className="marketplace-card p-4">

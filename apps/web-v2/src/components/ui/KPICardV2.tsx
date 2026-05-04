@@ -22,6 +22,8 @@ export type KPICardV2Props = {
   tone?: KPITone;
   loading?: boolean;
   className?: string;
+  /** Extra classes on the sparkline sub-card (border, background). */
+  chartClassName?: string;
   /** ~14 points, chronological. */
   series: number[];
   /** Override the sparkline label; default "Last 14 days". */
@@ -46,6 +48,7 @@ export function KPICardV2({
   tone = "neutral",
   loading,
   className,
+  chartClassName,
   series,
   trendLabel = "Last 14 days",
   deltaPct,
@@ -65,8 +68,13 @@ export function KPICardV2({
         loading={loading}
       />
       {series.length > 1 && !loading && (
-        <div className="rounded-xl border border-steel-100 bg-white px-3 py-2 shadow-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-steel-400">
+        <div
+          className={clsx(
+            "rounded-xl border border-sky-200/65 bg-white/[0.92] px-3 py-2 shadow-sm",
+            chartClassName
+          )}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600">
             {trendLabel}
           </p>
           <SparkAreaChart

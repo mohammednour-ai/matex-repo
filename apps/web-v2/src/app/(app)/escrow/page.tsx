@@ -180,19 +180,19 @@ function DisputeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-steel-200 bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-sky-200 bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-steel-900">File a Dispute</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-steel-400 hover:bg-steel-100 hover:text-steel-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+          <h3 className="text-base font-bold text-sky-900">File a Dispute</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-sky-400 hover:bg-sky-100 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
             <XCircle className="h-5 w-5" />
           </button>
         </div>
-        <p className="mb-4 text-sm text-steel-600">
+        <p className="mb-4 text-sm text-sky-600">
           Disputing this escrow will freeze funds and open a case for resolution. Both parties will be notified.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="dispute-reason" className="mb-1 block text-sm font-semibold text-steel-700">
+            <label htmlFor="dispute-reason" className="mb-1 block text-sm font-semibold text-sky-700">
               Reason for dispute <span className="text-danger-600">*</span>
             </label>
             <textarea
@@ -201,7 +201,7 @@ function DisputeModal({
               value={reason}
               onChange={(e) => { setReason(e.target.value); setError(""); }}
               placeholder="Describe the issue in detail — undelivered goods, quality problems, payment discrepancies, etc."
-              className="w-full rounded-xl border border-steel-200 px-3 py-2 text-sm text-steel-900 placeholder:text-steel-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full rounded-xl border border-sky-200 px-3 py-2 text-sm text-sky-900 placeholder:text-sky-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
           {error && <p className="text-xs font-medium text-danger-600">{error}</p>}
@@ -209,7 +209,7 @@ function DisputeModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-steel-200 px-4 py-2.5 text-sm font-semibold text-steel-700 transition-colors hover:bg-steel-50"
+              className="flex-1 rounded-xl border border-sky-200 px-4 py-2.5 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
             >
               Cancel
             </button>
@@ -332,14 +332,14 @@ export default function EscrowPage() {
           const releasedN = escrows.filter((e) => e.status === "released").length;
           const frozenN = escrows.filter((e) => e.status === "frozen").length;
           const stats: { label: string; value: string | number; color: string }[] = [
-            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-steel-900" },
-            { label: "Active", value: activeN, color: "text-steel-900" },
-            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-steel-900" },
-            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-steel-900" },
+            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-sky-900" },
+            { label: "Active", value: activeN, color: "text-sky-900" },
+            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-sky-900" },
+            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-sky-900" },
           ];
           return stats.map((c) => (
             <div key={c.label} className="marketplace-card p-4">
-              <p className="text-xs text-steel-500">{c.label}</p>
+              <p className="text-xs text-sky-500">{c.label}</p>
               <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
             </div>
           ));
@@ -347,14 +347,14 @@ export default function EscrowPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex w-fit gap-1 rounded-2xl border border-steel-200/80 bg-steel-100/80 p-1">
+      <div className="flex w-fit gap-1 rounded-2xl border border-sky-200/80 bg-sky-100/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-white text-steel-900 shadow-sm" : "text-steel-500 hover:text-steel-800"
+              tab === t.key ? "bg-white text-sky-900 shadow-sm" : "text-sky-500 hover:text-sky-800"
             }`}
           >
             {t.label}

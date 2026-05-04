@@ -63,7 +63,7 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-steel-500 hover:text-steel-900 focus:outline-none focus:ring-2 focus:ring-brand-500">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-sky-600 hover:text-sky-950 focus:outline-none focus:ring-2 focus:ring-brand-500">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -79,7 +79,7 @@ function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 function SheetTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-lg font-semibold text-steel-900", className)}
+      className={cn("text-lg font-semibold text-sky-950", className)}
       {...props}
     />
   );
@@ -91,7 +91,7 @@ function SheetDescription({
 }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn("text-sm text-steel-600", className)}
+      className={cn("text-sm text-sky-700", className)}
       {...props}
     />
   );

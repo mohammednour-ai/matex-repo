@@ -44,7 +44,7 @@ function SignalRow({ icon, title, body, strength }: SignalRowProps) {
           "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
           strength === "ok" && "bg-emerald-100 text-emerald-700",
           strength === "soft" && "bg-warning-100 text-warning-700",
-          strength === "missing" && "bg-steel-100 text-steel-500",
+          strength === "missing" && "bg-sky-100 text-sky-600",
         )}
         aria-hidden
       >
@@ -57,8 +57,8 @@ function SignalRow({ icon, title, body, strength }: SignalRowProps) {
         )}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-steel-900">{title}</p>
-        <p className="mt-0.5 text-xs text-steel-600">{body}</p>
+        <p className="text-sm font-semibold text-sky-950">{title}</p>
+        <p className="mt-0.5 text-xs text-sky-700">{body}</p>
       </div>
     </li>
   );
@@ -96,8 +96,8 @@ export function ConfidenceStack({
           <ShieldCheck className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold text-steel-900">Trust signals</h2>
-          <p className="text-xs text-steel-600">
+          <h2 className="text-sm font-bold text-sky-950">Trust signals</h2>
+          <p className="text-xs text-sky-700">
             What Matex verifies for you on this listing.
           </p>
         </div>

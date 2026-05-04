@@ -27,6 +27,11 @@ test.describe("Smoke Suite", () => {
     });
     const body = await res.json();
     expect(body).toHaveProperty("success");
+    if (body.success && body.data) {
+      expect(body.data).toHaveProperty("active_listings");
+      expect(body.data).toHaveProperty("orders_pending_action");
+      expect(body.data).toHaveProperty("orders_in_transit");
+    }
   });
 
   test("SMOKE-04: dashboard loads after auth seeding", async ({ page }) => {
