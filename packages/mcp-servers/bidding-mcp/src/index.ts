@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { generateId, MatexEventBus, now , initSentry} from "@matex/utils";
+import { generateId, getPlatformConfigNumber, MatexEventBus, now , initSentry} from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "bidding-mcp";
@@ -31,6 +31,9 @@ function rankLevel(level: string): number {
   const map: Record<string, number> = { level_0: 0, level_1: 1, level_2: 2, level_3: 3 };
   return map[level] ?? 0;
 }
+
+const DEFAULT_MIN_BID_INCREMENT = 1;
+const DEFAULT_KYC_LEVEL2_THRESHOLD = 5000;
 
 async function emitEvent(event: string, payload: Record<string, unknown>): Promise<void> {
   if (!eventBus) return;
@@ -73,11 +76,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (listingResult.error) return fail("DB_ERROR", "Database operation failed");
     if (!listingResult.data || listingResult.data.status !== "active") return fail("LISTING_NOT_BIDDABLE", "Listing is not active.");
 
-    // KYC gate: level_1 required for all bids, level_2 required for bids >= 5000.
+    // KYC gate: level_1 required for all bids, level_2 required when amount crosses the configured threshold.
     const kyc = await supabase.schema("kyc_mcp").from("kyc_levels").select("current_level").eq("user_id", bidderId).maybeSingle();
     if (kyc.error) return fail("DB_ERROR", "Database operation failed");
     const currentLevel = String(kyc.data?.current_level ?? "level_0");
-    const requiredLevel = amount >= 5000 ? "level_2" : "level_1";
+    const kycLevel2Threshold = await getPlatformConfigNumber(
+      supabase,
+      "kyc_required_amount_level_2",
+      DEFAULT_KYC_LEVEL2_THRESHOLD,
+      (n) => n > 0,
+    );
+    const requiredLevel = amount >= kycLevel2Threshold ? "level_2" : "level_1";
     if (rankLevel(currentLevel) < rankLevel(requiredLevel)) {
       return fail("KYC_GATE_BLOCKED", `Bids require ${requiredLevel}. Current ${currentLevel}.`);
     }
@@ -97,9 +106,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (expectedHighest !== null && expectedHighest !== currentHighest) {
       return fail("OPTIMISTIC_CONCURRENCY_CONFLICT", `Expected highest ${expectedHighest} but current highest is ${currentHighest}.`);
     }
-    const MIN_BID_INCREMENT = 1;
-    if (amount < currentHighest + MIN_BID_INCREMENT) {
-      return fail("BID_TOO_LOW", `Bid must be at least ${currentHighest + MIN_BID_INCREMENT} (current highest + minimum increment of ${MIN_BID_INCREMENT}).`);
+    const minIncrement = await getPlatformConfigNumber(
+      supabase,
+      "min_bid_increment",
+      DEFAULT_MIN_BID_INCREMENT,
+      (n) => n > 0,
+    );
+    if (amount < currentHighest + minIncrement) {
+      return fail("BID_TOO_LOW", `Bid must be at least ${currentHighest + minIncrement} (current highest + minimum increment of ${minIncrement}).`);
     }
 
     const nextSeq = (bidSequence.get(listingId) ?? 0) + 1;

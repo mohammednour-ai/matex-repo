@@ -16,7 +16,8 @@
     "baseUrl": ".",
     "paths": {
       "@matex/types": ["packages/shared/types/src"],
-      "@matex/utils": ["packages/shared/utils/src"]
+      "@matex/utils": ["packages/shared/utils/src"],
+      "@matex/logic": ["packages/shared/logic/src"]
     }
   },
   "include": [

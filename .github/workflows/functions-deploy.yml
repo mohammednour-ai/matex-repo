@@ -1,0 +1,75 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/functions-deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify @matex/logic mirror is in sync
+        run: |
+          # The Deno mirror at supabase/functions/_shared/logic.ts must stay
+          # behaviourally identical to packages/shared/logic. We diff the
+          # exported symbol set; CI fails if drift is detected.
+          node -e "
+            const fs=require('fs');
+            const mirror=fs.readFileSync('supabase/functions/_shared/logic.ts','utf8');
+            const required=['generateId','now','roundToTwoDecimals','calculateCommission','isWithinTolerance','isValidEmail','isValidCanadianPhone','canActOn','parsePlatformAdminRow','okEnvelope','failEnvelope'];
+            const missing=required.filter(s=>!mirror.includes('export function '+s) && !mirror.includes('export const '+s));
+            if(missing.length){console.error('drift: missing exports',missing);process.exit(1)}
+          "
+
+      - name: Deploy functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for fn in supabase/functions/*/; do
+            name=$(basename "$fn")
+            if [ "$name" = "_shared" ]; then continue; fi
+            echo "Deploying $name..."
+            supabase functions deploy "$name" --project-ref "$PROJECT_REF"
+          done
+
+  parity:
+    needs: deploy
+    runs-on: ubuntu-latest
+    # Skip when secrets aren't available (forks, manual runs without env). The
+    # job is the gate for fan-out; a missing token shouldn't block normal
+    # deploys, but a real diff must.
+    if: ${{ needs.deploy.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run parity check (escrow only until B smoke completes)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          MCP_GATEWAY_URL: ${{ secrets.MCP_GATEWAY_URL }}
+          PARITY_TEST_TOKEN: ${{ secrets.PARITY_TEST_TOKEN }}
+          PARITY_TEST_USER_ID: ${{ secrets.PARITY_TEST_USER_ID }}
+        run: |
+          if [ -z "$PARITY_TEST_TOKEN" ]; then
+            echo "PARITY_TEST_TOKEN secret missing — skipping parity check."
+            exit 0
+          fi
+          pnpm test:parity --domain=escrow

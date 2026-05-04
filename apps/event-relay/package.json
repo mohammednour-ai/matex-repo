@@ -1,0 +1,18 @@
+{
+  "name": "@matex/event-relay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env.local src/index.ts",
+    "build": "pnpm --filter @matex/utils run build && tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@matex/utils": "workspace:*",
+    "@supabase/supabase-js": "^2.40.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

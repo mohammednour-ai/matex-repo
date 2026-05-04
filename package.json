@@ -34,7 +34,8 @@
     "smoke:phase3": "node scripts/phase3-db-smoke-sql.mjs",
     "smoke:phase4": "node scripts/phase4-db-smoke-sql.mjs",
     "smoke": "node scripts/phase1-db-smoke-sql.mjs && node scripts/phase2-db-smoke-sql.mjs && node scripts/phase3-db-smoke-sql.mjs && node scripts/phase4-db-smoke-sql.mjs",
-    "mcp:tools-manifest": "node scripts/extract-mcp-tools.mjs"
+    "mcp:tools-manifest": "node scripts/extract-mcp-tools.mjs",
+    "test:parity": "tsx scripts/parity-check.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.40.0",

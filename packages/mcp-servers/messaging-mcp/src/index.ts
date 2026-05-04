@@ -59,6 +59,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "list_threads", description: "List threads for a user", inputSchema: { type: "object", properties: { user_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["user_id"] } },
     { name: "get_messages", description: "Get paginated messages for a thread", inputSchema: { type: "object", properties: { thread_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["thread_id"] } },
     { name: "get_unread", description: "Get unread count by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
+    { name: "mark_thread_read", description: "Mark all messages in a thread as read by user_id (idempotent).", inputSchema: { type: "object", properties: { thread_id: { type: "string" }, user_id: { type: "string" } }, required: ["thread_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -280,15 +281,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { data: messages, error: messagesError } = await supabase
         .schema("messaging_mcp")
         .from("messages")
-        .select("sender_id")
+        .select("sender_id,read_by")
         .in("thread_id", threadIds)
         .neq("sender_id", userId);
       if (messagesError) return fail("DB_ERROR", "Database operation failed");
+      const unread = (messages ?? []).filter((m) => {
+        const rb = Array.isArray(m.read_by) ? (m.read_by as string[]) : [];
+        return !rb.includes(userId);
+      });
       return {
         content: [
           {
             type: "text",
-            text: ok({ total_unread: (messages ?? []).length, thread_count: threadIds.length }),
+            text: ok({ total_unread: unread.length, thread_count: threadIds.length }),
           },
         ],
       };
@@ -297,6 +302,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const joined = Array.from(threads.values()).filter((thread) => thread.participants.includes(userId));
     const totalUnread = joined.reduce((sum, thread) => sum + thread.messages.filter((m) => m.sender_id !== userId).length, 0);
     return { content: [{ type: "text", text: ok({ total_unread: totalUnread, thread_count: joined.length }) }] };
+  }
+
+  if (tool === "mark_thread_read") {
+    const threadId = String(args.thread_id ?? "");
+    const userId = String(args._user_id ?? args.user_id ?? "");
+    if (!threadId) return fail("VALIDATION_ERROR", "thread_id is required.");
+    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+
+    if (supabase) {
+      const { data: msgs, error: selectError } = await supabase
+        .schema("messaging_mcp")
+        .from("messages")
+        .select("message_id,read_by")
+        .eq("thread_id", threadId)
+        .neq("sender_id", userId);
+      if (selectError) return fail("DB_ERROR", "Database operation failed");
+
+      let marked = 0;
+      for (const m of msgs ?? []) {
+        const rb = Array.isArray(m.read_by) ? (m.read_by as string[]) : [];
+        if (rb.includes(userId)) continue;
+        const next = [...rb, userId];
+        const { error: updateError } = await supabase
+          .schema("messaging_mcp")
+          .from("messages")
+          .update({ read_by: next })
+          .eq("message_id", m.message_id);
+        if (updateError) return fail("DB_ERROR", "Database operation failed");
+        marked++;
+      }
+
+      await emitEvent("messaging.thread.read", { thread_id: threadId, user_id: userId, marked });
+      return { content: [{ type: "text", text: ok({ thread_id: threadId, marked_count: marked }) }] };
+    }
+
+    return { content: [{ type: "text", text: ok({ thread_id: threadId, marked_count: 0 }) }] };
   }
 
   return { isError: true, content: [{ type: "text", text: `Unknown tool: ${tool}` }] };
