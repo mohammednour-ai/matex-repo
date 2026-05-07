@@ -53,15 +53,15 @@ function buildCopilotContext(
 function CopilotScopeGraphic() {
   return (
     <div className="relative mx-auto mt-2 h-24 w-full max-w-[13rem]" aria-hidden>
-      <div className="absolute inset-2 rounded-lg border border-slate-600/50 bg-slate-950/40" />
+      <div className="absolute inset-2 rounded-lg border border-zinc-600/50 bg-zinc-950/40" />
       <div className="absolute inset-5 rounded border border-orange-500/25 bg-gradient-to-b from-orange-500/10 to-transparent" />
       <div className="absolute bottom-3 left-4 right-4 flex gap-1">
         <span className="h-1 flex-1 rounded-full bg-orange-400/60" />
-        <span className="h-1 flex-1 rounded-full bg-slate-600/80" />
+        <span className="h-1 flex-1 rounded-full bg-zinc-600/80" />
         <span className="h-1 flex-1 rounded-full bg-emerald-500/50" />
       </div>
       <div className="absolute left-4 top-5 h-8 w-px bg-orange-500/30" />
-      <div className="absolute right-6 top-6 h-6 w-px bg-slate-500/40" />
+      <div className="absolute right-6 top-6 h-6 w-px bg-zinc-500/40" />
     </div>
   );
 }
@@ -158,7 +158,7 @@ function MatexCopilotInner() {
     <>
       <div className="group fixed bottom-6 right-6 z-50">
         {!open && (
-          <span className="pointer-events-none absolute -top-9 right-0 whitespace-nowrap rounded-lg border border-slate-700/50 bg-slate-950/[0.95] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-300 opacity-0 shadow-lg ring-1 ring-orange-500/20 transition-opacity group-hover:opacity-100">
+          <span className="pointer-events-none absolute -top-9 right-0 whitespace-nowrap rounded-lg border border-zinc-700/50 bg-zinc-950/[0.95] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-300 opacity-0 shadow-lg ring-1 ring-orange-500/20 transition-opacity group-hover:opacity-100">
             Matex Copilot · ⌘K
           </span>
         )}
@@ -170,7 +170,7 @@ function MatexCopilotInner() {
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-600/70 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-[0_14px_40px_-14px_rgba(249,115,22,0.65)] ring-1 ring-orange-500/35 transition-all hover:border-orange-400/50 hover:from-slate-800 hover:to-slate-900 hover:shadow-[0_18px_44px_-14px_rgba(249,115,22,0.75)] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
+            className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-600/70 bg-gradient-to-br from-zinc-900 to-zinc-950 text-white shadow-[0_14px_40px_-14px_rgba(249,115,22,0.65)] ring-1 ring-orange-500/35 transition-all hover:border-orange-400/50 hover:from-zinc-800 hover:to-zinc-900 hover:shadow-[0_18px_44px_-14px_rgba(249,115,22,0.75)] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/70"
             aria-label="Open Matex Copilot (⌘K)"
           >
             {open ? (
@@ -184,7 +184,7 @@ function MatexCopilotInner() {
 
       {open && (
         <div
-          className="fixed bottom-24 right-6 z-50 flex w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl border border-slate-600/55 bg-slate-950/[0.97] shadow-[0_28px_80px_-24px_rgba(0,0,0,0.75)] ring-1 ring-orange-500/15 backdrop-blur-xl sm:w-[26rem]"
+          className="fixed bottom-24 right-6 z-50 flex w-[min(22rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-2xl border border-zinc-600/55 bg-zinc-950/[0.97] shadow-[0_28px_80px_-24px_rgba(0,0,0,0.75)] ring-1 ring-orange-500/15 backdrop-blur-xl sm:w-[26rem]"
           style={{ maxHeight: "min(62vh, 36rem)" }}
         >
           <div className="pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden>
@@ -200,7 +200,7 @@ function MatexCopilotInner() {
             }}
           />
 
-          <header className="relative border-b border-slate-700/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 px-4 py-3">
+          <header className="relative border-b border-zinc-700/60 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-4 py-3">
             <div className="flex items-start gap-3">
               <CopilotControlMark className="h-10 w-10 shrink-0 drop-shadow-md" />
               <div className="min-w-0 flex-1">
@@ -211,11 +211,11 @@ function MatexCopilotInner() {
                     MCP
                   </span>
                 </div>
-                <p className="mt-1 text-[10px] font-medium leading-snug text-slate-400">
+                <p className="mt-1 text-[10px] font-medium leading-snug text-night-300">
                   Industrial workspace assistant — routes through your live tool gateway.
                 </p>
               </div>
-              <div className="flex shrink-0 gap-1 text-slate-500" aria-hidden>
+              <div className="flex shrink-0 gap-1 text-night-300" aria-hidden>
                 <Cpu className="h-3.5 w-3.5" />
                 <Radio className="h-3.5 w-3.5" />
                 <Wrench className="h-3.5 w-3.5" />
@@ -224,14 +224,14 @@ function MatexCopilotInner() {
             </div>
           </header>
 
-          <div className="relative flex-1 space-y-3 overflow-y-auto bg-slate-950/40 p-4 text-sm">
+          <div className="relative flex-1 space-y-3 overflow-y-auto bg-zinc-950/40 p-4 text-sm">
             {messages.length === 0 && (
-              <div className="rounded-xl border border-slate-700/50 bg-slate-900/50 px-3 py-4 text-center">
+              <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/50 px-3 py-4 text-center">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-300/90">
                   Control channel ready
                 </p>
                 <CopilotScopeGraphic />
-                <p className="mt-3 text-xs leading-relaxed text-slate-400">
+                <p className="mt-3 text-xs leading-relaxed text-night-300">
                   Describe an operation in plain language — Copilot maps it to the same MCP tools the platform uses
                   (listings, search, escrow, analytics, and more).
                 </p>
@@ -243,8 +243,8 @@ function MatexCopilotInner() {
                   className={[
                     "inline-block max-w-[90%] whitespace-pre-wrap rounded-xl px-3 py-2 text-left text-xs leading-relaxed",
                     m.role === "user"
-                      ? "border border-slate-600/50 bg-gradient-to-br from-slate-800 to-slate-900 text-slate-100 shadow-md"
-                      : "border border-slate-600/40 border-l-[3px] border-l-orange-500 bg-slate-900/80 text-slate-200 shadow-sm",
+                      ? "border border-zinc-600/50 bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-100 shadow-md"
+                      : "border border-zinc-600/40 border-l-[3px] border-l-orange-500 bg-zinc-900/80 text-zinc-200 shadow-sm",
                   ].join(" ")}
                 >
                   {m.text}
@@ -271,7 +271,7 @@ function MatexCopilotInner() {
             ))}
             {loading && (
               <div className="text-left">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2 text-xs text-night-300">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-400" />
@@ -283,13 +283,13 @@ function MatexCopilotInner() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="relative flex gap-2 border-t border-slate-700/50 bg-slate-950/90 p-3 backdrop-blur-sm">
+          <div className="relative flex gap-2 border-t border-zinc-700/50 bg-zinc-950/90 p-3 backdrop-blur-sm">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Describe what to run — listings, search, escrow…"
-              className="flex-1 rounded-xl border border-slate-600/60 bg-slate-900/70 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-orange-400/50 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
+              className="flex-1 rounded-xl border border-zinc-600/60 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100 placeholder:text-night-300 focus:border-orange-400/50 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
             />
             <button
               type="button"

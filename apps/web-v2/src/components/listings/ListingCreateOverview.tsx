@@ -48,7 +48,7 @@ export function ListingCreateOverview() {
   return (
     <section
       data-testid="listing-create-overview"
-      className="relative overflow-hidden rounded-2xl border border-sky-200/80 bg-gradient-to-br from-sky-900/[0.04] via-white to-orange-50/40 shadow-card"
+      className="relative overflow-hidden rounded-2xl border border-night-700/80 bg-gradient-to-br from-zinc-900/[0.04] via-white to-orange-50/40 shadow-card"
     >
       <div
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.06)_1px,transparent_1px)] bg-[length:20px_20px] opacity-70"
@@ -63,10 +63,10 @@ export function ListingCreateOverview() {
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-brand-600">
               Seller workspace · MCP-connected
             </p>
-            <h2 className="mt-1 text-lg font-black tracking-tight text-sky-950 sm:text-xl">
+            <h2 className="mt-1 text-lg font-black tracking-tight text-night-100 sm:text-xl">
               Industrial materials exchange
             </h2>
-            <p className="mt-1.5 max-w-2xl text-sm font-medium text-sky-700">
+            <p className="mt-1.5 max-w-2xl text-sm font-medium text-night-200">
               Structured listings, live auctions, and escrow-backed settlement—wired through Matex
               Copilot to the same MCP tools your ops stack uses.
             </p>
@@ -75,7 +75,7 @@ export function ListingCreateOverview() {
             type="button"
             onClick={dismiss}
             aria-label="Dismiss panel"
-            className="shrink-0 self-start rounded-xl p-1.5 text-sky-500 transition-colors hover:bg-sky-100 hover:text-sky-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="shrink-0 self-start rounded-xl p-1.5 text-night-300 transition-colors hover:bg-night-800 hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
           >
             <X className="h-4 w-4" />
           </button>
@@ -85,18 +85,18 @@ export function ListingCreateOverview() {
           {PILLARS.map(({ icon: Icon, title, body }) => (
             <li
               key={title}
-              className="rounded-xl border border-sky-200/70 bg-white/80 p-3.5 backdrop-blur-sm"
+              className="rounded-xl border border-night-700/70 bg-night-850/80 p-3.5 backdrop-blur-sm"
             >
               <div className="mb-2 flex items-center gap-2">
                 <Icon className="h-4 w-4 shrink-0 text-brand-600" aria-hidden />
-                <span className="text-xs font-bold text-sky-950">{title}</span>
+                <span className="text-xs font-bold text-night-100">{title}</span>
               </div>
-              <p className="text-xs leading-snug text-sky-700">{body}</p>
+              <p className="text-xs leading-snug text-night-200">{body}</p>
             </li>
           ))}
         </ul>
 
-        <div className="rounded-xl border border-brand-200/60 bg-brand-50/50 px-3 py-3 sm:px-4">
+        <div className="rounded-xl border border-brand-200/60 bg-brand-500/50 px-3 py-3 sm:px-4">
           <p className="text-xs font-semibold text-brand-900">
             Matex Copilot <span className="font-normal text-brand-800">(bottom-right)</span>
           </p>
@@ -112,7 +112,7 @@ export function ListingCreateOverview() {
                 onClick={() =>
                   dispatchCopilotPrefill({ message, open: true })
                 }
-                className="rounded-full border border-brand-300/80 bg-white px-3 py-1 text-xs font-semibold text-brand-800 shadow-sm transition-colors hover:bg-brand-100/80"
+                className="rounded-full border border-brand-300/80 bg-night-850 px-3 py-1 text-xs font-semibold text-brand-800 shadow-sm transition-colors hover:bg-brand-100/80"
               >
                 {label}
               </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   TrendingUp,
   DollarSign,
@@ -52,14 +53,14 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center gap-3">
-      <span className="w-24 shrink-0 truncate text-xs text-sky-600">{label}</span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-sky-100">
+      <span className="w-24 shrink-0 truncate text-xs text-night-200">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-night-800">
         <div
           className={clsx("h-full rounded-full transition-all duration-700", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="w-10 shrink-0 text-right text-xs font-semibold text-sky-700">{value.toLocaleString()}</span>
+      <span className="w-10 shrink-0 text-right text-xs font-semibold text-night-200">{value.toLocaleString()}</span>
     </div>
   );
 }
@@ -80,12 +81,12 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-sky-200/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div className="rounded-2xl border border-night-700/80 bg-night-850 p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-500">{label}</p>
-          <p className="mt-2 text-2xl font-extrabold text-sky-900">{value}</p>
-          {sub && <p className="mt-0.5 text-xs text-sky-500">{sub}</p>}
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-night-300">{label}</p>
+          <p className="mt-2 text-2xl font-extrabold text-night-100">{value}</p>
+          {sub && <p className="mt-0.5 text-xs text-night-300">{sub}</p>}
         </div>
         <span className={clsx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", color)}>
           <Icon className="h-5 w-5" />
@@ -107,8 +108,8 @@ function ConversionFunnel({ funnel }: { funnel: Funnel }) {
   const max = Math.max(...steps.map((s) => s.value), 1);
 
   return (
-    <div className="rounded-2xl border border-sky-200/80 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-bold text-sky-800">Conversion Funnel</h3>
+    <div className="rounded-2xl border border-night-700/80 bg-night-850 p-5 shadow-sm">
+      <h3 className="mb-4 text-sm font-bold text-night-100">Conversion Funnel</h3>
       <div className="space-y-3">
         {steps.map((s, i) => {
           const pct = i > 0 && steps[i - 1].value > 0
@@ -118,7 +119,7 @@ function ConversionFunnel({ funnel }: { funnel: Funnel }) {
             <div key={s.label}>
               <MiniBar label={s.label} value={s.value} max={max} color={s.color} />
               {pct !== null && (
-                <p className="mt-0.5 pl-[7.5rem] text-[10px] text-sky-400">
+                <p className="mt-0.5 pl-[7.5rem] text-[10px] text-night-300">
                   {pct}% of previous step
                 </p>
               )}
@@ -157,10 +158,10 @@ function RevenuePanel() {
   }, [period]);
 
   return (
-    <div className="rounded-2xl border border-sky-200/80 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-night-700/80 bg-night-850 p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-sky-800">Revenue</h3>
-        <div className="flex gap-1 rounded-xl border border-sky-200 bg-sky-50 p-0.5">
+        <h3 className="text-sm font-bold text-night-100">Revenue</h3>
+        <div className="flex gap-1 rounded-xl border border-night-700 bg-night-900 p-0.5">
           {PERIOD_OPTIONS.map((o) => (
             <button
               key={o.value}
@@ -168,7 +169,7 @@ function RevenuePanel() {
               onClick={() => setPeriod(o.value)}
               className={clsx(
                 "rounded-lg px-3 py-1 text-xs font-semibold transition-colors",
-                period === o.value ? "bg-white text-sky-900 shadow-sm" : "text-sky-500 hover:text-sky-700"
+                period === o.value ? "bg-night-850 text-night-100 shadow-sm" : "text-night-300 hover:text-night-200"
               )}
             >
               {o.label}
@@ -185,17 +186,17 @@ function RevenuePanel() {
         <div className="grid grid-cols-3 gap-4">
           {[
             { label: "Transactions", value: String(report.transactions), color: "text-brand-700" },
-            { label: "Volume", value: formatCAD(report.volume), color: "text-sky-900" },
-            { label: "Commission Est.", value: formatCAD(report.commission_estimate), color: "text-emerald-700" },
+            { label: "Volume", value: formatCAD(report.volume), color: "text-night-100" },
+            { label: "Commission Est.", value: formatCAD(report.commission_estimate), color: "text-success-400" },
           ].map((item) => (
             <div key={item.label} className="text-center">
               <p className={clsx("text-xl font-extrabold", item.color)}>{item.value}</p>
-              <p className="mt-1 text-[11px] font-medium text-sky-500">{item.label}</p>
+              <p className="mt-1 text-[11px] font-medium text-night-300">{item.label}</p>
             </div>
           ))}
         </div>
       ) : (
-        <p className="py-6 text-center text-sm text-sky-400">No data for this period.</p>
+        <p className="py-6 text-center text-sm text-night-300">No data for this period.</p>
       )}
     </div>
   );
@@ -241,7 +242,7 @@ export default function AnalyticsPage() {
           label: "Total Listings",
           value: (stats.total_listings ?? 0).toLocaleString(),
           icon: Package,
-          color: "bg-sky-100 text-sky-700",
+          color: "bg-night-800 text-night-200",
           sub: stats.new_listings_7d ? `+${stats.new_listings_7d} this week` : undefined,
         },
         {
@@ -254,7 +255,7 @@ export default function AnalyticsPage() {
           label: "Platform Revenue",
           value: formatCAD(stats.total_revenue ?? 0),
           icon: DollarSign,
-          color: "bg-emerald-100 text-emerald-700",
+          color: "bg-emerald-100 text-success-400",
         },
       ]
     : [];
@@ -269,7 +270,7 @@ export default function AnalyticsPage() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-sky-600 shadow-sm transition-colors hover:bg-sky-50 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl border border-night-700 bg-night-850 px-3 py-2 text-sm font-medium text-night-200 shadow-sm transition-colors hover:bg-night-900 disabled:opacity-50"
           >
             <RefreshCw className={clsx("h-4 w-4", loading && "animate-spin")} />
             Refresh
@@ -296,10 +297,17 @@ export default function AnalyticsPage() {
             {funnel ? (
               <ConversionFunnel funnel={funnel} />
             ) : (
-              <div className="flex items-center justify-center rounded-2xl border border-sky-200/80 bg-white p-10">
+              <div className="flex items-center justify-center rounded-2xl border border-night-700/80 bg-night-850 p-10">
                 <div className="text-center">
-                  <BarChart3 className="mx-auto mb-3 h-8 w-8 text-sky-300" />
-                  <p className="text-sm text-sky-400">Funnel data unavailable</p>
+                  <Image
+                    src="/grphs/Platform%20Domains/analytics-d-analytics.png"
+                    alt=""
+                    aria-hidden
+                    width={160}
+                    height={100}
+                    className="mx-auto mb-3 h-auto w-auto max-w-[10rem] opacity-70"
+                  />
+                  <p className="text-sm text-night-300">Funnel data unavailable</p>
                 </div>
               </div>
             )}
@@ -307,12 +315,12 @@ export default function AnalyticsPage() {
 
           {/* Engagement bar chart */}
           {stats && (
-            <div className="rounded-2xl border border-sky-200/80 bg-white p-5 shadow-sm">
-              <h3 className="mb-4 text-sm font-bold text-sky-800">Platform Activity</h3>
+            <div className="rounded-2xl border border-night-700/80 bg-night-850 p-5 shadow-sm">
+              <h3 className="mb-4 text-sm font-bold text-night-100">Platform Activity</h3>
               <div className="space-y-3">
                 {[
                   { label: "Users", value: stats.total_users ?? 0, color: "bg-brand-500" },
-                  { label: "Listings", value: stats.total_listings ?? 0, color: "bg-sky-500" },
+                  { label: "Listings", value: stats.total_listings ?? 0, color: "bg-zinc-500" },
                   { label: "Orders", value: stats.total_orders ?? 0, color: "bg-accent-500" },
                 ].map((item) => {
                   const maxVal = Math.max(stats.total_users ?? 0, stats.total_listings ?? 0, stats.total_orders ?? 0, 1);

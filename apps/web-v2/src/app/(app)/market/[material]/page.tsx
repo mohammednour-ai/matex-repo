@@ -43,8 +43,8 @@ export default function MaterialDetailPage() {
 
   if (!material) {
     return (
-      <div className="rounded-2xl border border-steel-100 bg-white p-6 text-center">
-        <p className="text-sm font-semibold text-steel-700">Unknown material</p>
+      <div className="rounded-2xl border border-night-700 bg-night-850 p-6 text-center">
+        <p className="text-sm font-semibold text-night-200">Unknown material</p>
         <Link href="/market" className="mt-2 inline-block text-xs text-brand-700">
           Back to market dashboard
         </Link>
@@ -57,7 +57,7 @@ export default function MaterialDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/market" className="inline-flex items-center gap-1 text-xs font-semibold text-steel-600 hover:text-brand-700">
+        <Link href="/market" className="inline-flex items-center gap-1 text-xs font-semibold text-night-200 hover:text-brand-700">
           <ArrowLeft className="h-3 w-3" /> Back to market
         </Link>
         <button
@@ -70,7 +70,7 @@ export default function MaterialDetailPage() {
       </div>
 
       {error && (
-        <div className="rounded-xl bg-danger-50 px-4 py-3 text-sm text-danger-800">{error}</div>
+        <div className="rounded-xl bg-danger-500/15 px-4 py-3 text-sm text-danger-400">{error}</div>
       )}
 
       {loading ? (
@@ -82,11 +82,11 @@ export default function MaterialDetailPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
           {latest && <MarketSummaryCard snapshot={latest} history={history} onSetAlert={() => setDialogOpen(true)} />}
 
-          <div className="rounded-2xl border border-steel-100 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
               30-day price history
             </p>
-            <h3 className="mt-1 text-base font-semibold text-steel-900">
+            <h3 className="mt-1 text-base font-semibold text-night-100">
               {material.label} — {material.spec}
             </h3>
             <PriceSparkline series={series} trend={latest?.trend ?? "stable"} height={140} className="mt-4" />
@@ -114,16 +114,16 @@ export default function MaterialDetailPage() {
       )}
 
       {latest?.news_headlines && latest.news_headlines.length > 0 && (
-        <section className="rounded-2xl border border-steel-100 bg-white p-5">
+        <section className="rounded-2xl border border-night-700 bg-night-850 p-5">
           <div className="flex items-center gap-2">
-            <Newspaper className="h-4 w-4 text-steel-500" />
-            <h3 className="text-sm font-semibold text-steel-900">Headlines feeding the model</h3>
+            <Newspaper className="h-4 w-4 text-night-300" />
+            <h3 className="text-sm font-semibold text-night-100">Headlines feeding the model</h3>
           </div>
           <ul className="mt-3 space-y-2">
             {latest.news_headlines.map((headline) => (
               <li
                 key={headline}
-                className="rounded-xl border border-steel-100 bg-surface-50 px-3 py-2 text-xs text-steel-700"
+                className="rounded-xl border border-night-700 bg-night-850/90 px-3 py-2 text-xs text-night-200"
               >
                 {headline}
               </li>
@@ -143,9 +143,9 @@ export default function MaterialDetailPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-steel-100 p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-steel-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-steel-900">{value}</p>
+    <div className="rounded-xl border border-night-700 p-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-night-300">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-night-100">{value}</p>
     </div>
   );
 }

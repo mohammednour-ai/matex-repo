@@ -65,16 +65,16 @@ export function StickyBidPanel({
           "p-5 shadow-sm",
         )}
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+        <p className="text-xs font-medium uppercase tracking-wide text-success-400">
           Fixed price
         </p>
-        <p className="mt-1 text-2xl font-bold text-emerald-800">
+        <p className="mt-1 text-2xl font-bold text-success-400">
           {fmtCAD(price)}{" "}
           <span className="text-sm font-semibold text-emerald-600">
             CAD / {unit}
           </span>
         </p>
-        <p className="mt-0.5 text-xs text-emerald-700">
+        <p className="mt-0.5 text-xs text-success-400">
           Order total {fmtCAD(price * quantity)} CAD ·{" "}
           {quantity.toLocaleString("en-CA")} {unit}
         </p>
@@ -86,7 +86,7 @@ export function StickyBidPanel({
           <ShoppingCart className="h-4 w-4" />
           Buy now
         </Button>
-        <p className="mt-3 text-[11px] text-emerald-700/80">
+        <p className="mt-3 text-[11px] text-success-400/80">
           Funds held in escrow. Released after delivery + buyer acceptance.
         </p>
       </aside>
@@ -113,7 +113,7 @@ export function StickyBidPanel({
           {bidCount ?? 0} bid{bidCount === 1 ? "" : "s"} placed
         </p>
         {biddingEndsAt && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 ring-1 ring-brand-100">
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-night-850/70 px-3 py-2 ring-1 ring-brand-100">
             <Clock className="h-4 w-4 text-brand-500" />
             <span className="text-xs text-brand-700">Ends in</span>
             <CountdownTimer
@@ -142,12 +142,12 @@ export function StickyBidPanel({
         "p-5 shadow-sm",
       )}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-amber-700">
+      <p className="text-xs font-medium uppercase tracking-wide text-warning-400">
         Live auction session
       </p>
       {auctionSessionDate && (
         <>
-          <p className="mt-1 flex items-center gap-1.5 text-base font-bold text-amber-800">
+          <p className="mt-1 flex items-center gap-1.5 text-base font-bold text-warning-400">
             <Calendar className="h-4 w-4" />
             {new Date(auctionSessionDate).toLocaleDateString("en-CA", {
               weekday: "short",
@@ -156,18 +156,18 @@ export function StickyBidPanel({
               day: "numeric",
             })}
           </p>
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 ring-1 ring-amber-200">
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-night-850/70 px-3 py-2 ring-1 ring-amber-200">
             <Clock className="h-4 w-4 text-amber-500" />
-            <span className="text-xs text-amber-700">Starts in</span>
+            <span className="text-xs text-warning-400">Starts in</span>
             <CountdownTimer
               targetDate={auctionSessionDate}
-              className="ml-auto text-sm font-semibold text-amber-800"
+              className="ml-auto text-sm font-semibold text-warning-400"
             />
           </div>
         </>
       )}
       {typeof auctionDepositAmount === "number" && auctionDepositAmount > 0 && (
-        <p className="mt-3 text-xs text-amber-800">
+        <p className="mt-3 text-xs text-warning-400">
           Refundable deposit:{" "}
           <span className="font-semibold">{fmtCAD(auctionDepositAmount)}</span>{" "}
           CAD
@@ -180,7 +180,7 @@ export function StickyBidPanel({
       >
         Register + pay deposit
       </Button>
-      <p className="mt-3 text-[11px] text-amber-800/80">
+      <p className="mt-3 text-[11px] text-warning-400/80">
         Deposit refunded if you don&apos;t win. Lost-bid deposits returned within 3
         business days.
       </p>

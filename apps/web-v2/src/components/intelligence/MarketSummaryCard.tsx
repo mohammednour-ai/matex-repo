@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Bell, ExternalLink } from "lucide-react";
 import clsx from "clsx";
@@ -28,18 +29,34 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
   const unit = material?.unit ?? "mt";
   const series = (history ?? []).map((h) => h.lme_price ?? h.matex_avg_price ?? 0).filter((n) => n > 0);
   return (
-    <div className="rounded-2xl border border-steel-100 bg-white p-5 shadow-sm transition-colors hover:border-brand-200">
+    <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm transition-colors hover:border-brand-200">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-steel-500">
-            {material?.category === "ferrous"
-              ? "Ferrous"
-              : material?.category === "specialty"
-                ? "Specialty"
-                : "Non-ferrous"}
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-steel-900">{snapshot.material_label}</h3>
-          <p className="text-xs text-steel-500">Updated {formatRelativeAgo(snapshot.updated_at)}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          {material?.image ? (
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-night-700/60 bg-night-900/60">
+              <Image
+                src={material.image}
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain"
+                aria-hidden
+              />
+            </span>
+          ) : null}
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-night-300">
+              {material?.category === "ferrous"
+                ? "Ferrous"
+                : material?.category === "specialty"
+                  ? "Specialty"
+                  : "Non-ferrous"}
+            </p>
+            <h3 className="mt-1 truncate text-base font-black tracking-tight text-night-100">
+              {snapshot.material_label}
+            </h3>
+            <p className="text-xs text-night-300">Updated {formatRelativeAgo(snapshot.updated_at)}</p>
+          </div>
         </div>
         <TrendBadge trend={snapshot.trend} changePct={snapshot.lme_change_pct} />
       </div>
@@ -90,8 +107,8 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
       </div>
 
       {!compact && snapshot.next_event && (
-        <div className="mt-3 rounded-xl border-l-4 border-warning-300 bg-warning-50 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-warning-800">Watch</p>
+        <div className="mt-3 rounded-xl border-l-4 border-warning-300 bg-warning-500/15 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-warning-400">Watch</p>
           <p className="mt-0.5 text-sm text-warning-900">{snapshot.next_event}</p>
         </div>
       )}
@@ -107,7 +124,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
           <button
             type="button"
             onClick={() => onSetAlert(snapshot.material_key)}
-            className="inline-flex items-center gap-1 rounded-full border border-steel-200 px-3 py-1 text-xs font-semibold text-steel-700 transition-colors hover:border-brand-400 hover:text-brand-700"
+            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1 text-xs font-semibold text-night-200 transition-colors hover:border-brand-400 hover:text-brand-700"
           >
             <Bell className="h-3 w-3" /> Set alert
           </button>
@@ -120,9 +137,9 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-steel-500">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-steel-900">{value}</p>
-      {sub && <p className="text-[10px] text-steel-500">{sub}</p>}
+      <p className="text-[10px] font-bold uppercase tracking-wider text-night-300">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-night-100">{value}</p>
+      {sub && <p className="text-[10px] text-night-300">{sub}</p>}
     </div>
   );
 }

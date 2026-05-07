@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Package,
   Wallet,
@@ -56,9 +57,9 @@ type QuickAction = {
   label: string;
   href: string;
   icon: typeof Plus;
-  color: string;
-  glow: string;
   note: string;
+  /** True only for the single primary CTA — gets the brand-tinted chip. */
+  primary?: boolean;
   /** Full-page /chat; layout FAB opens the same Copilot panel — both entry points. */
   copilotNote?: boolean;
 };
@@ -68,48 +69,37 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     label: "Create Listing",
     href: "/listings/create",
     icon: Plus,
-    color: "from-orange-500 to-orange-800 text-white",
-    glow: "shadow-orange-500/25",
+    primary: true,
     note: "Publish a new industrial offering with pricing and logistics details.",
   },
   {
     label: "Search Materials",
     href: "/search",
     icon: Search,
-    color: "from-slate-600 to-slate-900 text-white",
-    glow: "shadow-slate-900/25",
     note: "Browse verified inventory, compare offers, and source with confidence.",
   },
   {
     label: "Live Auctions",
     href: "/auctions",
     icon: Gavel,
-    color: "from-amber-500 to-orange-700 text-white",
-    glow: "shadow-orange-500/25",
     note: "Track active bids and act on time-sensitive market opportunities.",
   },
   {
     label: "Check Escrow",
     href: "/escrow",
     icon: Lock,
-    color: "from-emerald-500 to-emerald-700 text-white",
-    glow: "shadow-emerald-500/20",
     note: "Review protected funds, milestones, and transaction readiness.",
   },
   {
     label: "Logistics",
     href: "/logistics",
     icon: Truck,
-    color: "from-slate-700 to-slate-950 text-white",
-    glow: "shadow-slate-900/25",
     note: "Coordinate shipments, delivery progress, and operational follow-through.",
   },
   {
     label: "AI Copilot",
     href: "/chat",
     icon: Bot,
-    color: "from-slate-700 to-slate-950 text-white",
-    glow: "shadow-slate-900/25",
     note: "Get assistance preparing listings, replies, and platform workflows.",
     copilotNote: true,
   },
@@ -183,31 +173,21 @@ function formatEventDate(iso: string): string {
   });
 }
 
-function statIconShadow(gradient: string): string {
-  if (gradient.includes("orange") || gradient.includes("amber")) return "shadow-orange-500/25";
-  if (gradient.includes("brand")) return "shadow-brand-500/20";
-  if (gradient.includes("emerald")) return "shadow-emerald-500/20";
-  if (gradient.includes("accent")) return "shadow-accent-500/20";
-  if (gradient.includes("steel") || gradient.includes("slate")) return "shadow-slate-900/20";
-  if (gradient.includes("violet")) return "shadow-violet-500/20";
-  return "shadow-slate-900/20";
-}
-
 function DashboardSkeleton() {
-  const pulse = "animate-pulse rounded-lg bg-sky-200/80";
+  const pulse = "animate-pulse rounded-lg bg-night-700/80";
   return (
     <div className="space-y-6" data-dashboard-skeleton aria-busy="true">
       <div className={clsx("h-56 rounded-[2rem]", pulse)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-sky-200/70", pulse)} />
+          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-night-700/70", pulse)} />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(300px,0.95fr)_minmax(0,1.45fr)]">
-        <div className={clsx("h-72 rounded-[1.75rem] border border-sky-200/70", pulse)} />
-        <div className={clsx("h-72 rounded-[1.75rem] border border-sky-200/70", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-night-700/70", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-night-700/70", pulse)} />
       </div>
-      <div className={clsx("h-56 rounded-[1.75rem] border border-sky-200/70", pulse)} />
+      <div className={clsx("h-56 rounded-[1.75rem] border border-night-700/70", pulse)} />
     </div>
   );
 }
@@ -242,7 +222,7 @@ export default function DashboardPage() {
 
     const [statsRes, walletRes, unreadRes, notifRes, kycRes, bookingsRes] = await Promise.allSettled([
       callTool("analytics.get_dashboard_stats", { user_id: userId }),
-      callTool("payments.get_wallet_balance", { user_id: userId }),
+      callTool("payments.get_wallet_balance", { user_id: userId, actor_id: userId }),
       callTool("messaging.get_unread", { user_id: userId }),
       callTool("notifications.get_notifications", { user_id: userId, limit: 8 }),
       callTool("kyc.get_kyc_level", { user_id: userId }),
@@ -369,7 +349,8 @@ export default function DashboardPage() {
       value: string | number;
       subValue?: string | null;
       icon: typeof Package;
-      gradient: string;
+      /** Optional grphs PNG override; renders in place of the lucide icon when set. */
+      image?: string;
       trend?: string | null;
       footnote?: string | null;
     };
@@ -378,7 +359,7 @@ export default function DashboardPage() {
         label: "Active Listings",
         value: stats?.active_listings ?? "—",
         icon: Package,
-        gradient: "from-orange-500 to-orange-800",
+        image: "/grphs/Platform%20Domains/listing-d-listing.png",
         trend: listingsTrend,
         footnote: null,
       },
@@ -387,14 +368,14 @@ export default function DashboardPage() {
         value:
           wallet && !Number.isNaN(wallet.balance) ? formatCAD(wallet.balance) : "—",
         icon: Wallet,
-        gradient: "from-emerald-500 to-emerald-700",
+        image: "/grphs/Icons/wallet-i-wallet.png",
         footnote: "Live balance",
       },
       {
         label: "Unread Messages",
         value: sectionErrors.unread ? "—" : unreadCount,
         icon: MessageSquare,
-        gradient: "from-slate-600 to-slate-900",
+        image: "/grphs/Platform%20Domains/messaging-d-messaging.png",
         footnote: "Across threads",
       },
       {
@@ -405,7 +386,7 @@ export default function DashboardPage() {
             ? `${formatCAD(stats.escrow_held ?? 0)} in escrow`
             : null,
         icon: ShieldCheck,
-        gradient: "from-amber-500 to-orange-700",
+        image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
         footnote: null,
       },
     ];
@@ -416,7 +397,7 @@ export default function DashboardPage() {
               label: "Active Bids",
               value: stats?.active_bids ?? "—",
               icon: Target,
-              gradient: "from-orange-600 to-amber-500",
+              image: "/grphs/Icons/bid-gavel-i-bid.png",
               footnote: "Open bids on listings",
             },
           ]
@@ -459,13 +440,13 @@ export default function DashboardPage() {
       />
 
       {kycLevel < 2 && (
-        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-slate-900">
+        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-night-100">
           <CircleAlert className="h-4 w-4 shrink-0 text-orange-700" />
           <span>
             <strong className="text-orange-900">Complete verification</strong> — Higher KYC levels unlock
             larger trades and faster payouts.
           </span>
-          <Link href="/settings" className="font-semibold text-orange-800 underline-offset-2 hover:underline">
+          <Link href="/settings" className="font-semibold text-brand-400 underline-offset-2 hover:underline">
             Continue in Settings
           </Link>
         </div>
@@ -473,7 +454,7 @@ export default function DashboardPage() {
 
       {showOrdersStrip && (
         <div className="dashboard-status-strip text-sm">
-          <span className="font-semibold text-slate-800">Open orders</span>
+          <span className="font-semibold text-night-100">Open orders</span>
           {ordersPending > 0 && (
             <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-xs font-semibold text-orange-900 ring-1 ring-orange-400/30">
               {ordersPending} need action
@@ -490,15 +471,15 @@ export default function DashboardPage() {
       {(stats?.active_auctions ?? 0) > 0 && (
         <div className="dashboard-alert">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500 shadow-lg shadow-orange-500/30">
-              <Gavel className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-brand-500/30 bg-night-800/70">
+              <Image src="/grphs/Icons/bid-gavel-i-bid.png" alt="" width={22} height={22} className="h-5 w-5 object-contain" aria-hidden />
             </div>
             <div>
-              <span className="font-bold text-slate-950">
+              <span className="font-bold text-night-100">
                 {stats!.active_auctions} live auction{stats!.active_auctions > 1 ? "s" : ""} in progress
               </span>
               {stats?.next_auction_end && (
-                <p className="text-sm text-orange-800/90">
+                <p className="text-sm text-brand-400/90">
                   Closes in{" "}
                   <CountdownTimer targetDate={stats.next_auction_end} className="inline font-bold" />
                 </p>
@@ -507,7 +488,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/auctions"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-600"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-brand-500/40 bg-brand-500/10 px-5 py-2.5 text-sm font-bold text-brand-300 transition-all hover:border-brand-500/60 hover:bg-brand-500/15 hover:text-brand-200"
           >
             Join Now <ArrowUpRight className="h-4 w-4" />
           </Link>
@@ -529,14 +510,14 @@ export default function DashboardPage() {
           <div key={card.label} className="dashboard-stat-card group">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[13px] font-semibold uppercase tracking-wider text-slate-600">
+                <p className="text-[13px] font-semibold uppercase tracking-wider text-night-200">
                   {card.label}
                 </p>
-                <p className="dashboard-metric-value mt-2.5 font-extrabold text-slate-950">
+                <p className="dashboard-metric-value mt-2.5 font-extrabold text-night-100">
                   {card.value}
                 </p>
                 {"subValue" in card && card.subValue && (
-                  <p className="mt-0.5 text-xs font-medium text-slate-600">{card.subValue}</p>
+                  <p className="mt-0.5 text-xs font-medium text-night-200">{card.subValue}</p>
                 )}
                 {card.trend != null && card.trend !== "" && (
                   <p
@@ -549,20 +530,25 @@ export default function DashboardPage() {
                   </p>
                 )}
                 {card.label === "Active Listings" && !card.trend && (
-                  <p className="dashboard-stat-delta text-slate-500">—</p>
+                  <p className="dashboard-stat-delta text-night-300">—</p>
                 )}
                 {card.footnote && (
-                  <p className="dashboard-stat-delta text-slate-500">{card.footnote}</p>
+                  <p className="dashboard-stat-delta text-night-300">{card.footnote}</p>
                 )}
               </div>
-              <span
-                className={clsx(
-                  "dashboard-stat-icon",
-                  card.gradient,
-                  statIconShadow(card.gradient),
+              <span className="dashboard-stat-icon">
+                {card.image ? (
+                  <Image
+                    src={card.image}
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 object-contain"
+                    aria-hidden
+                  />
+                ) : (
+                  <card.icon className="h-4 w-4 text-night-200" />
                 )}
-              >
-                <card.icon className="h-6 w-6 text-white" />
               </span>
             </div>
           </div>
@@ -586,11 +572,15 @@ export default function DashboardPage() {
                 <span
                   className={clsx(
                     "dashboard-stat-icon w-fit",
-                    action.color,
-                    action.glow
+                    action.primary && "dashboard-stat-icon--primary",
                   )}
                 >
-                  <action.icon className="h-6 w-6" />
+                  <action.icon
+                    className={clsx(
+                      "h-6 w-6",
+                      action.primary ? "text-brand-400" : "text-night-200",
+                    )}
+                  />
                 </span>
                 <span className="dashboard-action-label">{action.label}</span>
                 <span className="dashboard-action-note">{action.note}</span>
@@ -605,7 +595,7 @@ export default function DashboardPage() {
           action={
             <Link
               href="/notifications"
-              className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800"
+              className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-brand-400"
             >
               View all <ChevronRight className="h-3 w-3" />
             </Link>
@@ -613,7 +603,7 @@ export default function DashboardPage() {
         >
           {notifications.length === 0 && bookings.length === 0 ? (
             <EmptyState
-              image="/illustrations/empty-notifications.png"
+              image="/grphs/Brand/empty-activity-feed-b-empty-activity.png"
               title="No recent activity"
               description="Notifications and scheduled visits will appear here as you trade."
               size="sm"
@@ -639,7 +629,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/inspections"
-            className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800"
+            className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-brand-400"
           >
             View inspections <ChevronRight className="h-3 w-3" />
           </Link>
@@ -647,14 +637,14 @@ export default function DashboardPage() {
       >
         {bookings.length === 0 ? (
           <EmptyState
-            image="/illustrations/empty-bookings.png"
+            image="/grphs/Platform%20Domains/booking-d-booking.png"
             title="No visits or inspections scheduled"
             description="Book on-site visits and inspections from your listings and orders."
             cta={{ label: "Go to inspections", href: "/inspections" }}
             size="md"
           />
         ) : (
-          <div className="divide-y divide-slate-200/90">
+          <div className="divide-y divide-night-700/90">
             {bookings.map((b) => (
               <div
                 key={b.booking_id}
@@ -665,10 +655,10 @@ export default function DashboardPage() {
                     <Calendar className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-sm font-semibold text-night-100">
                       {b.title ?? b.event_type.replace(/_/g, " ")}
                     </p>
-                    <p className="text-xs text-slate-600">{formatEventDate(b.scheduled_at)}</p>
+                    <p className="text-xs text-night-200">{formatEventDate(b.scheduled_at)}</p>
                   </div>
                 </div>
                 <Badge variant={b.status === "confirmed" ? "success" : "warning"}>{b.status}</Badge>

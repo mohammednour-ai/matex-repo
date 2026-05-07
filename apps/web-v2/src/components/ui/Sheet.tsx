@@ -54,7 +54,7 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 bg-white p-6 shadow-lg transition ease-in-out",
+        "fixed z-50 bg-night-850 p-6 shadow-lg transition ease-in-out",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=open]:duration-200 data-[state=closed]:duration-150",
         sideClasses[side],
@@ -63,7 +63,7 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-sky-600 hover:text-sky-950 focus:outline-none focus:ring-2 focus:ring-brand-500">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-night-200 hover:text-night-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -79,7 +79,7 @@ function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
 function SheetTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-lg font-semibold text-sky-950", className)}
+      className={cn("text-lg font-semibold text-night-100", className)}
       {...props}
     />
   );
@@ -91,7 +91,7 @@ function SheetDescription({
 }: React.ComponentProps<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn("text-sm text-sky-700", className)}
+      className={cn("text-sm text-night-200", className)}
       {...props}
     />
   );

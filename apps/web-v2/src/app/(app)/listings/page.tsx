@@ -93,9 +93,9 @@ function SaleModeBadge({ mode }: { mode: SaleMode }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-        mode === "fixed" && "bg-brand-50 text-brand-700 ring-brand-600/20",
-        mode === "bidding" && "bg-amber-50 text-amber-700 ring-amber-600/20",
-        mode === "auction" && "bg-purple-50 text-purple-700 ring-purple-600/20"
+        mode === "fixed" && "bg-brand-500/10 text-brand-700 ring-brand-600/20",
+        mode === "bidding" && "bg-warning-500/10 text-warning-400 ring-amber-600/20",
+        mode === "auction" && "bg-brand-500/15 text-brand-400 ring-purple-600/20"
       )}
     >
       <Icon className="w-2.5 h-2.5" />
@@ -136,7 +136,7 @@ function CardMenu({
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        className="p-1 rounded-md text-night-300 hover:text-night-200 hover:bg-night-800 transition-colors"
         aria-label="More actions"
       >
         <MoreVertical className="w-4 h-4" />
@@ -148,15 +148,15 @@ function CardMenu({
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-7 z-20 w-40 bg-white rounded-xl border border-slate-200 shadow-lg py-1 overflow-hidden">
+          <div className="absolute right-0 top-7 z-20 w-40 bg-night-850 rounded-xl border border-night-700 shadow-lg py-1 overflow-hidden">
             <button
               onClick={() => {
                 setOpen(false);
                 router.push(`/listings/${listing.listing_id}`);
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-night-200 hover:bg-night-900 transition-colors"
             >
-              <Eye className="w-4 h-4 text-slate-400" />
+              <Eye className="w-4 h-4 text-night-300" />
               View
             </button>
             <button
@@ -164,9 +164,9 @@ function CardMenu({
                 setOpen(false);
                 router.push(`/listings/${listing.listing_id}/edit`);
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-night-200 hover:bg-night-900 transition-colors"
             >
-              <Edit2 className="w-4 h-4 text-slate-400" />
+              <Edit2 className="w-4 h-4 text-night-300" />
               Edit
             </button>
             {listing.status !== "archived" && (
@@ -175,7 +175,7 @@ function CardMenu({
                   setOpen(false);
                   onArchive(listing.listing_id);
                 }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-danger-500/10 transition-colors"
               >
                 <Archive className="w-4 h-4" />
                 Archive
@@ -202,11 +202,11 @@ function ListingCardItem({
 
   return (
     <div
-      className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-slate-300 transition-all duration-150 flex flex-col"
+      className="bg-night-850 rounded-xl border border-night-700 overflow-hidden hover:shadow-md hover:border-night-600 transition-all duration-150 flex flex-col"
     >
       {/* Thumbnail */}
       <div
-        className="relative aspect-video bg-slate-100 cursor-pointer overflow-hidden"
+        className="relative aspect-video bg-night-800 cursor-pointer overflow-hidden"
         onClick={() => router.push(`/listings/${listing.listing_id}`)}
       >
         {listing.thumbnail_url ? (
@@ -221,7 +221,7 @@ function ListingCardItem({
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-2">
+          <div className="flex flex-col items-center justify-center h-full text-zinc-300 gap-2">
             <Package className="w-10 h-10" />
             <span className="text-xs">No photo</span>
           </div>
@@ -239,7 +239,7 @@ function ListingCardItem({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/listings/${listing.listing_id}`}
-            className="text-sm font-semibold text-slate-800 hover:text-brand-600 transition-colors leading-snug line-clamp-2 flex-1"
+            className="text-sm font-semibold text-night-100 hover:text-brand-600 transition-colors leading-snug line-clamp-2 flex-1"
           >
             {listing.title}
           </Link>
@@ -250,7 +250,7 @@ function ListingCardItem({
         <div className="flex items-center flex-wrap gap-1.5">
           <SaleModeBadge mode={listing.sale_mode} />
           {listing.category && (
-            <span className="text-[10px] text-slate-400 bg-slate-50 rounded-full px-2 py-0.5 border border-slate-200">
+            <span className="text-[10px] text-night-300 bg-night-900 rounded-full px-2 py-0.5 border border-night-700">
               {listing.category}
             </span>
           )}
@@ -258,27 +258,27 @@ function ListingCardItem({
 
         {/* Quantity */}
         {listing.quantity != null && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-night-300">
             {listing.quantity} {listing.unit ?? "units"}
           </p>
         )}
 
         {/* Price */}
-        <p className="text-base font-bold text-slate-900">{formatPrice(listing)}</p>
+        <p className="text-base font-bold text-night-100">{formatPrice(listing)}</p>
 
         {/* Stats row */}
-        <div className="flex items-center gap-4 mt-auto pt-2 border-t border-slate-100">
-          <span className="flex items-center gap-1 text-xs text-slate-400">
+        <div className="flex items-center gap-4 mt-auto pt-2 border-t border-night-700/60">
+          <span className="flex items-center gap-1 text-xs text-night-300">
             <Eye className="w-3 h-3" />
             {listing.view_count ?? 0} views
           </span>
           {listing.sale_mode !== "fixed" && (
-            <span className="flex items-center gap-1 text-xs text-slate-400">
+            <span className="flex items-center gap-1 text-xs text-night-300">
               <Gavel className="w-3 h-3" />
               {listing.bids_count ?? 0} bid{listing.bids_count !== 1 ? "s" : ""}
             </span>
           )}
-          <span className="ml-auto flex items-center gap-1 text-xs text-slate-400">
+          <span className="ml-auto flex items-center gap-1 text-xs text-night-300">
             <Clock className="w-3 h-3" />
             {formatDate(listing.created_at)}
           </span>
@@ -286,26 +286,26 @@ function ListingCardItem({
       </div>
 
       {/* Quick actions footer */}
-      <div className="flex border-t border-slate-100">
+      <div className="flex border-t border-night-700/60">
         <Link
           href={`/listings/${listing.listing_id}`}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-200 hover:bg-night-900 hover:text-night-100 transition-colors"
         >
           <Eye className="w-3.5 h-3.5" />
           View
         </Link>
-        <div className="w-px bg-slate-100" />
+        <div className="w-px bg-night-800" />
         <Link
           href={`/listings/${listing.listing_id}/edit`}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-200 hover:bg-night-900 hover:text-night-100 transition-colors"
         >
           <Edit2 className="w-3.5 h-3.5" />
           Edit
         </Link>
-        <div className="w-px bg-slate-100" />
+        <div className="w-px bg-night-800" />
         <button
           onClick={() => onArchive(listing.listing_id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-300 hover:bg-danger-500/10 hover:text-red-600 transition-colors"
           disabled={listing.status === "archived"}
         >
           <Archive className="w-3.5 h-3.5" />
@@ -323,31 +323,31 @@ const EMPTY_BY_TAB: Record<
   { image: string; title: string; description: string; showCreate: boolean }
 > = {
   all: {
-    image: "/illustrations/empty-listings.png",
+    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No listings yet",
     description: "Create your first listing to start selling recycled materials on Matex.",
     showCreate: true,
   },
   active: {
-    image: "/illustrations/empty-active-listings.png",
+    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No active listings",
     description: "Publish a draft listing or create a new one to start receiving offers.",
     showCreate: true,
   },
   draft: {
-    image: "/illustrations/empty-listings.png",
+    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No drafts",
     description: "Save a listing as draft to continue editing it later.",
     showCreate: true,
   },
   sold: {
-    image: "/illustrations/empty-sold.png",
+    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No sold listings",
     description: "Listings you've completed will appear here.",
     showCreate: false,
   },
   ended: {
-    image: "/illustrations/empty-active-listings.png",
+    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No ended listings",
     description: "Expired or closed listings will appear here.",
     showCreate: false,
@@ -383,7 +383,7 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
 
   const stats = [
     { label: "Active", value: active, color: "text-emerald-600" },
-    { label: "Drafts", value: draft, color: "text-slate-600" },
+    { label: "Drafts", value: draft, color: "text-night-200" },
     { label: "Sold", value: sold, color: "text-brand-600" },
     { label: "Total views", value: totalViews, color: "text-purple-600" },
   ];
@@ -393,10 +393,10 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
       {stats.map((s) => (
         <div
           key={s.label}
-          className="bg-white rounded-xl border border-slate-200 px-4 py-3 text-center"
+          className="bg-night-850 rounded-xl border border-night-700 px-4 py-3 text-center"
         >
           <p className={clsx("text-2xl font-bold", s.color)}>{s.value}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
+          <p className="text-xs text-night-300 mt-0.5">{s.label}</p>
         </div>
       ))}
     </div>
@@ -407,13 +407,13 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden animate-pulse">
-      <div className="aspect-video bg-slate-200" />
+    <div className="bg-night-850 rounded-xl border border-night-700 overflow-hidden animate-pulse">
+      <div className="aspect-video bg-night-700" />
       <div className="p-4 space-y-3">
-        <div className="h-4 bg-slate-200 rounded w-3/4" />
-        <div className="h-3 bg-slate-200 rounded w-1/3" />
-        <div className="h-5 bg-slate-200 rounded w-1/2" />
-        <div className="h-3 bg-slate-200 rounded w-full" />
+        <div className="h-4 bg-night-700 rounded w-3/4" />
+        <div className="h-3 bg-night-700 rounded w-1/3" />
+        <div className="h-5 bg-night-700 rounded w-1/2" />
+        <div className="h-3 bg-night-700 rounded w-full" />
       </div>
     </div>
   );
@@ -517,9 +517,9 @@ export default function MyListingsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3">
           <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-danger-400">{error}</p>
           <button
             onClick={loadListings}
             className="ml-auto text-xs text-red-600 hover:underline font-medium"
@@ -530,7 +530,7 @@ export default function MyListingsPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-sky-200">
+      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-night-700">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -539,7 +539,7 @@ export default function MyListingsPage() {
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
               activeTab === tab.id
                 ? "border-brand-600 text-brand-600"
-                : "border-transparent text-sky-500 hover:border-sky-300 hover:text-sky-800"
+                : "border-transparent text-night-300 hover:border-night-600 hover:text-night-100"
             )}
           >
             {tab.label}
@@ -549,7 +549,7 @@ export default function MyListingsPage() {
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold min-w-[18px] text-center",
                   activeTab === tab.id
                     ? "bg-brand-100 text-brand-700"
-                    : "bg-sky-100 text-sky-600"
+                    : "bg-night-800 text-night-200"
                 )}
               >
                 {tabCounts[tab.id]}
@@ -575,13 +575,13 @@ export default function MyListingsPage() {
         <>
           {tableViewEnabled && (
             <div className="mb-3 flex justify-end">
-              <div className="inline-flex rounded-lg border border-sky-200 bg-white p-0.5 text-xs font-semibold">
+              <div className="inline-flex rounded-lg border border-night-700 bg-night-850 p-0.5 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setViewMode("cards")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "cards" ? "bg-brand-50 text-brand-700" : "text-sky-500 hover:text-sky-800",
+                    viewMode === "cards" ? "bg-brand-500/10 text-brand-700" : "text-night-300 hover:text-night-100",
                   )}
                 >
                   Cards
@@ -591,7 +591,7 @@ export default function MyListingsPage() {
                   onClick={() => setViewMode("table")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "table" ? "bg-brand-50 text-brand-700" : "text-sky-500 hover:text-sky-800",
+                    viewMode === "table" ? "bg-brand-500/10 text-brand-700" : "text-night-300 hover:text-night-100",
                   )}
                 >
                   Table
@@ -621,7 +621,7 @@ export default function MyListingsPage() {
 
       {/* Loading spinner for archiving */}
       {archiving && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 text-white text-xs font-medium px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
           <Spinner className="w-3.5 h-3.5" />
           Archiving listing…
         </div>

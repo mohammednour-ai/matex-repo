@@ -47,6 +47,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "terminate_contract", description: "Terminate an active contract", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, reason: { type: "string" }, terminated_by: { type: "string" } }, required: ["contract_id", "reason", "terminated_by"] } },
     { name: "evaluate_breach", description: "Evaluate whether a contract order constitutes a breach and compute penalties", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" } }, required: ["contract_id", "order_id"] } },
     { name: "collect_penalty", description: "Record and trigger collection of a breach penalty", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" }, penalty_amount: { type: "number" }, reason: { type: "string" } }, required: ["contract_id", "order_id", "penalty_amount", "reason"] } },
+    { name: "list_contracts", description: "List contracts for a user (as buyer or seller). Optional status filter. If no user_id is provided, returns all contracts (admin view).", inputSchema: { type: "object", properties: { user_id: { type: "string" }, status: { type: "string" }, contract_type: { type: "string" }, limit: { type: "number" } } } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -257,6 +258,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         text: ok({ contract_id: contractId, order_id: orderId, is_breach: isBreach, shortfall_kg: shortfallKg, shortfall_pct: shortfallPct, late_delivery: Boolean(isLateDelivery), penalty_amount: penaltyAmount, late_penalty: latePenalty, total_penalty: totalPenalty }),
       }],
     };
+  }
+
+  if (tool === "list_contracts") {
+    const userId = args.user_id ? String(args.user_id) : "";
+    const statusFilter = args.status ? String(args.status) : "";
+    const contractType = args.contract_type ? String(args.contract_type) : "";
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+
+    let query = supabase
+      .schema("contracts_mcp")
+      .from("contracts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (userId) query = query.or(`buyer_id.eq.${userId},seller_id.eq.${userId}`);
+    if (statusFilter) query = query.eq("status", statusFilter);
+    if (contractType) query = query.eq("contract_type", contractType);
+
+    const { data, error } = await query;
+    if (error) return fail("DB_ERROR", "Database operation failed");
+    return { content: [{ type: "text", text: ok({ contracts: data ?? [] }) }] };
   }
 
   if (tool === "collect_penalty") {

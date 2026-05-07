@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Gavel, Search, Package, TrendingUp, Clock } from "lucide-react";
+import Image from "next/image";
+import { Search, Package, TrendingUp, Clock } from "lucide-react";
 import { callTool } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -127,28 +128,28 @@ export default function AuctionsPage() {
         description="Bid on recycled material lots from verified sellers across Canada."
         actions={
           <div className="relative w-full min-w-0 sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-night-300" />
             <input
               type="search"
               placeholder="Search auctions…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-sky-200/80 bg-white/95 py-2 pl-9 pr-3 text-sm text-sky-900 shadow-sm placeholder:text-sky-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
+              className="w-full rounded-xl border border-night-700/80 bg-night-850/95 py-2 pl-9 pr-3 text-sm text-night-100 shadow-sm placeholder:text-night-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/25"
             />
           </div>
         }
       />
 
       {/* Tabs */}
-      <div className="flex w-fit gap-1 rounded-2xl border border-sky-200/80 bg-sky-100/80 p-1">
+      <div className="flex w-fit gap-1 rounded-2xl border border-night-700/80 bg-night-800/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`relative flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
               tab === t.key
-                ? "bg-white text-sky-900 shadow-sm"
-                : "text-sky-500 hover:text-sky-800"
+                ? "bg-night-850 text-night-100 shadow-sm"
+                : "text-night-300 hover:text-night-100"
             }`}
           >
             {t.key === "live" && t.count > 0 && (
@@ -160,7 +161,7 @@ export default function AuctionsPage() {
             {t.label}
             <span
               className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-sky-200 text-sky-500"
+                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-night-700 text-night-300"
               }`}
             >
               {loading && t.key === "live" ? "…" : t.count}
@@ -170,7 +171,7 @@ export default function AuctionsPage() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -182,7 +183,7 @@ export default function AuctionsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          image={tab === "completed" ? "/illustrations/auction-complete.png" : "/illustrations/auction-lobby.png"}
+          image="/grphs/Brand/empty-auctions-empty-auctions.png"
           title={`No ${tab} auctions`}
           description={
             tab === "live"
@@ -213,18 +214,18 @@ function AuctionCard({ auction }: { auction: Auction }) {
       {/* Live badge */}
       {isLive && (
         <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-0.5">
-          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-night-850" />
           <span className="text-xs font-bold uppercase tracking-wider text-white">Live</span>
         </div>
       )}
 
       <div className="flex items-start gap-3 mb-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-          <Gavel className="h-5 w-5" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10">
+          <Image src="/grphs/Icons/bid-gavel-i-bid.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" aria-hidden />
         </div>
         <div className="min-w-0">
-          <h3 className="truncate font-semibold text-slate-900 text-sm leading-snug pr-12">{auction.title}</h3>
-          <p className="mt-0.5 text-xs text-slate-500 truncate">{auction.organizer}</p>
+          <h3 className="truncate font-semibold text-night-100 text-sm leading-snug pr-12">{auction.title}</h3>
+          <p className="mt-0.5 text-xs text-night-300 truncate">{auction.organizer}</p>
         </div>
       </div>
 
@@ -246,7 +247,7 @@ function AuctionCard({ auction }: { auction: Auction }) {
         />
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+      <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t border-night-700/60">
         {auction.registered ? (
           <Badge variant="success">Registered</Badge>
         ) : (
@@ -273,8 +274,8 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="flex items-center gap-1 text-slate-400">{icon}<span className="text-[10px] uppercase tracking-wide font-medium">{label}</span></div>
-      <div className="text-xs font-semibold text-slate-800">{value}</div>
+      <div className="flex items-center gap-1 text-night-300">{icon}<span className="text-[10px] uppercase tracking-wide font-medium">{label}</span></div>
+      <div className="text-xs font-semibold text-night-100">{value}</div>
     </div>
   );
 }

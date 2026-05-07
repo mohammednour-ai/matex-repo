@@ -65,7 +65,7 @@ export function BidStream({ bids, currentUserKey, className }: BidStreamProps) {
   return (
     <div className={cn("space-y-2", className)} ref={topRef}>
       {bids.length === 0 && (
-        <div className="rounded-lg border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-500">
+        <div className="rounded-lg border border-dashed border-night-700 px-3 py-6 text-center text-xs text-night-300">
           No bids yet. Be the first.
         </div>
       )}
@@ -79,23 +79,23 @@ export function BidStream({ bids, currentUserKey, className }: BidStreamProps) {
             className={cn(
               "flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-all",
               isTop
-                ? "bg-blue-50 ring-1 ring-blue-200 animate-in fade-in slide-in-from-top-1"
-                : "bg-slate-50",
+                ? "bg-brand-500/10 ring-1 ring-blue-200 animate-in fade-in slide-in-from-top-1"
+                : "bg-night-900",
             )}
           >
             <div className="flex items-center gap-2">
               <div
                 className={cn(
                   "h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                  isTop ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600",
+                  isTop ? "bg-blue-600 text-white" : "bg-night-700 text-night-200",
                 )}
               >
                 {initial}
               </div>
-              <span className="font-medium text-slate-700 flex items-center gap-1.5">
+              <span className="font-medium text-night-200 flex items-center gap-1.5">
                 {bid.bidder}
                 {isYou && (
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-success-400 bg-emerald-100 px-1.5 py-0.5 rounded-full">
                     You
                   </span>
                 )}
@@ -105,12 +105,12 @@ export function BidStream({ bids, currentUserKey, className }: BidStreamProps) {
               <p
                 className={cn(
                   "font-bold tabular-nums",
-                  isTop ? "text-blue-700" : "text-slate-800",
+                  isTop ? "text-brand-400" : "text-night-100",
                 )}
               >
                 {formatCAD(bid.amount)}
               </p>
-              <p className="text-slate-400">{timeAgo(bid.timestamp)}</p>
+              <p className="text-night-300">{timeAgo(bid.timestamp)}</p>
             </div>
           </div>
         );

@@ -23,6 +23,28 @@ export const metadata: Metadata = {
     shortcut: ["/favicon-512.png"],
   },
   manifest: "/site.webmanifest",
+  openGraph: {
+    title: "Matex | B2B Recycled Materials Marketplace",
+    description:
+      "Canada's leading B2B marketplace for recycled materials. Buy and sell scrap metal, plastics, paper, and more with full compliance, escrow protection, and real-time auctions.",
+    type: "website",
+    siteName: "Matex",
+    images: [
+      {
+        url: "/grphs/Brand/og-social-share-image-b-og-share.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Matex — B2B Recycled Materials Marketplace",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Matex | B2B Recycled Materials Marketplace",
+    description:
+      "Canada's leading B2B marketplace for recycled materials.",
+    images: ["/grphs/Brand/og-social-share-image-b-og-share.jpg"],
+  },
 };
 
 export default function RootLayout({

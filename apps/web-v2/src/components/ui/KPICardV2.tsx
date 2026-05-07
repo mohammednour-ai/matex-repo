@@ -70,11 +70,11 @@ export function KPICardV2({
       {series.length > 1 && !loading && (
         <div
           className={clsx(
-            "rounded-xl border border-sky-200/65 bg-white/[0.92] px-3 py-2 shadow-sm",
+            "rounded-xl border border-night-700/65 bg-night-850/[0.92] px-3 py-2 shadow-sm",
             chartClassName
           )}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-night-200">
             {trendLabel}
           </p>
           <SparkAreaChart

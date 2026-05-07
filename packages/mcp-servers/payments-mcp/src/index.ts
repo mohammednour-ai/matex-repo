@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { calculateCommission, generateId, MatexEventBus, now, roundToTwoDecimals , initSentry} from "@matex/utils";
+import { calculateCommission, generateId, getPlatformConfigNumber, MatexEventBus, now, roundToTwoDecimals , initSentry} from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "payments-mcp";
@@ -53,30 +53,23 @@ async function emitEvent(event: string, payload: Record<string, unknown>): Promi
 }
 
 const DEFAULT_COMMISSION_RATE = 0.035;
+const DEFAULT_HST_RATE = 0.13;
 
-async function getCommissionRate(): Promise<number> {
-  if (!supabase) return DEFAULT_COMMISSION_RATE;
-  try {
-    const { data } = await supabase.schema("log_mcp").from("platform_config").select("config_value").eq("config_key", "commission_rate").maybeSingle();
-    if (data?.config_value) {
-      const parsed = parseFloat(String(data.config_value));
-      if (Number.isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
-    }
-  } catch {
-    // fall through to default
-  }
-  return DEFAULT_COMMISSION_RATE;
+async function isPlatformAdmin(userId: string): Promise<boolean> {
+  if (!supabase || !userId) return false;
+  const { data } = await supabase.schema("auth_mcp").from("users").select("is_platform_admin").eq("user_id", userId).maybeSingle();
+  return Boolean(data?.is_platform_admin);
 }
 
 const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    { name: "process_payment", description: "Process buyer payment record", inputSchema: { type: "object", properties: { user_id: { type: "string" }, amount: { type: "number" }, method: { type: "string" }, order_id: { type: "string" } }, required: ["user_id", "amount", "method"] } },
-    { name: "get_wallet_balance", description: "Get wallet balances by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
-    { name: "top_up_wallet", description: "Top up user wallet", inputSchema: { type: "object", properties: { user_id: { type: "string" }, amount: { type: "number" } }, required: ["user_id", "amount"] } },
-    { name: "manage_payment_methods", description: "Add payment method metadata", inputSchema: { type: "object", properties: { user_id: { type: "string" }, type: { type: "string" }, label: { type: "string" }, set_default: { type: "boolean" } }, required: ["user_id", "type", "label"] } },
-    { name: "get_transaction_history", description: "Get recent transactions by user", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
+    { name: "process_payment", description: "Process buyer payment record. actor_id must equal user_id (the payer).", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, amount: { type: "number" }, method: { type: "string" }, order_id: { type: "string" } }, required: ["actor_id", "user_id", "amount", "method"] } },
+    { name: "get_wallet_balance", description: "Get wallet balances by user. actor_id must equal user_id (or be a platform admin).", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" } }, required: ["actor_id", "user_id"] } },
+    { name: "top_up_wallet", description: "Top up user wallet. actor_id must equal user_id.", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, amount: { type: "number" } }, required: ["actor_id", "user_id", "amount"] } },
+    { name: "manage_payment_methods", description: "Add payment method metadata. actor_id must equal user_id.", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, type: { type: "string" }, label: { type: "string" }, set_default: { type: "boolean" } }, required: ["actor_id", "user_id", "type", "label"] } },
+    { name: "get_transaction_history", description: "Get recent transactions by user. actor_id must equal user_id (or be a platform admin).", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" } }, required: ["actor_id", "user_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -89,9 +82,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: [{ type: "text", text: ok({ status: "ok", server: SERVER_NAME, version: SERVER_VERSION, timestamp: now() }) }] };
   }
 
+  // Tools other than ping require an actor_id; verify it matches the target user_id (or actor is a platform admin).
+  const actorId = String(args.actor_id ?? "");
+  const targetUserId = String(args.user_id ?? "");
+  if (tool === "get_wallet_balance" || tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment" || tool === "get_transaction_history") {
+    if (!actorId) return fail("VALIDATION_ERROR", "actor_id is required.");
+    if (!targetUserId) return fail("VALIDATION_ERROR", "user_id is required.");
+    if (actorId !== targetUserId) {
+      const isAdmin = await isPlatformAdmin(actorId);
+      // For mutating tools (top_up_wallet, manage_payment_methods, process_payment) we require actor === user; admins cannot impersonate.
+      if (tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment") {
+        return fail("FORBIDDEN", "actor_id must match user_id for this operation.");
+      }
+      if (!isAdmin) return fail("FORBIDDEN", "actor_id must match user_id (or actor must be a platform admin).");
+    }
+  }
+
   if (tool === "get_wallet_balance") {
-    const userId = String(args.user_id ?? "");
-    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+    const userId = targetUserId;
 
     if (supabase) {
       const { data, error } = await supabase
@@ -110,9 +118,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "top_up_wallet") {
-    const userId = String(args.user_id ?? "");
+    const userId = targetUserId;
     const amount = Number(args.amount ?? 0);
-    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
     if (!Number.isFinite(amount) || amount <= 0) return fail("VALIDATION_ERROR", "amount must be greater than 0.");
 
     if (supabase) {
@@ -187,8 +194,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "manage_payment_methods") {
-    const userId = String(args.user_id ?? "");
-    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+    const userId = targetUserId;
     if (!String(args.type ?? "").trim()) return fail("VALIDATION_ERROR", "type is required.");
     if (!String(args.label ?? "").trim()) return fail("VALIDATION_ERROR", "label is required.");
 
@@ -235,15 +241,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "process_payment") {
-    const userId = String(args.user_id ?? "");
+    const userId = targetUserId;
     const amount = Number(args.amount ?? 0);
     const method = String(args.method ?? "stripe_card");
-    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
     if (!Number.isFinite(amount) || amount <= 0) return fail("VALIDATION_ERROR", "amount must be greater than 0.");
     if (!method) return fail("VALIDATION_ERROR", "method is required.");
     const orderId = args.order_id ? String(args.order_id) : undefined;
-    const commissionRate = await getCommissionRate();
+    const commissionRate = await getPlatformConfigNumber(supabase, "commission_rate", DEFAULT_COMMISSION_RATE, (n) => n > 0 && n < 1);
+    const hstRate = await getPlatformConfigNumber(supabase, "tax_rate_hst", DEFAULT_HST_RATE, (n) => n >= 0 && n < 1);
     const commission = calculateCommission(amount, { rate: commissionRate, minimum: 25, cap: 5000 });
+    const taxAmount = roundToTwoDecimals(commission * hstRate);
     const transaction = {
       transaction_id: generateId(),
       order_id: orderId,
@@ -253,7 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       transaction_type: "purchase",
       status: "completed",
       commission_amount: commission,
-      tax_amount: roundToTwoDecimals(commission * 0.13),
+      tax_amount: taxAmount,
       created_at: now(),
       escrow_reference: {
         order_id: orderId ?? null,
@@ -273,8 +280,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         transaction_type: "purchase",
         status: "pending_capture",
         commission_amount: commission,
-        tax_amount: roundToTwoDecimals(commission * 0.13),
-        metadata: { escrow_reference: transaction.escrow_reference },
+        tax_amount: taxAmount,
+        metadata: { escrow_reference: transaction.escrow_reference, hst_rate: hstRate, commission_rate: commissionRate },
         created_at: transaction.created_at,
         updated_at: transaction.created_at,
       });
@@ -291,8 +298,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "get_transaction_history") {
-    const userId = String(args.user_id ?? "");
-    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+    const userId = targetUserId;
 
     if (supabase) {
       const { data, error } = await supabase

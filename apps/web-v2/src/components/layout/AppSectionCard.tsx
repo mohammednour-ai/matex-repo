@@ -21,11 +21,11 @@ export function AppSectionCard({
   as: Tag = "section",
 }: AppSectionCardProps) {
   return (
-    <Tag className={clsx("marketplace-card p-5 sm:p-6", className)}>
+    <Tag className={clsx("marketplace-card p-4 sm:p-5", className)}>
       {title != null || action != null ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-sky-100/80 pb-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-night-700/80 pb-2">
           {title != null ? (
-            <div className="text-xs font-bold uppercase tracking-widest text-sky-500">{title}</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-night-300">{title}</div>
           ) : (
             <span className="min-w-0" />
           )}

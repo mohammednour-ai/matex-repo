@@ -127,14 +127,14 @@ const DEFAULT_FORM: FormData = {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const CATEGORIES: { name: string; icon: string | null }[] = [
-  { name: "Ferrous Metals", icon: "/icons/categories/ferrous-metals.png" },
-  { name: "Non-Ferrous Metals", icon: "/icons/categories/non-ferrous-metals.png" },
-  { name: "Precious Metals", icon: "/icons/categories/precious-metals.png" },
-  { name: "Plastics", icon: "/icons/categories/plastics.png" },
-  { name: "Electronics", icon: "/icons/categories/electronics.png" },
-  { name: "Paper & Cardboard", icon: "/icons/categories/paper-cardboard.png" },
-  { name: "Rubber", icon: "/icons/categories/rubber.png" },
-  { name: "Construction", icon: "/icons/categories/construction.png" },
+  { name: "Ferrous Metals", icon: "/grphs/Materials/steel-coil-s-coil.png" },
+  { name: "Non-Ferrous Metals", icon: "/grphs/Materials/aluminum-extrusion-s-alu.png" },
+  { name: "Precious Metals", icon: "/grphs/Materials/copper-wire-spool-s-copper.png" },
+  { name: "Plastics", icon: "/grphs/Materials/plastics-s-plastics.png" },
+  { name: "Electronics", icon: "/grphs/Materials/e-waste-electronics-s-ewaste.png" },
+  { name: "Paper & Cardboard", icon: "/grphs/Materials/paper-cardboard-s-paper.png" },
+  { name: "Rubber", icon: "/grphs/Materials/rubber-s-rubber.png" },
+  { name: "Construction", icon: "/grphs/Materials/steel-i-beam-s-ibeam.png" },
 ];
 
 const UNITS = [
@@ -199,7 +199,7 @@ function calcCommission(amount: number, mode: SaleMode): number {
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+    <label className="block text-sm font-medium text-night-200 mb-1.5">
       {children}
       {required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
@@ -207,14 +207,14 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 }
 
 function FieldHint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1 text-xs text-slate-400">{children}</p>;
+  return <p className="mt-1 text-xs text-night-300">{children}</p>;
 }
 
 const inputCls =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors";
+  "w-full rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 placeholder:text-night-300 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors";
 
 const selectCls =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors bg-white";
+  "w-full rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors bg-night-850";
 
 function Slider({
   label,
@@ -231,7 +231,7 @@ function Slider({
     <div>
       <div className="flex justify-between items-center mb-1.5">
         <FieldLabel>{label}</FieldLabel>
-        <span className="text-sm font-semibold text-slate-800">{value}%</span>
+        <span className="text-sm font-semibold text-night-100">{value}%</span>
       </div>
       <input
         type="range"
@@ -248,7 +248,7 @@ function Slider({
 
 function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-2 rounded-lg bg-brand-50 border border-brand-100 px-3 py-2.5">
+    <div className="flex gap-2 rounded-lg bg-brand-500/10 border border-brand-100 px-3 py-2.5">
       <Info className="w-4 h-4 text-brand-500 mt-0.5 shrink-0" />
       <p className="text-xs text-brand-700">{children}</p>
     </div>
@@ -257,9 +257,9 @@ function InfoBanner({ children }: { children: React.ReactNode }) {
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="flex gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5">
-      <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-      <p className="text-sm text-red-700">{message}</p>
+    <div className="flex gap-2 rounded-lg bg-danger-500/10 border border-danger-500/30 px-3 py-2.5">
+      <AlertCircle className="w-4 h-4 text-danger-400 mt-0.5 shrink-0" />
+      <p className="text-sm text-danger-400">{message}</p>
     </div>
   );
 }
@@ -282,8 +282,8 @@ function StepBar({ current }: { current: number }) {
                   done
                     ? "bg-brand-600 border-brand-600 text-white"
                     : active
-                    ? "bg-white border-brand-600 text-brand-600"
-                    : "bg-white border-slate-200 text-slate-400"
+                    ? "bg-night-850 border-brand-600 text-brand-600"
+                    : "bg-night-850 border-night-700 text-night-300"
                 )}
               >
                 {done ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -291,7 +291,7 @@ function StepBar({ current }: { current: number }) {
               <span
                 className={clsx(
                   "text-[10px] font-medium whitespace-nowrap",
-                  active ? "text-brand-600" : done ? "text-slate-700" : "text-slate-400"
+                  active ? "text-brand-600" : done ? "text-night-200" : "text-night-300"
                 )}
               >
                 {s.label}
@@ -301,7 +301,7 @@ function StepBar({ current }: { current: number }) {
               <div
                 className={clsx(
                   "h-0.5 w-8 sm:w-12 mx-1 mt-[-12px] transition-colors",
-                  done ? "bg-brand-600" : "bg-slate-200"
+                  done ? "bg-brand-600" : "bg-night-700"
                 )}
               />
             )}
@@ -364,12 +364,12 @@ function Step1({
                   className={clsx(
                     "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     active
-                      ? "border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-200"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50/40",
+                      ? "border-brand-500 bg-brand-500/10 text-brand-800 ring-2 ring-brand-200"
+                      : "border-night-700 bg-night-850 text-night-200 hover:border-brand-300 hover:bg-brand-500/40",
                   )}
                 >
                   {c.icon ? (
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sky-50 overflow-hidden">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-night-900 overflow-hidden">
                       <Image src={c.icon} alt="" width={28} height={28} className="object-contain" />
                     </span>
                   ) : null}
@@ -392,7 +392,7 @@ function Step1({
                   "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                   data.materialType === t
                     ? "bg-brand-600 border-brand-600 text-white"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                    : "bg-night-850 border-night-700 text-night-200 hover:border-night-600 hover:bg-night-900"
                 )}
               >
                 {t}
@@ -455,16 +455,16 @@ function Step1({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 p-4 space-y-3">
-        <p className="text-sm font-medium text-slate-700">Environmental permits</p>
+      <div className="rounded-xl border border-night-700 p-4 space-y-3">
+        <p className="text-sm font-medium text-night-200">Environmental permits</p>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={data.hasPermit}
             onChange={(e) => onChange({ hasPermit: e.target.checked })}
-            className="rounded border-slate-300 text-brand-600 focus:ring-brand-200"
+            className="rounded border-night-600 text-brand-600 focus:ring-brand-200"
           />
-          <span className="text-sm text-slate-700">Has provincial transport permit</span>
+          <span className="text-sm text-night-200">Has provincial transport permit</span>
         </label>
         {data.hasPermit && (
           <input
@@ -497,7 +497,7 @@ function Step1({
           Save as draft
         </Button>
         {listingId && (
-          <span className="text-xs text-slate-400">Draft saved · ID: {listingId.slice(0, 8)}…</span>
+          <span className="text-xs text-night-300">Draft saved · ID: {listingId.slice(0, 8)}…</span>
         )}
       </div>
     </div>
@@ -564,32 +564,32 @@ function SaleModeCard({
       className={clsx(
         "w-full rounded-xl border-2 p-4 text-left transition-all",
         selected
-          ? "border-brand-600 bg-brand-50/50 ring-1 ring-brand-200"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+          ? "border-brand-600 bg-brand-500/50 ring-1 ring-brand-200"
+          : "border-night-700 bg-night-850 hover:border-night-600 hover:bg-night-900"
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={clsx(
             "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-            selected ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-500"
+            selected ? "bg-brand-600 text-white" : "bg-night-800 text-night-300"
           )}
         >
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={clsx("font-semibold text-sm", selected ? "text-brand-700" : "text-slate-800")}>
+          <p className={clsx("font-semibold text-sm", selected ? "text-brand-700" : "text-night-100")}>
             {title}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+          <p className="text-xs text-night-300 mt-0.5">{description}</p>
         </div>
         <div
           className={clsx(
             "w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center",
-            selected ? "border-brand-600 bg-brand-600" : "border-slate-300 bg-white"
+            selected ? "border-brand-600 bg-brand-600" : "border-night-600 bg-night-850"
           )}
         >
-          {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+          {selected && <div className="w-1.5 h-1.5 rounded-full bg-night-850" />}
         </div>
       </div>
     </button>
@@ -668,13 +668,13 @@ function Step3({
 
       {/* Mode-specific fields */}
       {data.saleMode === "fixed" && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-4">
-          <p className="text-sm font-semibold text-slate-700">Fixed price settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Fixed price settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required>Asking price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number"
                   min={0}
@@ -689,7 +689,7 @@ function Step3({
             <div>
               <FieldLabel>Buy-now price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number"
                   min={0}
@@ -715,13 +715,13 @@ function Step3({
       )}
 
       {data.saleMode === "bidding" && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-4">
-          <p className="text-sm font-semibold text-slate-700">Bidding settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Bidding settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required>Starting bid (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -734,7 +734,7 @@ function Step3({
             <div>
               <FieldLabel>Reserve price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -749,7 +749,7 @@ function Step3({
             <div>
               <FieldLabel>Bid increment (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -773,13 +773,13 @@ function Step3({
       )}
 
       {data.saleMode === "auction" && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-4">
-          <p className="text-sm font-semibold text-slate-700">Live auction settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Live auction settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel>Reserve price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -803,7 +803,7 @@ function Step3({
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <FieldLabel>Deposit / downpayment %</FieldLabel>
-                <span className="text-sm font-semibold text-slate-800">{data.depositPct}%</span>
+                <span className="text-sm font-semibold text-night-100">{data.depositPct}%</span>
               </div>
               <input
                 type="range" min={0} max={50}
@@ -837,8 +837,8 @@ function Step3({
 
       {/* Publish schedule */}
       {data.saleMode !== "" && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-3">
-          <p className="text-sm font-semibold text-slate-700">Publish schedule</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-3">
+          <p className="text-sm font-semibold text-night-200">Publish schedule</p>
           <div className="flex gap-2">
             {(["immediate", "scheduled"] as PublishMode[]).map((m) => (
               <button
@@ -849,7 +849,7 @@ function Step3({
                   "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                   data.publishMode === m
                     ? "bg-brand-600 border-brand-600 text-white"
-                    : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    : "bg-night-850 border-night-700 text-night-200 hover:border-night-600"
                 )}
               >
                 {m === "immediate" ? "Publish immediately" : "Schedule for later"}
@@ -872,14 +872,14 @@ function Step3({
 
       {/* Commission preview */}
       {price > 0 && data.saleMode && (
-        <div className="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 flex justify-between items-center">
+        <div className="rounded-lg bg-warning-500/10 border border-amber-100 px-4 py-3 flex justify-between items-center">
           <div>
-            <p className="text-xs font-medium text-amber-700">Estimated Matex commission</p>
+            <p className="text-xs font-medium text-warning-400">Estimated Matex commission</p>
             <p className="text-xs text-amber-600 mt-0.5">
               {data.saleMode === "auction" ? "4.0%" : "3.5%"} · min ${data.saleMode === "auction" ? "50" : "25"} · max ${data.saleMode === "auction" ? "7,500" : "5,000"}
             </p>
           </div>
-          <span className="font-bold text-amber-800 text-base">
+          <span className="font-bold text-warning-400 text-base">
             ${commission.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
@@ -965,23 +965,23 @@ function Step4({
   return (
     <div className="space-y-5">
       {/* Inspection toggle */}
-      <div className="rounded-xl border border-slate-200 p-4 space-y-4">
+      <div className="rounded-xl border border-night-700 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Inspection required</p>
-            <p className="text-xs text-slate-500 mt-0.5">Buyers must schedule an inspection before purchase</p>
+            <p className="text-sm font-semibold text-night-100">Inspection required</p>
+            <p className="text-xs text-night-300 mt-0.5">Buyers must schedule an inspection before purchase</p>
           </div>
           <button
             type="button"
             onClick={() => onChange({ inspectionRequired: !data.inspectionRequired })}
             className={clsx(
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
-              data.inspectionRequired ? "bg-brand-600" : "bg-slate-200"
+              data.inspectionRequired ? "bg-brand-600" : "bg-night-700"
             )}
           >
             <span
               className={clsx(
-                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow",
+                "inline-block h-4 w-4 transform rounded-full bg-night-850 transition-transform shadow",
                 data.inspectionRequired ? "translate-x-6" : "translate-x-1"
               )}
             />
@@ -989,7 +989,7 @@ function Step4({
         </div>
 
         {data.inspectionRequired && (
-          <div className="space-y-4 border-t border-slate-100 pt-4">
+          <div className="space-y-4 border-t border-night-700/60 pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel>Inspection window</FieldLabel>
@@ -1028,7 +1028,7 @@ function Step4({
                       "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                       data.inspectionDays.includes(day)
                         ? "bg-brand-600 border-brand-600 text-white"
-                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                        : "bg-night-850 border-night-700 text-night-200 hover:border-night-600"
                     )}
                   >
                     {day}
@@ -1058,7 +1058,7 @@ function Step4({
 
       {/* Pickup address */}
       <div className="space-y-3">
-        <p className="text-sm font-semibold text-slate-700">Pickup address</p>
+        <p className="text-sm font-semibold text-night-200">Pickup address</p>
         <input
           className={inputCls}
           placeholder="Street address"
@@ -1118,19 +1118,19 @@ function Step4({
 
       {/* CO2 estimate */}
       {co2Estimate && (
-        <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 flex justify-between items-center">
+        <div className="rounded-lg bg-success-500/10 border border-emerald-100 px-4 py-3 flex justify-between items-center">
           <div>
-            <p className="text-xs font-medium text-emerald-700">Estimated CO₂ emissions</p>
+            <p className="text-xs font-medium text-success-400">Estimated CO₂ emissions</p>
             <p className="text-xs text-emerald-600 mt-0.5">Based on material weight (avg. 12 kg CO₂/mt)</p>
           </div>
-          <span className="font-bold text-emerald-800 text-base">{co2Estimate} kg CO₂</span>
+          <span className="font-bold text-success-400 text-base">{co2Estimate} kg CO₂</span>
         </div>
       )}
 
       {/* Shipping estimates */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-700">Shipping estimates</p>
+          <p className="text-sm font-semibold text-night-200">Shipping estimates</p>
           <Button
             variant="secondary"
             size="sm"
@@ -1146,13 +1146,13 @@ function Step4({
             {quotes.map((q, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-night-700 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{q.carrier}</p>
-                  <p className="text-xs text-slate-400">{q.transit}</p>
+                  <p className="text-sm font-medium text-night-100">{q.carrier}</p>
+                  <p className="text-xs text-night-300">{q.transit}</p>
                 </div>
-                <span className="font-semibold text-slate-800 text-sm">
+                <span className="font-semibold text-night-100 text-sm">
                   ${q.price.toLocaleString("en-CA", { minimumFractionDigits: 2 })} CAD
                 </span>
               </div>
@@ -1221,11 +1221,11 @@ function Step5({
   return (
     <div className="space-y-5">
       {/* Escrow toggle */}
-      <div className="rounded-xl border border-slate-200 p-4">
+      <div className="rounded-xl border border-night-700 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Require escrow</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm font-semibold text-night-100">Require escrow</p>
+            <p className="text-xs text-night-300 mt-0.5">
               Funds are held by Matex until delivery is confirmed
               {price >= 5000 && " — mandatory for orders ≥ $5,000 CAD"}
             </p>
@@ -1238,13 +1238,13 @@ function Step5({
             }}
             className={clsx(
               "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
-              data.requireEscrow || price >= 5000 ? "bg-brand-600" : "bg-slate-200",
+              data.requireEscrow || price >= 5000 ? "bg-brand-600" : "bg-night-700",
               price >= 5000 ? "cursor-not-allowed opacity-70" : ""
             )}
           >
             <span
               className={clsx(
-                "inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow",
+                "inline-block h-4 w-4 transform rounded-full bg-night-850 transition-transform shadow",
                 data.requireEscrow || price >= 5000 ? "translate-x-6" : "translate-x-1"
               )}
             />
@@ -1259,15 +1259,15 @@ function Step5({
           {PAYMENT_METHOD_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-3 rounded-lg border border-night-700 px-4 py-3 cursor-pointer hover:bg-night-900 transition-colors"
             >
               <input
                 type="checkbox"
                 checked={data.paymentMethods.includes(opt.value)}
                 onChange={() => togglePayment(opt.value)}
-                className="rounded border-slate-300 text-brand-600 focus:ring-brand-200"
+                className="rounded border-night-600 text-brand-600 focus:ring-brand-200"
               />
-              <span className="text-sm text-slate-700">{opt.label}</span>
+              <span className="text-sm text-night-200">{opt.label}</span>
             </label>
           ))}
         </div>
@@ -1278,7 +1278,7 @@ function Step5({
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <FieldLabel>Down payment %</FieldLabel>
-            <span className="text-sm font-semibold text-slate-800">{data.downPaymentPct}%</span>
+            <span className="text-sm font-semibold text-night-100">{data.downPaymentPct}%</span>
           </div>
           <input
             type="range"
@@ -1323,35 +1323,35 @@ function Step5({
       </div>
 
       {taxPreview && (
-        <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-          <p className="text-sm font-semibold text-slate-700">Tax breakdown (estimated)</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-2">
+          <p className="text-sm font-semibold text-night-200">Tax breakdown (estimated)</p>
           {(taxPreview.gst_amount ?? taxPreview.gst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">GST (5%)</span>
-              <span className="text-slate-800 font-medium">${(Number(taxPreview.gst_amount ?? taxPreview.gst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">GST (5%)</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.gst_amount ?? taxPreview.gst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.hst_amount ?? taxPreview.hst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">HST</span>
-              <span className="text-slate-800 font-medium">${(Number(taxPreview.hst_amount ?? taxPreview.hst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">HST</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.hst_amount ?? taxPreview.hst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.pst_amount ?? taxPreview.pst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">PST</span>
-              <span className="text-slate-800 font-medium">${(Number(taxPreview.pst_amount ?? taxPreview.pst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">PST</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.pst_amount ?? taxPreview.pst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.qst_amount ?? taxPreview.qst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">QST (9.975%)</span>
-              <span className="text-slate-800 font-medium">${(Number(taxPreview.qst_amount ?? taxPreview.qst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">QST (9.975%)</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.qst_amount ?? taxPreview.qst ?? 0)).toFixed(2)}</span>
             </div>
           )}
-          <div className="border-t border-slate-100 pt-2 flex justify-between text-sm font-semibold">
-            <span className="text-slate-700">Total tax</span>
-            <span className="text-slate-900">${(Number(taxPreview.total_tax ?? taxPreview.total ?? 0)).toFixed(2)}</span>
+          <div className="border-t border-night-700/60 pt-2 flex justify-between text-sm font-semibold">
+            <span className="text-night-200">Total tax</span>
+            <span className="text-night-100">${(Number(taxPreview.total_tax ?? taxPreview.total ?? 0)).toFixed(2)}</span>
           </div>
           <FieldHint>Final tax calculated at checkout based on buyer province.</FieldHint>
         </div>
@@ -1359,11 +1359,11 @@ function Step5({
 
       {/* Commission summary */}
       {price > 0 && (
-        <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 flex justify-between items-center">
-          <span className="text-sm text-slate-600">
+        <div className="rounded-lg bg-night-900 border border-night-700 px-4 py-3 flex justify-between items-center">
+          <span className="text-sm text-night-200">
             Matex commission ({data.saleMode === "auction" ? "4.0%" : "3.5%"})
           </span>
-          <span className="font-bold text-slate-800">
+          <span className="font-bold text-night-100">
             ${commission.toLocaleString("en-CA", { minimumFractionDigits: 2 })} CAD
           </span>
         </div>
@@ -1376,9 +1376,9 @@ function Step5({
 
 function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-start gap-3 py-2 border-b border-slate-100 last:border-0">
-      <span className="text-xs text-slate-500 shrink-0 w-36">{label}</span>
-      <span className="text-sm text-slate-800 text-right">{value || <span className="text-slate-400 italic">Not set</span>}</span>
+    <div className="flex justify-between items-start gap-3 py-2 border-b border-night-700/60 last:border-0">
+      <span className="text-xs text-night-300 shrink-0 w-36">{label}</span>
+      <span className="text-sm text-night-100 text-right">{value || <span className="text-night-300 italic">Not set</span>}</span>
     </div>
   );
 }
@@ -1395,9 +1395,9 @@ function ReviewSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
+    <div className="rounded-xl border border-night-700 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-slate-700">{title}</p>
+        <p className="text-sm font-semibold text-night-200">{title}</p>
         <button
           type="button"
           onClick={() => onEdit(step)}
@@ -1601,15 +1601,15 @@ function SuccessModal({
   const router = useRouter();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+      <div className="bg-night-850 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
         <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
           <Check className="w-8 h-8 text-emerald-600" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Listing published!</h2>
-        <p className="text-sm text-slate-500 mb-2">
+        <h2 className="text-xl font-bold text-night-100 mb-2">Listing published!</h2>
+        <p className="text-sm text-night-300 mb-2">
           Your listing is now live on the Matex marketplace.
         </p>
-        <p className="text-xs text-slate-400 font-mono bg-slate-50 rounded px-3 py-1.5 mb-6 border border-slate-200 inline-block">
+        <p className="text-xs text-night-300 font-mono bg-night-900 rounded px-3 py-1.5 mb-6 border border-night-700 inline-block">
           ID: {listingId}
         </p>
         <div className="flex flex-col gap-3">
@@ -1628,7 +1628,7 @@ function SuccessModal({
           </Button>
           <button
             onClick={onClose}
-            className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+            className="text-sm text-night-300 hover:text-night-200 transition-colors"
           >
             Go to My Listings
           </button>
@@ -1762,7 +1762,12 @@ export default function CreateListingPage() {
     }
     if (currentStep === 1 && !listingId) {
       const draft = await handleSaveDraft();
-      if (!draft.ok) return;
+      if (!draft.ok) {
+        // Surface the underlying save error inline so the user sees it next to
+        // the Save & Continue button, not just as a transient toast.
+        setStepError((draft as { ok: false; message: string }).message);
+        return;
+      }
     }
     setCurrentStep((s) => Math.min(s + 1, 6));
   };
@@ -1842,7 +1847,7 @@ export default function CreateListingPage() {
           <button
             type="button"
             onClick={() => router.push("/listings")}
-            className="mb-3 flex items-center gap-1.5 text-sm text-sky-500 transition-colors hover:text-sky-800"
+            className="mb-3 flex items-center gap-1.5 text-sm text-night-300 transition-colors hover:text-night-100"
           >
             <ChevronLeft className="h-4 w-4" />
             My Listings
@@ -1861,7 +1866,7 @@ export default function CreateListingPage() {
 
         {/* Step card */}
         <div className="marketplace-card p-6 sm:p-8">
-          <h2 className="text-lg font-semibold text-slate-800 mb-5">
+          <h2 className="text-lg font-semibold text-night-100 mb-5">
             {STEPS[currentStep - 1].label === "Material" && "Material Information"}
             {STEPS[currentStep - 1].label === "Photos" && "Photos & Videos"}
             {STEPS[currentStep - 1].label === "Sale Mode" && "Choose Sale Mode"}
@@ -1906,7 +1911,7 @@ export default function CreateListingPage() {
 
           {/* Navigation */}
           {currentStep < 6 && (
-            <div className="flex items-center justify-between mt-8 pt-5 border-t border-slate-100">
+            <div className="flex items-center justify-between mt-8 pt-5 border-t border-night-700/60">
               <Button
                 variant="ghost"
                 onClick={handleBack}
@@ -1918,7 +1923,7 @@ export default function CreateListingPage() {
               </Button>
               <div className="flex items-center gap-2">
                 {saving && (
-                  <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="flex items-center gap-1.5 text-xs text-night-300">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Saving…
                   </span>
@@ -1933,7 +1938,7 @@ export default function CreateListingPage() {
         </div>
 
         {/* Step indicator (text) */}
-        <p className="text-center text-xs text-slate-400 mt-4">
+        <p className="text-center text-xs text-night-300 mt-4">
           Step {currentStep} of {STEPS.length}
         </p>
       </div>

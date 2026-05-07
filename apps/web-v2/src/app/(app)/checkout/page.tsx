@@ -37,6 +37,7 @@ type TaxBreakdown = {
 
 type OrderItem = {
   listing_id: string;
+  seller_id: string;
   title: string;
   quantity: string;
   unit: string;
@@ -110,6 +111,7 @@ export default function CheckoutPage() {
         const unitPrice = Number(raw.price ?? raw.asking_price ?? raw.starting_bid ?? 0);
         setItem({
           listing_id: String(raw.listing_id ?? listingIdParam),
+          seller_id: String(raw.seller_id ?? ""),
           title: String(raw.title ?? "Material order"),
           quantity: String(qty),
           unit: String(raw.unit ?? "unit"),
@@ -131,7 +133,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!user?.userId) return;
     (async () => {
-      const res = await callTool("payments.get_wallet_balance", { user_id: user.userId });
+      const res = await callTool("payments.get_wallet_balance", { user_id: user.userId, actor_id: user.userId });
       if (res.success) {
         const d = res.data as unknown as { wallet?: { balance?: number }; balance?: number };
         setWalletBalance(Number(d?.wallet?.balance ?? d?.balance ?? 0));
@@ -172,10 +174,43 @@ export default function CheckoutPage() {
 
   async function handleConfirm(): Promise<void> {
     if (!item || !effectiveTax) return;
+    if (!user?.userId) {
+      setItemError("Sign in to complete checkout.");
+      return;
+    }
+    if (!item.seller_id) {
+      setItemError("Listing is missing seller information. Cannot create order.");
+      return;
+    }
     setProcessing(true);
 
-    const orderId = orderIdParam || `ord-${Date.now()}`;
+    let orderId = orderIdParam;
+    if (!orderId) {
+      const orderRes = await callTool("orders.create_order", {
+        listing_id: item.listing_id,
+        buyer_id: user.userId,
+        seller_id: item.seller_id,
+        quantity: Number(item.quantity),
+        unit: item.unit,
+        original_amount: item.total,
+        payment_method: paymentMethod === "card" ? "card" : paymentMethod === "wallet" ? "wallet" : "credit_terms",
+      });
+      if (!orderRes.success) {
+        setProcessing(false);
+        setItemError(orderRes.error?.message ?? "Could not create order.");
+        return;
+      }
+      orderId = extractId(orderRes, "order_id") || "";
+      if (!orderId) {
+        setProcessing(false);
+        setItemError("Order created but no order_id returned.");
+        return;
+      }
+    }
+
     const paymentRes = await callTool("payments.process_payment", {
+      user_id: user.userId,
+      actor_id: user.userId,
       amount: grandTotal,
       payment_method: paymentMethod,
       order_id: orderId,
@@ -202,8 +237,10 @@ export default function CheckoutPage() {
 
     const escrowRes = await callTool("escrow.create_escrow", {
       order_id: orderId,
-      buyer_id: user?.userId ?? "",
+      buyer_id: user.userId,
+      seller_id: item.seller_id,
       amount: grandTotal,
+      performed_by: user.userId,
     });
     const esc = extractId(escrowRes, "escrow_id") || "";
 
@@ -235,7 +272,7 @@ export default function CheckoutPage() {
           description="Review your order, complete payment, and confirm your purchase."
         />
         <EmptyState
-          image="/illustrations/empty-listings.png"
+          image="/grphs/Platform%20Domains/listing-d-listing.png"
           title="No order to check out"
           description={
             itemError ||
@@ -256,7 +293,7 @@ export default function CheckoutPage() {
       />
 
       {itemError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {itemError}
         </div>
       )}
@@ -272,16 +309,16 @@ export default function CheckoutPage() {
               <div className="flex flex-col items-center">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold shrink-0 ${
-                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-400"
+                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-night-700 text-night-300"
                   }`}
                 >
                   {done ? "✓" : s}
                 </div>
-                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-blue-700" : done ? "text-emerald-600" : "text-slate-400"}`}>
+                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-brand-400" : done ? "text-emerald-600" : "text-night-300"}`}>
                   {label}
                 </p>
               </div>
-              {i < 2 && <div className={`flex-1 h-0.5 mb-5 mx-1 ${done ? "bg-emerald-400" : "bg-slate-200"}`} />}
+              {i < 2 && <div className={`flex-1 h-0.5 mb-5 mx-1 ${done ? "bg-emerald-400" : "bg-night-700"}`} />}
             </div>
           );
         })}
@@ -291,21 +328,21 @@ export default function CheckoutPage() {
       {step === 1 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Order Details</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Order Details</h2>
             <div className="flex items-start gap-4 mb-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-50">
-                <Package className="h-6 w-6 text-blue-500" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
+                <Image src="/grphs/Icons/cart-i-cart.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" aria-hidden />
               </div>
               <div>
-                <p className="font-semibold text-slate-900">{item.title}</p>
-                <p className="text-sm text-slate-500">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
+                <p className="font-semibold text-night-100">{item.title}</p>
+                <p className="text-sm text-night-300">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
                 <Badge variant="gray" className="mt-1">{item.material_category}</Badge>
               </div>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Price Breakdown</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Price Breakdown</h2>
             {taxLoading ? (
               <div className="flex justify-center py-6">
                 <Spinner className="h-6 w-6 text-blue-500" />
@@ -324,7 +361,7 @@ export default function CheckoutPage() {
                 {effectiveTax.gst > 0 && <TaxLine label="GST (5%)" value={formatCAD(effectiveTax.gst)} sub />}
                 {effectiveTax.pst > 0 && <TaxLine label="PST (7%)" value={formatCAD(effectiveTax.pst)} sub />}
                 <TaxLine label="Est. shipping (Day & Ross)" value={formatCAD(shippingEstimate)} sub />
-                <div className="flex justify-between border-t border-slate-200 pt-3 font-bold text-slate-900 text-base">
+                <div className="flex justify-between border-t border-night-700 pt-3 font-bold text-night-100 text-base">
                   <span>Total</span>
                   <span className="text-blue-600">{formatCAD(grandTotal)}</span>
                 </div>
@@ -342,7 +379,7 @@ export default function CheckoutPage() {
       {step === 2 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Select Payment Method</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Select Payment Method</h2>
             <div className="space-y-3">
               <PaymentOption
                 id="card"
@@ -353,16 +390,16 @@ export default function CheckoutPage() {
                 onSelect={() => setPaymentMethod("card")}
               />
               {paymentMethod === "card" && (
-                <div className="ml-9 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
                   <div className="space-y-3">
-                    <div className="h-10 rounded border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
+                    <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
                       Stripe Elements — Card Number (placeholder)
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="h-10 rounded border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
+                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
                         Expiry
                       </div>
-                      <div className="h-10 rounded border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-xs text-slate-400">
+                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
                         CVC
                       </div>
                     </div>
@@ -404,41 +441,49 @@ export default function CheckoutPage() {
       {/* Step 3 */}
       {step === 3 && (
         <div className="space-y-5">
-          <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-7 text-center">
+          <div className="rounded-xl border-2 border-emerald-300 bg-success-500/10 p-7 text-center">
             <Image
-              src="/illustrations/checkout-success.png"
+              src="/grphs/Animations/confetti-burst-a-confetti.png"
+              alt=""
+              aria-hidden
+              width={260}
+              height={80}
+              className="mx-auto -mb-2 h-auto w-auto max-w-full opacity-90"
+            />
+            <Image
+              src="/grphs/Platform%20Domains/payments-d-payments.png"
               alt=""
               aria-hidden
               width={220}
               height={140}
               className="mx-auto mb-3 h-auto w-auto max-w-full"
             />
-            <h2 className="text-xl font-bold text-emerald-800">Order Confirmed!</h2>
-            <p className="mt-1 text-sm text-emerald-700">Payment processed. Funds are now in escrow.</p>
+            <h2 className="text-xl font-bold text-success-400">Order Confirmed!</h2>
+            <p className="mt-1 text-sm text-success-400">Payment processed. Funds are now in escrow.</p>
           </div>
 
           <div className="marketplace-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Invoice Number</span>
+              <span className="text-sm text-night-300">Invoice Number</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-slate-800">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
+                <span className="font-mono text-sm font-semibold text-night-100">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
                 <button onClick={() => { navigator.clipboard.writeText(invoiceNumber); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-slate-400" />}
+                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-night-300" />}
                 </button>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Escrow Status</span>
+              <span className="text-sm text-night-300">Escrow Status</span>
               <Badge variant="info">Funds Held</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Amount</span>
-              <span className="font-bold text-slate-900">{formatCAD(grandTotal)}</span>
+              <span className="text-sm text-night-300">Amount</span>
+              <span className="font-bold text-night-100">{formatCAD(grandTotal)}</span>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h3 className="text-sm font-semibold text-slate-700 mb-4">Next Steps</h3>
+            <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
                 { label: "Book inspection", href: "/inspections", cta: "Schedule" },
@@ -450,7 +495,7 @@ export default function CheckoutPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-slate-700">{s.label}</span>
+                    <span className="text-sm text-night-200">{s.label}</span>
                   </div>
                   <a href={s.href} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
                     {s.cta} <ArrowRight className="h-3 w-3" />
@@ -471,7 +516,7 @@ export default function CheckoutPage() {
 
 function TaxLine({ label, value, sub = false }: { label: string; value: string; sub?: boolean }) {
   return (
-    <div className={`flex justify-between text-sm ${sub ? "text-slate-500" : "text-slate-700 font-medium"}`}>
+    <div className={`flex justify-between text-sm ${sub ? "text-night-300" : "text-night-200 font-medium"}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -498,14 +543,14 @@ function PaymentOption({
   return (
     <label
       className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
-        selected ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:border-slate-300"
+        selected ? "border-blue-500 bg-brand-500/10" : "border-night-700 hover:border-night-600"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input type="radio" name="checkout-payment" value={id} checked={selected} onChange={onSelect} disabled={disabled} className="sr-only" />
-      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-slate-400"}`}>{icon}</div>
+      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-slate-700"}`}>{label}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-night-200"}`}>{label}</p>
+        <p className="text-xs text-night-300">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}
     </label>
