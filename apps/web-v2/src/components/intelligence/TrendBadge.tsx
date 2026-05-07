@@ -4,17 +4,17 @@ import type { MarketTrend } from "@/lib/intelligence/types";
 
 const VARIANTS: Record<MarketTrend, { tone: string; icon: typeof ArrowUpRight; label: string }> = {
   up: {
-    tone: "bg-success-50 text-success-700 ring-success-500/20",
+    tone: "bg-success-500/15 text-success-400 ring-success-500/20",
     icon: ArrowUpRight,
     label: "Trending up",
   },
   down: {
-    tone: "bg-danger-50 text-danger-700 ring-danger-500/20",
+    tone: "bg-danger-500/15 text-danger-400 ring-danger-500/20",
     icon: ArrowDownRight,
     label: "Trending down",
   },
   stable: {
-    tone: "bg-steel-100 text-steel-700 ring-steel-300/40",
+    tone: "bg-steel-100 text-night-200 ring-steel-300/40",
     icon: Minus,
     label: "Stable",
   },

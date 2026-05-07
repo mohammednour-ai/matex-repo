@@ -44,6 +44,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "create_booking", description: "Create booking event", inputSchema: { type: "object", properties: { event_type: { type: "string" }, organizer_id: { type: "string" }, participants: { type: "array" }, listing_id: { type: "string" }, order_id: { type: "string" }, location: { type: "object" }, scheduled_start: { type: "string" }, scheduled_end: { type: "string" }, timezone: { type: "string" } }, required: ["event_type", "organizer_id", "participants", "scheduled_start", "scheduled_end"] } },
     { name: "update_booking_status", description: "Update booking status", inputSchema: { type: "object", properties: { booking_id: { type: "string" }, status: { type: "string" }, cancellation_reason: { type: "string" }, cancelled_by: { type: "string" } }, required: ["booking_id", "status"] } },
     { name: "list_user_bookings", description: "List bookings for organizer", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
+    { name: "get_available_slots", description: "Get concrete available time slots for the next N days, derived from the listing seller's recurring availability. Slots already covered by a non-cancelled booking are marked unavailable.", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, organizer_id: { type: "string" }, event_type: { type: "string" }, days: { type: "number" }, slot_minutes: { type: "number" } } } },
     { name: "enqueue_reminder", description: "Enqueue reminder task for booking", inputSchema: { type: "object", properties: { booking_id: { type: "string" }, minutes_before: { type: "number" } }, required: ["booking_id", "minutes_before"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
@@ -156,6 +157,95 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       .order("scheduled_start", { ascending: true });
     if (rows.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ bookings: rows.data ?? [], total: (rows.data ?? []).length }) }] };
+  }
+
+  if (tool === "get_available_slots") {
+    const listingId = args.listing_id ? String(args.listing_id) : "";
+    let organizerId = args.organizer_id ? String(args.organizer_id) : "";
+    const days = Math.min(Math.max(Number(args.days ?? 7), 1), 30);
+    const slotMinutes = Math.min(Math.max(Number(args.slot_minutes ?? 60), 15), 240);
+
+    if (!organizerId && listingId) {
+      const listing = await supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .select("seller_id")
+        .eq("listing_id", listingId)
+        .maybeSingle();
+      if (listing.error) return fail("DB_ERROR", "Database operation failed");
+      organizerId = listing.data?.seller_id ? String(listing.data.seller_id) : "";
+    }
+    if (!organizerId) return fail("VALIDATION_ERROR", "organizer_id or listing_id (with a seller) is required.");
+
+    const availability = await supabase
+      .schema("booking_mcp")
+      .from("availability")
+      .select("day_of_week,start_time,end_time,timezone")
+      .eq("user_id", organizerId);
+    if (availability.error) return fail("DB_ERROR", "Database operation failed");
+    const windows = (availability.data ?? []) as Array<{ day_of_week: number; start_time: string; end_time: string }>;
+    if (windows.length === 0) {
+      return { content: [{ type: "text", text: ok({ slots: [] }) }] };
+    }
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const horizon = new Date(startOfToday);
+    horizon.setDate(horizon.getDate() + days);
+
+    const existing = await supabase
+      .schema("booking_mcp")
+      .from("bookings")
+      .select("scheduled_start,scheduled_end,status")
+      .eq("organizer_id", organizerId)
+      .gte("scheduled_start", startOfToday.toISOString())
+      .lt("scheduled_start", horizon.toISOString())
+      .not("status", "in", '("cancelled","rejected")');
+    if (existing.error) return fail("DB_ERROR", "Database operation failed");
+    const bookedRanges = (existing.data ?? []).map((b: Record<string, unknown>) => ({
+      start: new Date(String(b.scheduled_start)).getTime(),
+      end: new Date(String(b.scheduled_end)).getTime(),
+    }));
+
+    function parseHM(t: string): { h: number; m: number } | null {
+      const m = /^(\d{1,2}):(\d{2})/.exec(t);
+      if (!m) return null;
+      return { h: Number(m[1]), m: Number(m[2]) };
+    }
+
+    const slots: Array<{ slot_id: string; date: string; time: string; available: boolean; start: string; end: string }> = [];
+    for (let d = 0; d < days; d++) {
+      const dt = new Date(startOfToday);
+      dt.setDate(dt.getDate() + d);
+      const dow = dt.getDay();
+      const dayWindows = windows.filter((w) => Number(w.day_of_week) === dow);
+      for (const w of dayWindows) {
+        const startHM = parseHM(String(w.start_time));
+        const endHM = parseHM(String(w.end_time));
+        if (!startHM || !endHM) continue;
+        const startMin = startHM.h * 60 + startHM.m;
+        const endMin = endHM.h * 60 + endHM.m;
+        for (let cur = startMin; cur + slotMinutes <= endMin; cur += slotMinutes) {
+          const slotStart = new Date(dt);
+          slotStart.setHours(0, cur, 0, 0);
+          const slotEnd = new Date(slotStart.getTime() + slotMinutes * 60_000);
+          if (slotStart.getTime() < Date.now()) continue;
+          const overlaps = bookedRanges.some((r) => r.start < slotEnd.getTime() && r.end > slotStart.getTime());
+          const dateStr = slotStart.toISOString().slice(0, 10);
+          const timeStr = slotStart.toISOString().slice(11, 16);
+          slots.push({
+            slot_id: `${organizerId}:${slotStart.toISOString()}`,
+            date: dateStr,
+            time: timeStr,
+            available: !overlaps,
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString(),
+          });
+        }
+      }
+    }
+
+    return { content: [{ type: "text", text: ok({ slots }) }] };
   }
 
   if (tool === "enqueue_reminder") {

@@ -91,27 +91,27 @@ export function ActivityTimeline({
   if (items.length === 0) return null;
 
   return (
-    <ol className="relative space-y-0 border-l-2 border-sky-300/80 pl-5">
+    <ol className="relative space-y-0 border-l-2 border-night-600/80 pl-5">
       {items.map((item) => {
         const dot =
           item.kind === "notification"
             ? item.unread
               ? "bg-orange-500 ring-2 ring-orange-200"
               : "bg-orange-400"
-            : "bg-sky-500";
+            : "bg-zinc-500";
 
         const inner = (
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-start gap-2">
-              <span className="mt-0.5 shrink-0 text-sky-500" aria-hidden>
+              <span className="mt-0.5 shrink-0 text-night-300" aria-hidden>
                 {item.kind === "notification" ? <Bell className="h-3.5 w-3.5" /> : <Calendar className="h-3.5 w-3.5" />}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-sky-950">{item.title}</p>
-                <p className="mt-0.5 truncate text-xs text-sky-700">{item.subtitle}</p>
+                <p className="truncate text-sm font-semibold text-night-100">{item.title}</p>
+                <p className="mt-0.5 truncate text-xs text-night-200">{item.subtitle}</p>
               </div>
             </div>
-            <span className="shrink-0 text-xs font-medium tabular-nums text-sky-600">
+            <span className="shrink-0 text-xs font-medium tabular-nums text-night-200">
               {formatShort(item.at, item.kind)}
             </span>
           </div>
@@ -126,7 +126,7 @@ export function ActivityTimeline({
               <Link
                 href={item.href}
                 onClick={() => onActivateNotification?.(item.id)}
-                className="block rounded-2xl border border-transparent px-3 py-3 outline-none ring-orange-500/25 transition-colors hover:border-sky-200 hover:bg-sky-50/90 focus-visible:ring-2"
+                className="block rounded-2xl border border-transparent px-3 py-3 outline-none ring-orange-500/25 transition-colors hover:border-night-700 hover:bg-night-900/90 focus-visible:ring-2"
               >
                 {inner}
               </Link>
@@ -143,7 +143,7 @@ export function ActivityTimeline({
               <button
                 type="button"
                 onClick={() => onActivateNotification?.(item.id)}
-                className="w-full rounded-2xl border border-transparent px-3 py-3 text-left outline-none ring-orange-500/25 transition-colors hover:border-sky-200 hover:bg-sky-50/90 focus-visible:ring-2"
+                className="w-full rounded-2xl border border-transparent px-3 py-3 text-left outline-none ring-orange-500/25 transition-colors hover:border-night-700 hover:bg-night-900/90 focus-visible:ring-2"
               >
                 {inner}
               </button>

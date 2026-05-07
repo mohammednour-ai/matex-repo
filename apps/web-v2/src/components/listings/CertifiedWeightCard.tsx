@@ -31,8 +31,8 @@ export function CertifiedWeightCard({
     <section
       aria-label="Certified weight"
       className={cn(
-        "rounded-2xl border bg-white p-5 shadow-sm",
-        hasCertification ? "border-emerald-100" : "border-sky-200",
+        "rounded-2xl border bg-night-850 p-5 shadow-sm",
+        hasCertification ? "border-emerald-100" : "border-night-700",
         className,
       )}
     >
@@ -41,18 +41,18 @@ export function CertifiedWeightCard({
           className={cn(
             "flex h-9 w-9 items-center justify-center rounded-xl",
             hasCertification
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-sky-100 text-sky-600",
+              ? "bg-emerald-100 text-success-400"
+              : "bg-night-800 text-night-200",
           )}
           aria-hidden
         >
           <Scale className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-sky-900">
+          <h3 className="text-sm font-bold text-night-100">
             {hasCertification ? "Certified weight" : "Weight verification pending"}
           </h3>
-          <p className="text-xs text-sky-600">
+          <p className="text-xs text-night-200">
             {hasCertification
               ? "Independently weighed and certified."
               : "Seller-declared weight. Ask for a weighbridge ticket before bidding."}
@@ -63,15 +63,15 @@ export function CertifiedWeightCard({
       {hasCertification ? (
         <dl className="space-y-2 text-sm">
           <div className="flex items-baseline justify-between">
-            <dt className="text-sky-500">Net weight</dt>
-            <dd className="font-semibold text-sky-900">
+            <dt className="text-night-300">Net weight</dt>
+            <dd className="font-semibold text-night-100">
               {certifiedWeightKg!.toLocaleString("en-CA")} kg
             </dd>
           </div>
           {certifierName && (
             <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-sky-500">Certified by</dt>
-              <dd className="flex items-center gap-1.5 font-medium text-sky-800 truncate">
+              <dt className="text-night-300">Certified by</dt>
+              <dd className="flex items-center gap-1.5 font-medium text-night-100 truncate">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                 <span className="truncate">{certifierName}</span>
               </dd>
@@ -79,9 +79,9 @@ export function CertifiedWeightCard({
           )}
           {certifiedAt && (
             <div className="flex items-baseline justify-between">
-              <dt className="text-sky-500">Date</dt>
-              <dd className="flex items-center gap-1.5 text-sky-700">
-                <Clock className="h-3.5 w-3.5 text-sky-400" />
+              <dt className="text-night-300">Date</dt>
+              <dd className="flex items-center gap-1.5 text-night-200">
+                <Clock className="h-3.5 w-3.5 text-night-300" />
                 {new Date(certifiedAt).toLocaleDateString("en-CA", {
                   year: "numeric",
                   month: "short",
@@ -94,8 +94,8 @@ export function CertifiedWeightCard({
       ) : (
         <dl className="space-y-2 text-sm">
           <div className="flex items-baseline justify-between">
-            <dt className="text-sky-500">Declared quantity</dt>
-            <dd className="font-semibold text-sky-700">
+            <dt className="text-night-300">Declared quantity</dt>
+            <dd className="font-semibold text-night-200">
               {declaredQuantity.toLocaleString("en-CA")} {unit}
             </dd>
           </div>

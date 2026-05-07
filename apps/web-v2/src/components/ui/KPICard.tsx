@@ -21,21 +21,21 @@ export type KPICardProps = {
 };
 
 const TONE_TEXT: Record<KPITone, string> = {
-  neutral: "text-sky-950",
+  neutral: "text-night-100",
   brand: "text-orange-900",
-  success: "text-emerald-700",
-  warning: "text-amber-800",
-  danger: "text-danger-700",
-  info: "text-sky-700",
+  success: "text-success-400",
+  warning: "text-warning-400",
+  danger: "text-danger-400",
+  info: "text-night-200",
 };
 
 const TONE_ICON_BG: Record<KPITone, string> = {
-  neutral: "bg-sky-200/90 text-sky-800",
-  brand: "bg-orange-500/12 text-orange-800",
-  success: "bg-emerald-100 text-emerald-700",
-  warning: "bg-amber-100 text-amber-800",
-  danger: "bg-danger-100 text-danger-700",
-  info: "bg-sky-100 text-sky-700",
+  neutral: "bg-night-700/90 text-night-100",
+  brand: "bg-orange-500/12 text-brand-400",
+  success: "bg-emerald-100 text-success-400",
+  warning: "bg-amber-100 text-warning-400",
+  danger: "bg-danger-100 text-danger-400",
+  info: "bg-night-800 text-night-200",
 };
 
 export function KPICard({
@@ -59,26 +59,26 @@ export function KPICard({
   return (
     <div
       className={clsx(
-        "rounded-2xl border border-slate-300/70 bg-slate-50/95 px-5 py-4 shadow-industrial-panel transition-all duration-150",
+        "rounded-2xl border border-night-600/70 bg-night-900/95 px-5 py-4 shadow-industrial-panel transition-all duration-150",
         "hover:border-orange-400/35 hover:shadow-card-hover",
         className
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-night-200">
             {label}
           </p>
           <p
             className={clsx(
               "mt-2 text-2xl font-extrabold leading-tight",
               TONE_TEXT[effectiveTone],
-              loading && "animate-pulse text-sky-400"
+              loading && "animate-pulse text-night-300"
             )}
           >
             {loading ? "—" : value}
           </p>
-          {subValue && <p className="mt-1 text-xs text-sky-700">{subValue}</p>}
+          {subValue && <p className="mt-1 text-xs text-night-200">{subValue}</p>}
           {trend && (
             <p
               className={clsx(

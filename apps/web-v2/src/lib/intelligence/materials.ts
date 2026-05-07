@@ -23,6 +23,8 @@ export type MaterialDefinition = {
   volatility: number;
   /** Human-readable spec / typical assay used in AI prompts. */
   spec: string;
+  /** Public path to the material's grphs PNG illustration. */
+  image: string;
 };
 
 export const MATERIALS: MaterialDefinition[] = [
@@ -34,6 +36,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 4820,
     volatility: 0.018,
     spec: "Copper Birch/Cliff, 96% min Cu, ISRI #2 grade.",
+    image: "/grphs/Materials/copper-wire-spool-s-copper.png",
   },
   {
     key: "copper_1",
@@ -43,6 +46,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 5120,
     volatility: 0.016,
     spec: "Bare bright copper wire, 99% min Cu, ISRI Berry/Cliff.",
+    image: "/grphs/Materials/cu-1-bare-bright-s-cu1.png",
   },
   {
     key: "aluminum_ubc",
@@ -52,6 +56,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 1.12,
     volatility: 0.022,
     spec: "Used Beverage Cans, baled, ISRI Talc.",
+    image: "/grphs/Materials/aluminum-extrusion-s-alu.png",
   },
   {
     key: "aluminum_extrusion",
@@ -61,6 +66,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 2280,
     volatility: 0.018,
     spec: "Clean 6063 extrusion, free of attachments.",
+    image: "/grphs/Materials/al-6063-clips-s-al6063.png",
   },
   {
     key: "steel_hms_1_2",
@@ -70,6 +76,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 385,
     volatility: 0.025,
     spec: "Heavy Melting Steel 1/2 mix, ISRI 200/201.",
+    image: "/grphs/Materials/hms-1-2-s-hms.png",
   },
   {
     key: "stainless_304",
@@ -79,6 +86,7 @@ export const MATERIALS: MaterialDefinition[] = [
     baseLmePrice: 1480,
     volatility: 0.02,
     spec: "Type 304 stainless steel solids, low free-iron.",
+    image: "/grphs/Materials/ss-304-solids-s-ss304.png",
   },
 ];
 

@@ -49,6 +49,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "list_auctions", description: "List auctions filtered by status. Returns auction summary records.", inputSchema: { type: "object", properties: { status: { type: "string", enum: ["scheduled", "live", "completed", "cancelled"] }, limit: { type: "number" } } } },
     { name: "get_auction", description: "Get one auction with its lots", inputSchema: { type: "object", properties: { auction_id: { type: "string" } }, required: ["auction_id"] } },
     { name: "list_bids", description: "List bids for a lot (newest-first). Powers the live bid feed in the auction console.", inputSchema: { type: "object", properties: { lot_id: { type: "string" }, limit: { type: "number" } }, required: ["lot_id"] } },
+    { name: "register_bidder", description: "Register a user as a bidder for an auction. Idempotent — re-registering returns the existing record. session_id is treated as auction_id.", inputSchema: { type: "object", properties: { auction_id: { type: "string" }, session_id: { type: "string" }, listing_id: { type: "string" }, user_id: { type: "string" }, deposit_amount: { type: "number" }, deposit_id: { type: "string" }, payment_method: { type: "string" } }, required: ["user_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -298,6 +299,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
+  }
+
+  if (tool === "register_bidder") {
+    const userId = String(args.user_id ?? "");
+    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+    let auctionId = args.auction_id ? String(args.auction_id) : (args.session_id ? String(args.session_id) : "");
+
+    // If only listing_id is provided, resolve the auction via lots → auction_id.
+    if (!auctionId && args.listing_id) {
+      const listingId = String(args.listing_id);
+      const lotResult = await supabase
+        .schema("auction_mcp")
+        .from("lots")
+        .select("auction_id")
+        .eq("listing_id", listingId)
+        .order("lot_number", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (lotResult.error) return fail("DB_ERROR", "Database operation failed");
+      if (lotResult.data?.auction_id) auctionId = String(lotResult.data.auction_id);
+    }
+    if (!auctionId) return fail("VALIDATION_ERROR", "auction_id, session_id, or a listing_id linked to a lot is required.");
+
+    const auctionCheck = await supabase
+      .schema("auction_mcp")
+      .from("auctions")
+      .select("status")
+      .eq("auction_id", auctionId)
+      .maybeSingle();
+    if (auctionCheck.error) return fail("DB_ERROR", "Database operation failed");
+    if (!auctionCheck.data) return fail("NOT_FOUND", "Auction not found.");
+    if (auctionCheck.data.status === "cancelled" || auctionCheck.data.status === "completed") {
+      return fail("INVALID_STATE", `Cannot register for auction in status '${auctionCheck.data.status}'.`);
+    }
+
+    const depositAmount = typeof args.deposit_amount === "number" ? Number(args.deposit_amount) : null;
+    const depositId = args.deposit_id ? String(args.deposit_id) : null;
+    const confirmed = depositAmount === null || depositAmount === 0 || depositId !== null;
+
+    const upsertResult = await supabase
+      .schema("auction_mcp")
+      .from("auction_participants")
+      .upsert(
+        {
+          auction_id: auctionId,
+          user_id: userId,
+          deposit_id: depositId,
+          confirmed,
+          registered_at: now(),
+        },
+        { onConflict: "auction_id,user_id" },
+      );
+    if (upsertResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    await emitEvent("auction.bidder.registered", { auction_id: auctionId, user_id: userId, confirmed, deposit_amount: depositAmount });
+    return { content: [{ type: "text", text: ok({ auction_id: auctionId, user_id: userId, confirmed, deposit_amount: depositAmount }) }] };
   }
 
   if (tool === "list_bids") {

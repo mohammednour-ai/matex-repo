@@ -2,67 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark industrial page backgrounds (login hero, etc.) */
+/* ─── Industrial dark backgrounds ──────────────────────────────────────────── */
 .industrial-bg {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 25%, #404040 50%, #2d2d2d 75%, #1a1a1a 100%);
+  background: linear-gradient(135deg, #0a0a0b 0%, #0f1115 25%, #1a1e25 50%, #0f1115 75%, #0a0a0b 100%);
 }
 .hero-bg {
-  background: linear-gradient(135deg, #000000 0%, #1a1a1a 25%, #2d2d2d 50%, #404040 75%, #2d2d2d 100%);
+  background: linear-gradient(135deg, #050507 0%, #0a0a0b 25%, #0f1115 50%, #1a1e25 75%, #0f1115 100%);
 }
 .metal-texture {
   background-image:
-    radial-gradient(circle at 25% 25%, rgba(148, 163, 184, 0.1) 2px, transparent 2px),
-    linear-gradient(45deg, rgba(71, 85, 105, 0.1) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(71, 85, 105, 0.1) 25%, transparent 25%);
+    radial-gradient(circle at 25% 25%, rgba(232, 119, 34, 0.10) 2px, transparent 2px),
+    linear-gradient(45deg,  rgba(150, 165, 190, 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(150, 165, 190, 0.06) 25%, transparent 25%);
   background-size: 40px 40px, 20px 20px, 20px 20px;
 }
 
-@keyframes gear-rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes gear-rotate-reverse {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(-360deg); }
-}
-@keyframes login-slide-up {
-  from { transform: translateY(30px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-@keyframes login-loader-progress {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
+/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
+@keyframes gear-rotate         { from { transform: rotate(0deg); }  to { transform: rotate(360deg);  } }
+@keyframes gear-rotate-reverse { from { transform: rotate(0deg); }  to { transform: rotate(-360deg); } }
+@keyframes login-slide-up      { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes login-loader-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes login-reveal-in {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-    filter: blur(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
+  from { opacity: 0; transform: translateY(20px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0);   }
 }
 @keyframes login-shimmer {
-  0% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.55;
-  }
+  0%   { opacity: 0.55; }
+  50%  { opacity: 1;    }
+  100% { opacity: 0.55; }
 }
-.gear-rotate { animation: gear-rotate 20s linear infinite; }
-.gear-rotate-reverse { animation: gear-rotate-reverse 15s linear infinite; }
-.login-slide-up { animation: login-slide-up 0.8s ease-out; }
+@keyframes dashboard-ticker {
+  0%   { transform: translateX(0);    }
+  100% { transform: translateX(-50%); }
+}
+
+/* Page enter — slide up + fade in on each route mount */
+@keyframes page-enter {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.page-enter { animation: page-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Subtle ambient fade-in for the dashboard OG watermark */
+@keyframes og-watermark-fade {
+  from { opacity: 0; }
+  to   { opacity: 0.07; }
+}
+.dashboard-og-watermark { animation: og-watermark-fade 1.2s ease-out both; }
+
+.gear-rotate         { animation: gear-rotate          20s linear infinite; }
+.gear-rotate-reverse { animation: gear-rotate-reverse  15s linear infinite; }
+.login-slide-up      { animation: login-slide-up        0.8s ease-out; }
 
 .login-loader-bar-fill {
   transform: scaleX(0);
@@ -70,364 +60,436 @@
   animation: login-loader-progress 1.7s cubic-bezier(0.33, 1, 0.68, 1) forwards;
 }
 
-.login-reveal-item {
-  opacity: 0;
-}
-
+.login-reveal-item { opacity: 0; }
 .login-reveal-active .login-reveal-item {
   animation: login-reveal-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   animation-delay: var(--login-delay, 0ms);
 }
-
-.login-intro-pulse {
-  animation: login-shimmer 1.2s ease-in-out infinite;
-}
+.login-intro-pulse { animation: login-shimmer 1.2s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-loader-bar-fill {
-    animation: none !important;
-    transform: scaleX(1) !important;
-  }
-  .login-reveal-item {
-    opacity: 1 !important;
-    animation: none !important;
-    transform: none !important;
-    filter: none !important;
-  }
-  .login-intro-pulse {
-    animation: none !important;
-  }
-  .dashboard-pulse-strip__track {
-    animation: none !important;
-    transform: none !important;
-  }
+  .login-loader-bar-fill      { animation: none !important; transform: scaleX(1) !important; }
+  .login-reveal-item          { opacity: 1 !important; animation: none !important; transform: none !important; filter: none !important; }
+  .login-intro-pulse          { animation: none !important; }
+  .dashboard-pulse-strip__track { animation: none !important; transform: none !important; }
+  .gear-rotate                { animation: none !important; }
+  .gear-rotate-reverse        { animation: none !important; }
+  .page-enter                 { animation: none !important; transform: none !important; opacity: 1 !important; }
+  .dashboard-og-watermark     { animation: none !important; opacity: 0.07 !important; }
 }
 
-@keyframes dashboard-ticker {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
+/* ─── Base ──────────────────────────────────────────────────────────────────── */
 @layer base {
-  /**
-   * Root font-size scales all rem-based Tailwind (type + spacing). ~80% matches
-   * the density many people get from browser zoom 80% on desktop dashboards.
-   */
   html {
     font-family: Inter, ui-sans-serif, system-ui;
     -webkit-font-smoothing: antialiased;
     font-size: 80%;
   }
+  /* Cool steel-black — industrial machine shop */
   body {
-    @apply text-sky-950 bg-[linear-gradient(180deg,#e8f2fc_0%,#f7f2ea_55%,#fff4e6_100%)];
+    @apply text-night-100;
+    background: linear-gradient(180deg, #0a0a0b 0%, #0f1115 55%, #14171c 100%);
+  }
+  ::selection { @apply bg-brand-500/40 text-white; }
+
+  /* ── Scrollbars (Firefox) ───────────────────────────────────────────── */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2b313b transparent;        /* thumb / track */
   }
 
-  ::selection { @apply bg-brand-200 text-brand-950; }
+  /* ── Scrollbars (WebKit / Chromium / Safari / Edge) ─────────────────── */
+  ::-webkit-scrollbar         { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #2b313b 0%, #1a1e25 100%);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #e87722 0%, #d4650f 100%);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background: #f58d1a;
+    background-clip: padding-box;
+    border: 2px solid transparent;
+  }
+  ::-webkit-scrollbar-corner  { background: transparent; }
 }
 
+/* ─── Components ─────────────────────────────────────────────────────────────── */
 @layer components {
-  /* Authenticated app shell — harmonized with login (industrial + brand, light content canvas) */
+
+  /* ── App shell canvas — cool steel-black, restrained brand wash ── */
   .app-shell-canvas {
-    @apply relative min-h-full overflow-x-hidden bg-[radial-gradient(ellipse_120%_80%_at_100%_-10%,rgba(251,191,36,0.14),transparent_50%),radial-gradient(ellipse_90%_70%_at_0%_100%,rgba(59,130,246,0.12),transparent_48%),linear-gradient(165deg,#dbeafe_0%,#f0f7ff_38%,#fff7ed_72%,#e0ecfc_100%)];
+    @apply relative min-h-full overflow-x-hidden;
+    background:
+      radial-gradient(ellipse 120% 80% at 100% -10%, rgba(232,119,34,0.06), transparent 55%),
+      radial-gradient(ellipse  90% 70% at   0% 100%, rgba(59,130,246,0.05), transparent 50%),
+      linear-gradient(165deg, #0e1116 0%, #14181f 38%, #1a1f27 72%, #0f1218 100%);
   }
-  /** Dashboard canvas: soft blue base + warm orange wash + light technical grid */
+
+  /* ── Dashboard canvas — lighter industrial steel; subtle brand presence ── */
   .app-shell-canvas.dashboard-canvas {
     @apply relative min-h-full overflow-x-hidden;
     background-image:
-      radial-gradient(900px 520px at 0% -8%, rgba(251, 191, 36, 0.16), transparent 52%),
-      radial-gradient(760px 480px at 100% 0%, rgba(59, 130, 246, 0.14), transparent 50%),
-      linear-gradient(168deg, #cfe2fc 0%, #e8f4ff 34%, #fff3e0 68%, #dbeafe 100%);
+      radial-gradient(900px 520px at   0%  -8%, rgba(232,119,34,0.07), transparent 52%),
+      radial-gradient(760px 480px at 100%   0%, rgba(59,130,246,0.06), transparent 50%),
+      linear-gradient(168deg, #15191f 0%, #1c2129 34%, #20262f 68%, #161b22 100%);
   }
+  /* Steel-blue blueprint grid (dropped orange tint) */
   .app-shell-canvas.dashboard-canvas::before {
     content: "";
     @apply pointer-events-none absolute inset-0 z-0;
-    background-image: linear-gradient(rgba(59, 130, 246, 0.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+    background-image:
+      linear-gradient(rgba(150, 165, 190, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(150, 165, 190, 0.05) 1px, transparent 1px);
     background-size: 44px 44px;
   }
+  /* Hatching overlay — mostly steel, only a hint of brand */
   .app-shell-canvas.dashboard-canvas::after {
     content: "";
     @apply pointer-events-none absolute inset-0 z-0;
-    opacity: 0.06;
-    background-image: linear-gradient(45deg, rgba(251, 191, 36, 0.35) 25%, transparent 25%),
-      linear-gradient(-45deg, rgba(96, 165, 250, 0.28) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, rgba(251, 191, 36, 0.22) 75%),
-      linear-gradient(-45deg, transparent 75%, rgba(96, 165, 250, 0.2) 75%);
+    opacity: 0.035;
+    background-image:
+      linear-gradient( 45deg, rgba(150,165,190,0.45) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(150,165,190,0.30) 25%, transparent 25%),
+      linear-gradient( 45deg, transparent 75%, rgba(232,119,34,0.20) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(150,165,190,0.20) 75%);
     background-size: 52px 52px;
     background-position: 0 0, 0 26px, 26px -26px, -26px 0;
   }
-  .app-shell-canvas.dashboard-canvas .app-shell-canvas-texture {
-    @apply z-[1] opacity-[0.04];
-  }
+  .app-shell-canvas.dashboard-canvas .app-shell-canvas-texture { @apply z-[1] opacity-[0.04]; }
   .app-shell-canvas.dashboard-canvas .app-content-frame {
     @apply relative z-10 max-w-[min(112rem,calc(100%-1rem))] px-4 py-7 sm:px-7 sm:py-9 md:px-10 md:py-11;
   }
-  .dashboard-page {
-    @apply mx-auto w-full max-w-[min(108rem,100%)] space-y-7 sm:space-y-8;
-  }
-  .dashboard-identity-bar {
-    @apply backdrop-blur-md;
-  }
+
+  /* ── Dashboard-specific classes ── */
+  .dashboard-page          { @apply mx-auto w-full max-w-[min(108rem,100%)] space-y-7 sm:space-y-8; }
+  .dashboard-identity-bar  { @apply backdrop-blur-md; }
+
+  /* Price-ticker strip */
   .dashboard-pulse-strip {
-    @apply rounded-2xl border border-slate-600/50 bg-slate-950/[0.88] px-3 py-2.5 shadow-industrial-panel backdrop-blur-md sm:px-4 sm:py-3;
+    @apply rounded-2xl border border-night-700/80 bg-night-950/[0.85] px-3 py-2.5 shadow-industrial-panel backdrop-blur-md sm:px-4 sm:py-3;
   }
-  .dashboard-pulse-strip__inner {
-    @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0;
+  .dashboard-pulse-strip__inner  { @apply flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0; }
+  .dashboard-pulse-strip__badge  {
+    @apply mb-1 inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-brand-400/35 bg-brand-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-orange-200 sm:mb-0 sm:mr-4 sm:self-center;
   }
-  .dashboard-pulse-strip__badge {
-    @apply mb-1 inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-orange-400/35 bg-orange-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-orange-200 sm:mb-0 sm:mr-4 sm:self-center;
-  }
-  .dashboard-pulse-strip__viewport {
-    @apply relative min-h-[2.25rem] flex-1 overflow-hidden;
-  }
-  .dashboard-pulse-strip__track {
-    @apply flex w-max gap-10 whitespace-nowrap py-0.5 text-[13px] font-semibold tabular-nums text-slate-200;
+  .dashboard-pulse-strip__viewport { @apply relative min-h-[2.25rem] flex-1 overflow-hidden; }
+  .dashboard-pulse-strip__track    {
+    @apply flex w-max gap-10 whitespace-nowrap py-0.5 text-[13px] font-semibold tabular-nums text-night-100;
     animation: dashboard-ticker 52s linear infinite;
   }
   .dashboard-pulse-strip__item {
-    @apply relative shrink-0 pl-6 text-slate-200 before:absolute before:left-0 before:top-1/2 before:h-1 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-orange-400/80 before:content-[''];
+    @apply relative shrink-0 pl-6 text-night-100
+           before:absolute before:left-0 before:top-1/2 before:h-1 before:w-1
+           before:-translate-y-1/2 before:rounded-full before:bg-brand-400/80 before:content-[''];
   }
-  .dashboard-pulse-strip__legal {
-    @apply mt-1.5 text-center text-[10px] font-medium leading-snug text-slate-500;
-  }
+  .dashboard-pulse-strip__legal { @apply mt-1.5 text-center text-[10px] font-medium leading-snug text-night-400; }
+
+  /* Cards inside dashboard canvas — translucent so canvas/grid show through */
   .app-shell-canvas.dashboard-canvas .marketplace-card {
-    @apply border-sky-200/70 bg-white/[0.92] shadow-industrial-panel backdrop-blur-md;
+    @apply border-night-700/60 bg-night-850/65 shadow-industrial-panel backdrop-blur-md;
   }
-  .app-shell-canvas-texture {
-    @apply pointer-events-none absolute inset-0 opacity-[0.04];
-  }
-  .app-glass-header {
-    @apply border-b border-sky-900/35 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(15,23,42,0.9))] shadow-[inset_0_-1px_0_0_rgba(59,130,246,0.2),inset_0_-2px_0_0_rgba(249,115,22,0.18)] backdrop-blur-xl;
-  }
-  .app-header-search {
-    @apply w-full rounded-2xl border border-sky-700/35 bg-slate-900/50 py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder:text-slate-400 transition-all focus:border-sky-400/60 focus:bg-slate-900/85 focus:outline-none focus:ring-2 focus:ring-orange-400/35;
-  }
-  .app-page-eyebrow {
-    @apply text-[10px] font-bold uppercase tracking-[0.24em] text-orange-300/95;
-  }
-  .app-page-title {
-    @apply text-lg font-black tracking-tight text-slate-50 sm:text-xl;
-  }
-  .app-page-sub {
-    @apply text-sm font-medium text-slate-400;
-  }
-  .app-inpage-title {
-    @apply text-2xl font-black tracking-tight text-sky-950 sm:text-3xl;
-  }
-  .app-inpage-sub {
-    @apply mt-1 text-sm font-medium text-sky-900/70;
-  }
+
+  /* ── Shared canvas texture ── */
+  .app-shell-canvas-texture { @apply pointer-events-none absolute inset-0 opacity-[0.04]; }
+
+  /* In-page heading typography (used by AppPageHeader on each route) */
+  .app-inpage-title { @apply text-2xl font-black tracking-tight text-night-100 sm:text-3xl; }
+  .app-inpage-sub   { @apply mt-1 text-sm font-medium text-night-200; }
+
+  /* ── Marketplace card (main card surface — translucent glass) ── */
   .marketplace-card {
-    @apply rounded-2xl border border-sky-200/75 bg-white/[0.94] shadow-industrial-panel backdrop-blur-sm transition-shadow hover:border-sky-300/80 hover:shadow-card-hover;
+    @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-industrial-panel
+           backdrop-blur-md transition-shadow hover:border-brand-500/40 hover:shadow-card-hover;
   }
+  /* Dense data variant — opaque for tables / lists where readability matters */
+  .marketplace-card-dense {
+    @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-industrial-panel
+           backdrop-blur-sm transition-shadow hover:border-brand-500/40 hover:shadow-card-hover;
+  }
+
+  /* ── Sidebar — cool steel-black ── */
   .app-shell-sidebar {
-    @apply relative flex h-full flex-col overflow-hidden border-r border-slate-700/45 bg-[linear-gradient(175deg,rgb(15,23,42)_0%,rgb(15,23,42)_42%,rgb(17,24,39)_100%)] text-white shadow-[20px_0_50px_-32px_rgba(0,0,0,0.85)];
+    @apply relative flex h-full flex-col overflow-hidden
+           border-r border-night-700
+           bg-[linear-gradient(175deg,#0a0a0b_0%,#0f1115_42%,#14171c_100%)]
+           text-white shadow-[20px_0_50px_-32px_rgba(0,0,0,0.85)];
   }
+  /* Subtle warmth + steel-blue at top of sidebar */
   .app-shell-sidebar::before {
     content: "";
-    @apply pointer-events-none absolute inset-x-0 top-0 h-32 bg-[linear-gradient(180deg,rgba(251,146,60,0.12),transparent),linear-gradient(90deg,rgba(59,130,246,0.08),transparent)];
+    @apply pointer-events-none absolute inset-x-0 top-0 h-32;
+    background: linear-gradient(180deg, rgba(232,119,34,0.08), transparent),
+                linear-gradient(90deg,  rgba(59,130,246,0.05), transparent);
   }
+  /* Steel grain overlay (mostly neutral) */
   .app-shell-sidebar::after {
     content: "";
-    @apply pointer-events-none absolute inset-0 opacity-[0.07];
+    @apply pointer-events-none absolute inset-0 opacity-[0.06];
     background-image:
-      radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-      linear-gradient(125deg, rgba(148, 163, 184, 0.12) 0, transparent 52%);
+      radial-gradient(circle at 18% 12%, rgba(255,255,255,0.06) 1px, transparent 1px),
+      linear-gradient(125deg, rgba(232,119,34,0.06) 0, transparent 52%);
     background-size: 26px 26px, 100% 100%;
   }
-  .app-shell-sidebar-content {
-    @apply relative z-10 flex h-full flex-col;
-  }
+  .app-shell-sidebar-content { @apply relative z-10 flex h-full flex-col; }
+
+  /* Logo area — sized for the doubled logo */
   .app-sidebar-logo-wrap {
-    @apply relative flex min-h-[6.25rem] items-center border-b border-slate-600/40 px-4;
+    @apply relative flex min-h-[9rem] items-center justify-center border-b border-night-700/60 px-4;
   }
   .app-sidebar-logo-badge {
-    @apply flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-500/40 bg-slate-950/[0.55] shadow-[0_10px_28px_-14px_rgba(249,115,22,0.45)];
+    @apply flex shrink-0 items-center justify-center overflow-hidden rounded-xl
+           border border-night-600 bg-night-950/[0.55]
+           shadow-[0_10px_28px_-14px_rgba(232,119,34,0.55)];
   }
-  .app-sidebar-logo-badge--collapsed {
-    @apply h-14 w-14 p-1;
-  }
-  .app-sidebar-logo-badge--expanded {
-    @apply h-[3.75rem] max-w-[18.5rem] px-2.5 py-1.5 sm:h-[4.25rem] sm:max-w-[19.5rem];
-  }
-  .app-sidebar-meta {
-    @apply mt-3 rounded-xl border border-slate-600/35 bg-slate-950/[0.35] px-3 py-3 backdrop-blur-sm;
-  }
-  .app-sidebar-meta-label {
-    @apply text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500;
-  }
-  .app-sidebar-meta-value {
-    @apply mt-1 text-sm font-semibold text-slate-100;
-  }
-  .app-nav-heading {
-    @apply mb-2 mt-5 px-4 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500;
-  }
+  .app-sidebar-logo-badge--collapsed { @apply h-14 w-14 p-1; }
+  .app-sidebar-logo-badge--expanded  { @apply h-[3.75rem] max-w-[18.5rem] px-2.5 py-1.5 sm:h-[4.25rem] sm:max-w-[19.5rem]; }
+
+  /* Sidebar meta (user info) */
+  .app-sidebar-meta       { @apply mt-3 rounded-xl border border-night-700 bg-night-950/[0.40] px-3 py-3 backdrop-blur-sm; }
+  .app-sidebar-meta-label { @apply text-[10px] font-bold uppercase tracking-[0.24em] text-night-400; }
+  .app-sidebar-meta-value { @apply mt-1 text-sm font-semibold text-night-100; }
+
+  /* Nav */
+  .app-nav-heading { @apply mb-2 mt-5 px-4 text-[10px] font-bold uppercase tracking-[0.22em] text-night-400; }
   .app-nav-link {
-    @apply mx-1.5 flex items-center gap-3 rounded-xl border border-transparent px-2.5 py-2.5 text-sm font-medium text-slate-400 transition-all duration-150;
+    @apply mx-1.5 flex items-center gap-3 rounded-xl border border-transparent
+           px-2.5 py-2.5 text-sm font-medium text-night-300 transition-all duration-150;
   }
-  .app-nav-link:hover {
-    @apply border-slate-600/50 bg-slate-800/50 text-slate-100;
-  }
-  .app-nav-link-accent {
-    @apply text-amber-300/95;
-  }
-  .app-nav-link-accent:hover {
-    @apply border-amber-500/20 bg-amber-500/10 text-amber-100;
-  }
+  .app-nav-link:hover       { @apply border-night-600 bg-night-800/60 text-night-100; }
+  .app-nav-link-accent      { @apply text-amber-300/95; }
+  .app-nav-link-accent:hover{ @apply border-brand-500/25 bg-brand-500/10 text-amber-100; }
+  /* Active — restrained orange left-bar indicator */
   .app-nav-link-active {
-    @apply border-orange-500/35 bg-[linear-gradient(90deg,rgba(249,115,22,0.18),rgba(15,23,42,0.2))] text-white shadow-[inset_3px_0_0_0_rgba(249,115,22,0.85)];
+    @apply border-brand-500/25
+           bg-[linear-gradient(90deg,rgba(232,119,34,0.12),rgba(15,17,21,0.20))]
+           text-white
+           shadow-[inset_3px_0_0_0_rgba(232,119,34,0.80)];
   }
   .app-nav-icon-wrap {
-    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-600/45 bg-slate-900/80 text-slate-300 transition-colors;
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg
+           border border-night-600 bg-night-950/80 text-night-200 transition-colors;
   }
   .app-nav-link:hover .app-nav-icon-wrap,
-  .app-nav-link-active .app-nav-icon-wrap {
-    @apply border-orange-400/35 bg-orange-500/15 text-white;
+  .app-nav-link-active  .app-nav-icon-wrap {
+    @apply border-brand-400/40 bg-brand-500/20 text-white;
   }
   .app-nav-dot {
-    @apply ml-auto h-2 w-2 shrink-0 rounded-full bg-orange-400 shadow-[0_0_0_4px_rgba(249,115,22,0.15)];
+    @apply ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-400
+           shadow-[0_0_0_4px_rgba(232,119,34,0.20)];
   }
-  .app-header-surface {
-    @apply mx-auto flex h-full w-full max-w-[1600px] items-center gap-3 px-4 sm:px-6 md:px-8;
-  }
-  .app-header-icon-button {
-    @apply relative rounded-2xl border border-slate-600/40 bg-slate-900/40 p-2.5 text-slate-300 transition-all hover:border-orange-400/35 hover:bg-slate-800/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40;
-  }
+
+  /* Content frame — neutral steel grid on dark (no orange) */
   .app-content-frame {
     @apply relative mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10;
-    background-image: linear-gradient(rgba(59, 130, 246, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(59, 130, 246, 0.045) 1px, transparent 1px);
+    background-image:
+      linear-gradient(rgba(150, 165, 190, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(150, 165, 190, 0.035) 1px, transparent 1px);
     background-size: 24px 24px;
     background-position: 0 0;
   }
+
+  /* ── Dashboard hero card (lighter steel; subtle brand edge) ── */
   .dashboard-hero {
-    @apply relative overflow-hidden rounded-[2rem] border border-sky-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.97),rgba(239,246,255,0.95)_40%,rgba(255,247,237,0.92)_100%)] shadow-[0_30px_80px_-48px_rgba(30,58,138,0.22)];
+    @apply relative overflow-hidden rounded-[2rem]
+           border border-night-700
+           bg-[linear-gradient(135deg,#1a1f27,#20262f_45%,#15191f_100%)]
+           shadow-[0_30px_80px_-48px_rgba(0,0,0,0.80),0_0_0_1px_rgba(150,165,190,0.06)];
   }
   .dashboard-hero::before {
     content: "";
-    @apply pointer-events-none absolute inset-y-0 right-0 w-[40%] bg-[radial-gradient(circle_at_center,rgba(251,146,60,0.22),transparent_70%)];
+    @apply pointer-events-none absolute inset-y-0 right-0 w-[40%];
+    background: radial-gradient(circle at center, rgba(232,119,34,0.10), transparent 70%);
   }
-  .dashboard-hero-grid {
-    @apply relative z-10 p-6 sm:p-8;
+  .dashboard-hero-grid      { @apply relative z-10 p-6 sm:p-8; }
+  .dashboard-eyebrow        {
+    @apply inline-flex items-center gap-2 rounded-full
+           border border-brand-400/40 bg-brand-500/15
+           px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-400;
   }
-  .dashboard-eyebrow {
-    @apply inline-flex items-center gap-2 rounded-full border border-orange-400/35 bg-orange-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-orange-800;
+  .dashboard-hero-title     { @apply mt-4 text-3xl font-black tracking-tight text-night-100 sm:text-[2.5rem]; }
+  .dashboard-hero-copy      { @apply mt-3 max-w-2xl text-sm leading-6 text-night-200 sm:text-[15px]; }
+  .dashboard-hero-kpis      { @apply mt-6 grid gap-3 sm:grid-cols-3; }
+  .dashboard-mini-kpi       {
+    @apply rounded-2xl border border-night-700/60 bg-night-800/55 px-4 py-3
+           shadow-industrial-panel backdrop-blur-md;
   }
-  .dashboard-hero-title {
-    @apply mt-4 text-3xl font-black tracking-tight text-sky-950 sm:text-4xl;
-  }
-  .dashboard-hero-copy {
-    @apply mt-3 max-w-2xl text-sm leading-6 text-sky-800/80 sm:text-[15px];
-  }
-  .dashboard-hero-kpis {
-    @apply mt-6 grid gap-3 sm:grid-cols-3;
-  }
-  .dashboard-mini-kpi {
-    @apply rounded-2xl border border-sky-200/65 bg-white/[0.9] px-4 py-3 shadow-industrial-panel backdrop-blur-sm;
-  }
-  .dashboard-mini-kpi-label {
-    @apply text-[11px] font-bold uppercase tracking-[0.2em] text-sky-700/80;
-  }
-  .dashboard-mini-kpi-value {
-    @apply mt-2 text-lg font-black text-sky-950;
-  }
+  .dashboard-mini-kpi-label { @apply text-[11px] font-black uppercase tracking-[0.22em] text-night-200; }
+  .dashboard-mini-kpi-value { @apply mt-2 text-lg font-black text-night-100; }
+
+  /* Dashboard media panel */
   .dashboard-hero-media {
-    @apply relative overflow-hidden rounded-[1.75rem] border border-sky-800/45 bg-sky-950 shadow-[0_30px_80px_-48px_rgba(30,58,138,0.45),0_20px_50px_-40px_rgba(251,146,60,0.2)];
+    @apply relative overflow-hidden rounded-[1.75rem]
+           border border-night-700 bg-night-950
+           shadow-[0_30px_80px_-48px_rgba(0,0,0,0.85),0_20px_50px_-40px_rgba(232,119,34,0.30)];
   }
   .dashboard-hero-media-overlay {
-    @apply absolute inset-0 bg-[linear-gradient(180deg,rgba(30,58,138,0.2),rgba(15,23,42,0.88))];
+    @apply absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,11,0.20),rgba(5,5,7,0.88))];
   }
   .dashboard-hero-media-badge {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur;
+    @apply inline-flex items-center gap-2 rounded-full border border-white/15
+           bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]
+           text-white backdrop-blur;
   }
+
+  /* Status strip — translucent */
   .dashboard-status-strip {
-    @apply flex flex-wrap items-center gap-3 rounded-2xl border border-sky-200/70 bg-white/[0.72] px-5 py-3.5 text-sky-950 shadow-industrial-panel backdrop-blur-md;
+    @apply flex flex-wrap items-center gap-3 rounded-2xl
+           border border-night-700/60 bg-night-850/65
+           px-5 py-3.5 text-night-100 shadow-industrial-panel backdrop-blur-md;
   }
+
+  /* Alert banner (subtle brand-tinted on cool dark) */
   .dashboard-alert {
-    @apply flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem] border border-orange-300/50 bg-gradient-to-br from-orange-50/95 via-sky-50/[0.88] to-sky-100/90 px-6 py-5 text-sky-950 shadow-[0_25px_60px_-42px_rgba(234,88,12,0.28)] backdrop-blur-sm;
+    @apply flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem]
+           border border-brand-500/25
+           bg-[linear-gradient(135deg,rgba(232,119,34,0.07),rgba(232,119,34,0.02)_55%,rgba(32,38,47,0.85))]
+           px-6 py-5 text-night-100
+           shadow-[0_25px_60px_-42px_rgba(232,119,34,0.22)] backdrop-blur-sm;
   }
+
+  /* Stat cards — compact translucent glass with thin brand left-bar */
   .dashboard-stat-card {
-    @apply relative overflow-hidden rounded-[1.45rem] border border-sky-200/65 border-l-[5px] border-l-orange-500 bg-white/[0.82] p-6 shadow-industrial-panel backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-sky-300/70 hover:bg-white/[0.9] hover:shadow-card-hover;
+    @apply relative overflow-hidden rounded-2xl
+           border border-night-700/60 border-l-[3px] border-l-brand-500/70
+           bg-night-850/55 p-4 shadow-industrial-panel backdrop-blur-md
+           transition-all hover:-translate-y-0.5 hover:border-brand-500/30
+           hover:bg-night-800/65 hover:shadow-card-hover;
   }
   .dashboard-stat-card::before {
     content: "";
-    @apply pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-orange-400/50 to-transparent;
+    @apply pointer-events-none absolute inset-x-4 top-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(232,119,34,0.30), transparent);
   }
-  .dashboard-metric-value {
-    font-variant-numeric: tabular-nums;
-    @apply text-3xl tracking-tight sm:text-[2.05rem];
-  }
-  .dashboard-stat-delta {
-    @apply mt-1 min-h-[1.125rem] text-sm font-semibold tabular-nums;
-  }
+  .dashboard-metric-value { font-variant-numeric: tabular-nums; @apply text-xl tracking-tight text-night-100 sm:text-2xl; }
+  .dashboard-stat-delta   { @apply mt-0.5 min-h-[1rem] text-[11px] font-semibold tabular-nums; }
+  /* Neutral steel chip — used for every stat / quick-action icon by default */
   .dashboard-stat-icon {
-    @apply rounded-2xl bg-gradient-to-br p-3.5 shadow-lg transition-transform group-hover:scale-105;
+    @apply flex items-center justify-center rounded-xl border border-night-700/60
+           bg-night-800/70 p-2 shadow-card transition-colors;
   }
-  .dashboard-module-grid {
-    @apply grid grid-cols-1 gap-7 xl:grid-cols-[minmax(22rem,1fr)_minmax(0,1.55fr)];
+  /* Primary CTA variant — single brand-tinted chip on the Create Listing action */
+  .dashboard-stat-icon--primary {
+    @apply border-brand-500/30 bg-brand-500/10;
   }
+  .dashboard-action-card:hover .dashboard-stat-icon { @apply border-brand-500/30 bg-night-800; }
+  .dashboard-action-card:hover .dashboard-stat-icon--primary { @apply border-brand-500/50 bg-brand-500/15; }
+
+  /* Module grid */
+  .dashboard-module-grid  { @apply grid grid-cols-1 gap-7 xl:grid-cols-[minmax(22rem,1fr)_minmax(0,1.55fr)]; }
+
+  /* Action cards — translucent glass gradient */
   .dashboard-action-card {
-    @apply flex flex-col rounded-[1.45rem] border border-sky-200/65 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(239,246,255,0.88))] p-5 shadow-industrial-panel backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-orange-300/45 hover:bg-white/[0.92] hover:shadow-card-hover;
+    @apply flex flex-col rounded-[1.45rem]
+           border border-night-700/60
+           bg-[linear-gradient(180deg,rgba(20,23,28,0.65),rgba(26,30,37,0.65))]
+           p-5 shadow-industrial-panel backdrop-blur-md
+           transition-all hover:-translate-y-0.5 hover:border-brand-500/45
+           hover:bg-[linear-gradient(180deg,rgba(26,30,37,0.80),rgba(35,40,48,0.80))] hover:shadow-card-hover;
   }
-  .dashboard-action-label {
-    @apply mt-3 text-base font-semibold text-sky-950 transition-colors group-hover:text-sky-950;
-  }
-  .dashboard-action-note {
-    @apply mt-1 text-sm leading-relaxed text-sky-900/65;
-  }
+  .dashboard-action-label { @apply mt-3 text-base font-semibold text-night-100 transition-colors group-hover:text-night-100; }
+  .dashboard-action-note  { @apply mt-1 text-sm leading-relaxed text-night-200; }
+
+  /* Empty state */
   .dashboard-empty-state {
-    @apply flex flex-col items-center gap-3 rounded-[1.5rem] border border-dashed border-sky-300/60 bg-white/[0.7] px-6 py-10 text-center backdrop-blur-sm;
+    @apply flex flex-col items-center gap-3 rounded-[1.5rem]
+           border border-dashed border-night-600 bg-night-850/50
+           px-6 py-10 text-center text-night-200 backdrop-blur-sm;
   }
 
-  .btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500 shadow-sm hover:shadow-glow-brand; }
-  .btn-secondary { @apply btn bg-white text-sky-800 border border-sky-200 hover:bg-sky-50 hover:border-sky-300 focus:ring-brand-500; }
-  .btn-accent { @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-400 shadow-sm hover:shadow-glow-accent; }
-  .btn-danger { @apply btn bg-danger-500 text-white hover:bg-danger-700 focus:ring-danger-500; }
-  .btn-ghost { @apply btn text-sky-700 hover:bg-sky-100 focus:ring-sky-400; }
-  .btn-sm { @apply text-xs px-3 py-1.5; }
-  .btn-lg { @apply text-base px-6 py-3; }
+  /* ────────────────── Global UI primitives ────────────────── */
 
-  .card { @apply rounded-2xl border border-sky-200/85 bg-white/95 shadow-card backdrop-blur-sm transition-shadow hover:shadow-card-hover; }
-  .card-header { @apply px-6 py-4 border-b border-sky-100; }
-  .card-body { @apply px-6 py-5; }
-  .card-footer { @apply px-6 py-4 border-t border-sky-100 bg-orange-50/30 rounded-b-xl; }
+  /* Buttons */
+  .btn           { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-night-950 disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary   { @apply btn bg-brand-500 text-white hover:bg-brand-600 focus:ring-brand-400 shadow-sm hover:shadow-glow-brand; }
+  .btn-secondary { @apply btn bg-night-800 text-night-100 border border-night-700 hover:bg-night-750 hover:border-brand-500/40 focus:ring-brand-400; }
+  .btn-accent    { @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-400 shadow-sm hover:shadow-glow-accent; }
+  .btn-danger    { @apply btn bg-danger-500 text-white hover:bg-danger-700 focus:ring-danger-500; }
+  .btn-ghost     { @apply btn text-night-200 hover:bg-night-800 focus:ring-brand-400; }
+  .btn-sm        { @apply text-xs px-3 py-1.5; }
+  .btn-lg        { @apply text-base px-6 py-3; }
 
-  .input { @apply w-full px-3 py-2 rounded-lg border border-sky-300 text-sm bg-white placeholder-sky-400 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all; }
+  /* Cards — translucent by default; use .card-dense for tables/lists */
+  .card        { @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-card backdrop-blur-md transition-shadow hover:shadow-card-hover; }
+  .card-dense  { @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-card backdrop-blur-sm transition-shadow hover:shadow-card-hover; }
+  .card-header { @apply px-6 py-4 border-b border-night-700/60; }
+  .card-body   { @apply px-6 py-5; }
+  .card-footer { @apply px-6 py-4 border-t border-night-700/60 bg-brand-500/[0.04] rounded-b-xl; }
+
+  /* Form controls */
+  .input       { @apply w-full px-3 py-2 rounded-lg border border-night-700 text-sm bg-night-800 text-night-100 placeholder-night-300 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all; }
+  /* Chrome/Edge autofill forces a light background + its own text color, which
+     produces white-on-white against our dark theme. Pin both to the night
+     palette so autofilled values remain readable. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: theme('colors.night.100');
+    caret-color: theme('colors.night.100');
+    -webkit-box-shadow: 0 0 0 1000px theme('colors.night.800') inset;
+    box-shadow: 0 0 0 1000px theme('colors.night.800') inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
   .input-error { @apply border-danger-500 focus:ring-danger-500/40; }
-  .label { @apply block text-sm font-semibold text-sky-800 mb-1; }
-  .hint { @apply mt-1 text-xs text-sky-600; }
-  .error-msg { @apply mt-1 text-xs text-danger-600; }
+  .label       { @apply block text-sm font-semibold text-night-200 mb-1; }
+  .hint        { @apply mt-1 text-xs text-night-300; }
+  .error-msg   { @apply mt-1 text-xs text-danger-400; }
 
-  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide; }
-  .badge-green { @apply badge bg-success-100 text-success-700 ring-1 ring-success-500/20; }
-  .badge-amber { @apply badge bg-warning-100 text-warning-700 ring-1 ring-warning-500/20; }
-  .badge-red { @apply badge bg-danger-100 text-danger-700 ring-1 ring-danger-500/20; }
-  .badge-blue { @apply badge bg-brand-100 text-brand-700 ring-1 ring-brand-500/20; }
-  .badge-gray { @apply badge bg-sky-100 text-sky-700 ring-1 ring-sky-300/40; }
-  .badge-accent { @apply badge bg-accent-100 text-accent-700 ring-1 ring-accent-500/20; }
+  /* Badges (dark inversion: transparent tint + ring + lighter text) */
+  .badge        { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide; }
+  .badge-green  { @apply badge bg-success-500/15 text-success-400 ring-1 ring-success-500/30; }
+  .badge-amber  { @apply badge bg-warning-500/15 text-warning-400 ring-1 ring-warning-500/30; }
+  .badge-red    { @apply badge bg-danger-500/15  text-danger-400  ring-1 ring-danger-500/30; }
+  .badge-blue   { @apply badge bg-brand-500/15   text-brand-400   ring-1 ring-brand-500/30; }
+  .badge-gray   { @apply badge bg-night-700      text-night-200   ring-1 ring-night-600/60; }
+  .badge-accent { @apply badge bg-accent-500/15  text-accent-400  ring-1 ring-accent-500/30; }
 
-  .section-title { @apply text-lg font-bold text-sky-950; }
-  .page-title { @apply text-2xl font-black tracking-tight text-sky-950 sm:text-3xl; }
-  .page-sub { @apply mt-1 text-sm font-medium text-sky-700; }
+  /* Typography helpers (headings bumped) */
+  .section-title { @apply text-lg font-black tracking-tight text-night-100; }
+  .page-title    { @apply text-2xl font-black tracking-tight text-night-100 sm:text-3xl; }
+  .page-sub      { @apply mt-1 text-sm font-medium text-night-200; }
 
-  .stat-card { @apply card p-5 flex flex-col gap-1; }
-  .stat-value { @apply text-2xl font-extrabold text-sky-950; }
-  .stat-label { @apply text-xs font-semibold text-sky-600 uppercase tracking-wider; }
+  /* Stat widgets */
+  .stat-card  { @apply card p-5 flex flex-col gap-1; }
+  .stat-value { @apply text-2xl font-black text-night-100; }
+  .stat-label { @apply text-xs font-black text-night-300 uppercase tracking-wider; }
 
-  .tab-bar { @apply flex gap-1 border-b border-sky-200; }
-  .tab { @apply px-4 py-2.5 text-sm font-semibold text-sky-600 border-b-2 border-transparent hover:text-sky-900 transition-colors cursor-pointer; }
-  .tab-active { @apply tab text-brand-600 border-brand-600; }
+  /* Tabs */
+  .tab-bar    { @apply flex gap-1 border-b border-night-700; }
+  .tab        { @apply px-4 py-2.5 text-sm font-semibold text-night-300 border-b-2 border-transparent hover:text-night-100 transition-colors cursor-pointer; }
+  .tab-active { @apply tab text-brand-400 border-brand-500; }
 
-  .upload-zone { @apply border-2 border-dashed border-sky-300 rounded-xl p-8 text-center hover:border-orange-400 hover:bg-orange-50/40 transition-all cursor-pointer; }
-  .upload-zone-active { @apply border-brand-500 bg-brand-50; }
+  /* Upload zone */
+  .upload-zone        { @apply border-2 border-dashed border-night-600 rounded-xl p-8 text-center hover:border-brand-400 hover:bg-brand-500/5 transition-all cursor-pointer; }
+  .upload-zone-active { @apply border-brand-500 bg-brand-500/10; }
 
-  .dropdown-menu { @apply absolute z-50 mt-1 bg-white rounded-xl border border-sky-200 shadow-lg py-1 min-w-[160px]; }
-  .dropdown-item { @apply flex items-center gap-2 px-4 py-2 text-sm text-sky-800 hover:bg-sky-50 cursor-pointer; }
+  /* Dropdowns */
+  .dropdown-menu { @apply absolute z-50 mt-1 bg-night-750 rounded-xl border border-night-700 shadow-lg py-1 min-w-[160px]; }
+  .dropdown-item { @apply flex items-center gap-2 px-4 py-2 text-sm text-night-100 hover:bg-night-700 cursor-pointer; }
 
+  /* Misc */
   .countdown { @apply font-mono font-bold tabular-nums; }
+
+  /* ── Section card (used across app pages — translucent) ── */
+  .app-section-card {
+    @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-industrial-panel backdrop-blur-md;
+  }
+  /* Dense variant for data tables / dense lists */
+  .app-section-card-dense {
+    @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-industrial-panel backdrop-blur-sm;
+  }
+  .app-section-card-header {
+    @apply flex items-center justify-between border-b border-night-700/60 px-5 py-4;
+  }
+  .app-section-card-title {
+    @apply text-sm font-black tracking-tight text-night-100;
+  }
 }

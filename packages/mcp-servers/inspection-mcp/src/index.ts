@@ -45,6 +45,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "evaluate_discrepancy", description: "Compare expected and actual weights", inputSchema: { type: "object", properties: { order_id: { type: "string" }, expected_weight_kg: { type: "number" }, tolerance_pct: { type: "number" } }, required: ["order_id", "expected_weight_kg"] } },
     { name: "get_inspection", description: "Get inspection with related weight records", inputSchema: { type: "object", properties: { inspection_id: { type: "string" } }, required: ["inspection_id"] } },
     { name: "reconcile_weights", description: "Compare W1–W4 weight checkpoints for an order and compute net weight", inputSchema: { type: "object", properties: { order_id: { type: "string" } }, required: ["order_id"] } },
+    { name: "list_inspections", description: "List inspections requested by the caller, assigned to them as inspector, or for an order they participate in. Optional status filter.", inputSchema: { type: "object", properties: { user_id: { type: "string" }, order_id: { type: "string" }, status: { type: "string" }, limit: { type: "number" } } } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -216,6 +217,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       : { data: [], error: null };
     if (weights.error) return fail("DB_ERROR", "Database operation failed");
     return { content: [{ type: "text", text: ok({ inspection: inspection.data, weight_records: weights.data ?? [] }) }] };
+  }
+
+  if (tool === "list_inspections") {
+    const userId = args.user_id ? String(args.user_id) : "";
+    const orderId = args.order_id ? String(args.order_id) : "";
+    const statusFilter = args.status ? String(args.status) : "";
+    const limit = Math.min(Math.max(Number(args.limit ?? 100), 1), 500);
+
+    let query = supabase
+      .schema("inspection_mcp")
+      .from("inspections")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (orderId) {
+      query = query.eq("order_id", orderId);
+    } else if (userId) {
+      query = query.or(`requested_by.eq.${userId},inspector_id.eq.${userId}`);
+    }
+    if (statusFilter) query = query.eq("status", statusFilter);
+
+    const { data, error } = await query;
+    if (error) return fail("DB_ERROR", "Database operation failed");
+    return { content: [{ type: "text", text: ok({ inspections: data ?? [] }) }] };
   }
 
   if (tool === "reconcile_weights") {

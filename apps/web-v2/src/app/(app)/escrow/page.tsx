@@ -126,22 +126,22 @@ function normalizeEscrow(raw: RawEscrow): EscrowRecord {
 
 const EMPTY_BY_TAB: Record<Tab, { image: string; title: string; description: string }> = {
   active: {
-    image: "/illustrations/escrow-held.png",
+    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No active escrows",
     description: "New escrows appear here when funds are held against an order.",
   },
   pending_release: {
-    image: "/illustrations/escrow-held.png",
+    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "Nothing pending release",
     description: "When all release conditions are met, orders show here ready to release.",
   },
   released: {
-    image: "/illustrations/escrow-released.png",
+    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No released escrows yet",
     description: "Completed escrow disbursements will appear here.",
   },
   frozen: {
-    image: "/illustrations/escrow-frozen.png",
+    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No frozen escrows",
     description: "Frozen or disputed escrows appear here until resolved.",
   },
@@ -180,19 +180,19 @@ function DisputeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-sky-200 bg-white p-6 shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-night-700 bg-night-850 p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-sky-900">File a Dispute</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-sky-400 hover:bg-sky-100 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+          <h3 className="text-base font-bold text-night-100">File a Dispute</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-night-300 hover:bg-night-800 hover:text-night-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
             <XCircle className="h-5 w-5" />
           </button>
         </div>
-        <p className="mb-4 text-sm text-sky-600">
+        <p className="mb-4 text-sm text-night-200">
           Disputing this escrow will freeze funds and open a case for resolution. Both parties will be notified.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="dispute-reason" className="mb-1 block text-sm font-semibold text-sky-700">
+            <label htmlFor="dispute-reason" className="mb-1 block text-sm font-semibold text-night-200">
               Reason for dispute <span className="text-danger-600">*</span>
             </label>
             <textarea
@@ -201,7 +201,7 @@ function DisputeModal({
               value={reason}
               onChange={(e) => { setReason(e.target.value); setError(""); }}
               placeholder="Describe the issue in detail — undelivered goods, quality problems, payment discrepancies, etc."
-              className="w-full rounded-xl border border-sky-200 px-3 py-2 text-sm text-sky-900 placeholder:text-sky-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full rounded-xl border border-night-700 px-3 py-2 text-sm text-night-100 placeholder:text-night-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
           {error && <p className="text-xs font-medium text-danger-600">{error}</p>}
@@ -209,7 +209,7 @@ function DisputeModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-sky-200 px-4 py-2.5 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-50"
+              className="flex-1 rounded-xl border border-night-700 px-4 py-2.5 text-sm font-semibold text-night-200 transition-colors hover:bg-night-900"
             >
               Cancel
             </button>
@@ -273,10 +273,11 @@ export default function EscrowPage() {
       setDisputeEscrowId(escrowId);
       return;
     }
+    const performedBy = getUser()?.userId ?? "";
     if (action === "freeze") {
       const reason = "Frozen by operator";
       setActionLoading(escrowId + action);
-      await callTool("escrow.freeze_escrow", { escrow_id: escrowId, reason });
+      await callTool("escrow.freeze_escrow", { escrow_id: escrowId, reason, performed_by: performedBy });
       setEscrows((prev) => prev.map((e) => e.escrow_id === escrowId ? { ...e, status: "frozen" } : e));
       setActionLoading(null);
       return;
@@ -285,15 +286,19 @@ export default function EscrowPage() {
     const toolMap: Record<string, string> = {
       hold: "escrow.hold_funds",
       release: "escrow.release_funds",
-      refund: "escrow.release_funds",
+      refund: "escrow.refund_escrow",
     };
-    await callTool(toolMap[action] ?? "escrow.get_escrow", { escrow_id: escrowId });
+    await callTool(toolMap[action] ?? "escrow.get_escrow", {
+      escrow_id: escrowId,
+      performed_by: performedBy,
+    });
     setEscrows((prev) =>
       prev.map((e) => {
         if (e.escrow_id !== escrowId) return e;
         if (action === "release") return { ...e, status: "released" };
         if (action === "freeze") return { ...e, status: "frozen" };
         if (action === "refund") return { ...e, status: "refunded" };
+        if (action === "hold") return { ...e, status: "funds_held" };
         return e;
       })
     );
@@ -332,14 +337,14 @@ export default function EscrowPage() {
           const releasedN = escrows.filter((e) => e.status === "released").length;
           const frozenN = escrows.filter((e) => e.status === "frozen").length;
           const stats: { label: string; value: string | number; color: string }[] = [
-            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-sky-900" },
-            { label: "Active", value: activeN, color: "text-sky-900" },
-            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-sky-900" },
-            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-sky-900" },
+            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-night-100" },
+            { label: "Active", value: activeN, color: "text-night-100" },
+            { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-night-100" },
+            { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-night-100" },
           ];
           return stats.map((c) => (
             <div key={c.label} className="marketplace-card p-4">
-              <p className="text-xs text-sky-500">{c.label}</p>
+              <p className="text-xs text-night-300">{c.label}</p>
               <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
             </div>
           ));
@@ -347,14 +352,14 @@ export default function EscrowPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex w-fit gap-1 rounded-2xl border border-sky-200/80 bg-sky-100/80 p-1">
+      <div className="flex w-fit gap-1 rounded-2xl border border-night-700/80 bg-night-800/80 p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
             className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-white text-sky-900 shadow-sm" : "text-sky-500 hover:text-sky-800"
+              tab === t.key ? "bg-night-850 text-night-100 shadow-sm" : "text-night-300 hover:text-night-100"
             }`}
           >
             {t.label}
@@ -364,7 +369,7 @@ export default function EscrowPage() {
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -384,7 +389,7 @@ export default function EscrowPage() {
             size="lg"
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-zinc-100">
             {filtered.map((escrow) => (
               <EscrowRow
                 key={escrow.escrow_id}
@@ -421,52 +426,52 @@ function EscrowRow({
   return (
     <div>
       <div
-        className="flex cursor-pointer flex-wrap items-center gap-4 px-5 py-4 transition hover:bg-slate-50"
+        className="flex cursor-pointer flex-wrap items-center gap-4 px-5 py-4 transition hover:bg-night-900"
         onClick={onToggle}
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-900 text-sm">{escrow.order_title}</p>
+            <p className="font-medium text-night-100 text-sm">{escrow.order_title}</p>
             {statusBadge(escrow.status)}
             {allMet && escrow.status === "funds_held" && (
               <Badge variant="success">Ready to Release</Badge>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-night-300">
             {escrow.buyer} → {escrow.seller}
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="font-bold text-slate-900">{formatCAD(escrow.amount)}</p>
-          <p className="text-xs text-slate-400">Commission: {formatCAD(escrow.commission)}</p>
+          <p className="font-bold text-night-100">{formatCAD(escrow.amount)}</p>
+          <p className="text-xs text-night-300">Commission: {formatCAD(escrow.commission)}</p>
         </div>
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" />
+          <ChevronUp className="h-4 w-4 text-night-300 shrink-0" />
         ) : (
-          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+          <ChevronDown className="h-4 w-4 text-night-300 shrink-0" />
         )}
       </div>
 
       {expanded && (
-        <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-5">
+        <div className="border-t border-night-700/60 bg-night-900 px-5 py-4 space-y-5">
           {/* Timeline */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Progress</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-3">Progress</p>
             <div className="flex items-center gap-0">
               {TIMELINE_STEPS.map((s, i) => (
                 <div key={s} className="flex flex-1 items-center last:flex-none">
                   <div className="flex flex-col items-center">
                     <div
                       className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                        i <= step ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-400"
+                        i <= step ? "bg-brand-600 text-white" : "bg-night-700 text-night-300"
                       }`}
                     >
                       {i < step ? "✓" : i + 1}
                     </div>
-                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-brand-700 font-medium" : "text-slate-400"}`}>{s}</p>
+                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-brand-700 font-medium" : "text-night-300"}`}>{s}</p>
                   </div>
                   {i < TIMELINE_STEPS.length - 1 && (
-                    <div className={`h-0.5 flex-1 mb-4 ${i < step ? "bg-brand-600" : "bg-slate-200"}`} />
+                    <div className={`h-0.5 flex-1 mb-4 ${i < step ? "bg-brand-600" : "bg-night-700"}`} />
                   )}
                 </div>
               ))}
@@ -475,16 +480,16 @@ function EscrowRow({
 
           {/* Release conditions */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Release Conditions</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-2">Release Conditions</p>
             <div className="space-y-2">
               {escrow.release_conditions.map((rc) => (
                 <div key={rc.key} className="flex items-center gap-2.5">
                   {rc.met ? (
                     <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-slate-300 shrink-0" />
+                    <XCircle className="h-4 w-4 text-zinc-300 shrink-0" />
                   )}
-                  <span className={`text-sm ${rc.met ? "text-slate-700" : "text-slate-400"}`}>{rc.label}</span>
+                  <span className={`text-sm ${rc.met ? "text-night-200" : "text-night-300"}`}>{rc.label}</span>
                 </div>
               ))}
             </div>

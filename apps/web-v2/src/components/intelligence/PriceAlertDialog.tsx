@@ -101,13 +101,13 @@ export function PriceAlertDialog({
 
         <div className="space-y-4 py-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-steel-600">
+            <label className="text-xs font-semibold uppercase tracking-wider text-night-200">
               Material
             </label>
             <select
               value={materialKey}
               onChange={(e) => setMaterialKey(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-steel-200 bg-white px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="mt-1 w-full rounded-lg border border-night-700 bg-night-850 px-3 py-2 text-sm text-night-100 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             >
               {MATERIALS.map((m) => (
                 <option key={m.key} value={m.key}>
@@ -118,13 +118,13 @@ export function PriceAlertDialog({
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-steel-600">
+            <label className="text-xs font-semibold uppercase tracking-wider text-night-200">
               Alert type
             </label>
             <select
               value={alertType}
               onChange={(e) => setAlertType(e.target.value as PriceAlertType)}
-              className="mt-1 w-full rounded-lg border border-steel-200 bg-white px-3 py-2 text-sm text-steel-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="mt-1 w-full rounded-lg border border-night-700 bg-night-850 px-3 py-2 text-sm text-night-100 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             >
               {ALERT_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -136,7 +136,7 @@ export function PriceAlertDialog({
 
           {meta.needsThreshold && (
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-steel-600">
+              <label className="text-xs font-semibold uppercase tracking-wider text-night-200">
                 Threshold ({material?.unit === "lb" ? "CAD/lb" : "CAD/mt"})
               </label>
               <Input
@@ -151,8 +151,8 @@ export function PriceAlertDialog({
           )}
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-steel-600">
-              Region filter <span className="text-steel-400">(optional)</span>
+            <label className="text-xs font-semibold uppercase tracking-wider text-night-200">
+              Region filter <span className="text-night-300">(optional)</span>
             </label>
             <Input
               value={region}
@@ -163,7 +163,7 @@ export function PriceAlertDialog({
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-steel-600">Channels</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-night-200">Channels</p>
             <div className="mt-1 flex flex-wrap gap-2">
               {CHANNELS.map((c) => {
                 const active = channels.includes(c.value);
@@ -175,7 +175,7 @@ export function PriceAlertDialog({
                     className={
                       active
                         ? "rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white"
-                        : "rounded-full border border-steel-200 px-3 py-1 text-xs font-semibold text-steel-700 hover:border-brand-400"
+                        : "rounded-full border border-night-700 px-3 py-1 text-xs font-semibold text-night-200 hover:border-brand-400"
                     }
                   >
                     {c.label}
@@ -186,8 +186,8 @@ export function PriceAlertDialog({
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-steel-600">
-              Note <span className="text-steel-400">(optional)</span>
+            <label className="text-xs font-semibold uppercase tracking-wider text-night-200">
+              Note <span className="text-night-300">(optional)</span>
             </label>
             <Input
               value={note}
@@ -198,7 +198,7 @@ export function PriceAlertDialog({
           </div>
 
           {error && (
-            <p className="rounded-lg bg-danger-50 px-3 py-2 text-xs text-danger-700">{error}</p>
+            <p className="rounded-lg bg-danger-500/15 px-3 py-2 text-xs text-danger-400">{error}</p>
           )}
         </div>
 

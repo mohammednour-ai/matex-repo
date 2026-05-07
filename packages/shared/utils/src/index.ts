@@ -167,6 +167,48 @@ export function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
+// ============================================================================
+// Platform Config (runtime-configurable values from log_mcp.platform_config)
+// ============================================================================
+
+// Accepts the actual @supabase/supabase-js client without pulling its types into
+// @matex/utils — we only need `schema().from().select().eq().maybeSingle()` to be callable.
+// Typed as `any` so call sites can pass the real client without structural-type friction.
+type SupabaseLike = any;
+
+const _platformConfigCache = new Map<string, { value: number; expires_at: number }>();
+const PLATFORM_CONFIG_TTL_MS = 60_000;
+
+/**
+ * Read a numeric value from log_mcp.platform_config. Returns the fallback
+ * when the row is missing, the value cannot be parsed, or fails the validator.
+ * Cached in-process for 60s to avoid hammering the DB on hot paths.
+ */
+export async function getPlatformConfigNumber(
+  supabase: SupabaseLike | null,
+  configKey: string,
+  fallback: number,
+  validator?: (n: number) => boolean,
+): Promise<number> {
+  const cached = _platformConfigCache.get(configKey);
+  if (cached && cached.expires_at > Date.now()) return cached.value;
+  if (!supabase) return fallback;
+  try {
+    const { data } = await supabase.schema("log_mcp").from("platform_config").select("config_value").eq("config_key", configKey).maybeSingle();
+    const value = data?.config_value;
+    if (value !== undefined && value !== null) {
+      const parsed = parseFloat(String(value));
+      if (Number.isFinite(parsed) && (!validator || validator(parsed))) {
+        _platformConfigCache.set(configKey, { value: parsed, expires_at: Date.now() + PLATFORM_CONFIG_TTL_MS });
+        return parsed;
+      }
+    }
+  } catch {
+    // fall through to fallback
+  }
+  return fallback;
+}
+
 export * from "./event-bus";
 export { callServer } from "./inter-server";
 export * from "./operational-rules";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Truck,
   MapPin,
@@ -39,13 +40,21 @@ type Shipment = {
 };
 
 type CarrierQuote = {
+  quote_id: string;
+  order_id: string;
   carrier: string;
+  carrier_name?: string;
   price: number;
   transit_days: number;
   co2_kg: number;
   rating: number;
   recommended?: boolean;
 };
+
+function parseLocation(s: string): { city: string; province: string; postal_code: string } {
+  const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
+  return { city: parts[0] ?? s, province: parts[1] ?? "", postal_code: parts[2] ?? "" };
+}
 
 type RawShipment = Partial<Shipment> & {
   shipment_id: string;
@@ -101,12 +110,14 @@ export default function LogisticsPage() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [shipmentsError, setShipmentsError] = useState("");
+  const [orderIdInput, setOrderIdInput] = useState("");
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [weight, setWeight] = useState("");
   const [hazmat, setHazmat] = useState("none");
   const [quotes, setQuotes] = useState<CarrierQuote[] | null>(null);
   const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState("");
   const [bookingLoading, setBookingLoading] = useState<string | null>(null);
   const [trackLoading, setTrackLoading] = useState<string | null>(null);
   const [bolLoading, setBolLoading] = useState<string | null>(null);
@@ -136,37 +147,77 @@ export default function LogisticsPage() {
   }, []);
 
   async function handleGetQuotes(): Promise<void> {
+    setQuotesError("");
+    const userId = getUser()?.userId ?? "";
+    if (!userId) {
+      setQuotesError("Sign in to request shipping quotes.");
+      return;
+    }
+    if (!orderIdInput.trim()) {
+      setQuotesError("Linked order ID is required to request shipping quotes.");
+      return;
+    }
     setQuotesLoading(true);
     const res = await callTool("logistics.get_quotes", {
-      origin,
-      destination,
+      order_id: orderIdInput.trim(),
+      origin: parseLocation(origin),
+      destination: parseLocation(destination),
       weight_kg: Number(weight),
       hazmat_class: hazmat,
-      user_id: getUser()?.userId ?? "",
+      requested_by: userId,
     });
+    if (!res.success) {
+      setQuotesError(res.error?.message ?? "Could not fetch quotes.");
+      setQuotes([]);
+      setQuotesLoading(false);
+      return;
+    }
     const upData = (res.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
-    const realQuotes = (upData?.quotes ?? (res.data as unknown as { quotes?: CarrierQuote[] })?.quotes) as CarrierQuote[] | undefined;
-    setQuotes(res.success && realQuotes?.length ? realQuotes : []);
+    const rawQuotes = (upData?.quotes ?? (res.data as unknown as { quotes?: Record<string, unknown>[] })?.quotes) as Record<string, unknown>[] | undefined;
+    const normalized: CarrierQuote[] = (rawQuotes ?? []).map((q) => ({
+      quote_id: String(q.quote_id ?? ""),
+      order_id: String(q.order_id ?? orderIdInput.trim()),
+      carrier: String(q.carrier_name ?? q.carrier ?? ""),
+      carrier_name: String(q.carrier_name ?? q.carrier ?? ""),
+      price: Number(q.price_cad ?? q.price ?? 0),
+      transit_days: Number(q.transit_days ?? 0),
+      co2_kg: Number(q.co2_emissions_kg ?? q.co2_kg ?? 0),
+      rating: Number(q.rating ?? 4.5),
+      recommended: Boolean(q.recommended),
+    }));
+    setQuotes(normalized);
     setQuotesLoading(false);
   }
 
-  async function handleBookShipment(carrier: string, price: number): Promise<void> {
-    setBookingLoading(carrier);
-    const res = await callTool("logistics.book_shipment", { carrier, origin, destination, weight_kg: Number(weight), price });
+  async function handleBookShipment(quote: CarrierQuote): Promise<void> {
+    const userId = getUser()?.userId ?? "";
+    if (!userId) return;
+    setBookingLoading(quote.carrier);
+    const res = await callTool("logistics.book_shipment", {
+      order_id: quote.order_id,
+      quote_id: quote.quote_id,
+      carrier_name: quote.carrier_name ?? quote.carrier,
+      booked_by: userId,
+    });
+    if (!res.success) {
+      setBookingLoading(null);
+      setQuotesError(res.error?.message ?? "Could not book shipment.");
+      return;
+    }
     const newId = extractId(res, "shipment_id") || `SHP-${Date.now()}`;
     setBookedId(newId);
     setShipments((prev) => [
       {
         shipment_id: newId,
         order_title: `${weight} kg shipment`,
-        carrier,
-        tracking_number: `${carrier.substring(0, 2).toUpperCase()}-2026-${Math.floor(Math.random() * 900000 + 100000)}`,
+        carrier: quote.carrier,
+        tracking_number: `${quote.carrier.substring(0, 2).toUpperCase()}-2026-${Math.floor(Math.random() * 900000 + 100000)}`,
         origin,
         destination,
         weight_kg: Number(weight),
         status: "booked",
         eta: new Date(Date.now() + 86400000 * 3).toISOString(),
-        co2_kg: price * 0.04,
+        co2_kg: quote.price * 0.04,
       },
       ...prev,
     ]);
@@ -195,10 +246,10 @@ export default function LogisticsPage() {
         title="Logistics"
         description="Manage shipments, get multi-carrier quotes, and track deliveries."
         actions={
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/90 bg-emerald-50/90 px-4 py-2 shadow-sm">
+          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/90 bg-success-500/90 px-4 py-2 shadow-sm">
             <Leaf className="h-4 w-4 text-emerald-600" />
             <div className="text-sm">
-              <span className="font-semibold text-emerald-800">{totalCO2.toFixed(1)} kg CO₂</span>
+              <span className="font-semibold text-success-400">{totalCO2.toFixed(1)} kg CO₂</span>
               <span className="text-emerald-600"> total emissions tracked</span>
             </div>
           </div>
@@ -207,40 +258,40 @@ export default function LogisticsPage() {
 
       {/* Active shipments */}
       <div className="marketplace-card overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-700">Active Shipments</h2>
+        <div className="px-5 py-3.5 border-b border-night-700/60">
+          <h2 className="text-sm font-semibold text-night-200">Active Shipments</h2>
         </div>
         {shipmentsLoading ? (
           <div className="flex items-center justify-center py-12">
             <Spinner className="h-5 w-5 text-brand-500" />
           </div>
         ) : shipmentsError ? (
-          <div className="px-5 py-4 text-sm text-red-700">{shipmentsError}</div>
+          <div className="px-5 py-4 text-sm text-danger-400">{shipmentsError}</div>
         ) : shipments.length === 0 ? (
           <EmptyState
-            image="/illustrations/shipment-tracking.png"
+            image="/grphs/Platform%20Domains/logistics-d-logistics.png"
             title="No shipments yet"
             description="Book your first load below to start tracking pickup, ETA, and proof of delivery."
             size="md"
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-zinc-100">
             {shipments.map((sh) => (
               <div key={sh.shipment_id}>
                 <div className="flex flex-wrap items-center gap-4 px-5 py-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                    <Truck className="h-4 w-4 text-slate-600" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-night-800">
+                    <Image src="/grphs/Icons/shipping-truck-i-truck.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" aria-hidden />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-slate-900 truncate">{sh.order_title}</p>
+                      <p className="text-sm font-medium text-night-100 truncate">{sh.order_title}</p>
                       {statusBadge(sh.status)}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-night-300 mt-0.5">
                       {sh.carrier} · {sh.origin} → {sh.destination} · {sh.tracking_number}
                     </p>
                   </div>
-                  <div className="text-right text-xs text-slate-500 shrink-0">
+                  <div className="text-right text-xs text-night-300 shrink-0">
                     <p>ETA: {formatDate(sh.eta)}</p>
                     <p className="flex items-center justify-end gap-1 text-emerald-600">
                       <Leaf className="h-3 w-3" /> {sh.co2_kg.toFixed(1)} kg CO₂
@@ -276,8 +327,14 @@ export default function LogisticsPage() {
 
       {/* Get quotes */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-slate-700">Get Carrier Quotes</h2>
+        <h2 className="mb-4 text-sm font-semibold text-night-200">Get Carrier Quotes</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-4">
+          <Input
+            label="Linked Order ID"
+            placeholder="ORD-..."
+            value={orderIdInput}
+            onChange={(e) => setOrderIdInput(e.target.value)}
+          />
           <Input
             label="Origin"
             placeholder="Hamilton, ON"
@@ -298,11 +355,11 @@ export default function LogisticsPage() {
             onChange={(e) => setWeight(e.target.value)}
           />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-slate-700">Hazmat Class</label>
+            <label className="text-sm font-medium text-night-200">Hazmat Class</label>
             <select
               value={hazmat}
               onChange={(e) => setHazmat(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+              className="rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
             >
               {HAZMAT_CLASSES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -312,14 +369,17 @@ export default function LogisticsPage() {
         </div>
         <Button
           loading={quotesLoading}
-          disabled={!origin || !destination || !weight}
+          disabled={!origin || !destination || !weight || !orderIdInput.trim()}
           onClick={handleGetQuotes}
         >
           Get Quotes
         </Button>
+        {quotesError && (
+          <div className="mt-3 rounded-lg bg-danger-500/10 px-4 py-2 text-sm text-danger-400">{quotesError}</div>
+        )}
 
         {bookedId && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-success-500/10 px-4 py-3 text-sm text-success-400">
             <CheckCircle className="h-4 w-4 shrink-0" />
             Shipment booked! ID: <strong className="font-mono">{bookedId}</strong>
           </div>
@@ -329,7 +389,7 @@ export default function LogisticsPage() {
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-night-700 text-xs font-semibold uppercase tracking-wider text-night-300">
                   <th className="pb-2 text-left">Carrier</th>
                   <th className="pb-2 text-right">Price</th>
                   <th className="pb-2 text-right">Transit</th>
@@ -338,24 +398,24 @@ export default function LogisticsPage() {
                   <th className="pb-2" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-zinc-100">
                 {quotes.sort((a, b) => a.price - b.price).map((q) => (
-                  <tr key={q.carrier} className={q.recommended ? "bg-brand-50" : ""}>
+                  <tr key={q.carrier} className={q.recommended ? "bg-brand-500/10" : ""}>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-800">{q.carrier}</span>
+                        <span className="font-medium text-night-100">{q.carrier}</span>
                         {q.recommended && <Badge variant="info">Best Value</Badge>}
                       </div>
                     </td>
-                    <td className="py-3 text-right font-bold text-slate-900">{formatCAD(q.price)}</td>
-                    <td className="py-3 text-right text-slate-600">{q.transit_days}d</td>
+                    <td className="py-3 text-right font-bold text-night-100">{formatCAD(q.price)}</td>
+                    <td className="py-3 text-right text-night-200">{q.transit_days}d</td>
                     <td className="py-3 text-right text-emerald-600">{q.co2_kg.toFixed(1)} kg</td>
-                    <td className="py-3 text-right">{"★".repeat(Math.round(q.rating))} <span className="text-slate-400">{q.rating}</span></td>
+                    <td className="py-3 text-right">{"★".repeat(Math.round(q.rating))} <span className="text-night-300">{q.rating}</span></td>
                     <td className="py-3 text-right">
                       <Button
                         size="sm"
                         loading={bookingLoading === q.carrier}
-                        onClick={() => handleBookShipment(q.carrier, q.price)}
+                        onClick={() => handleBookShipment(q)}
                       >
                         Book
                       </Button>
@@ -391,20 +451,20 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
   const currentStep = stepMap[shipment.status];
 
   return (
-    <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">
+    <div className="border-t border-night-700/60 bg-night-900 px-5 py-4">
       <div className="flex gap-0 overflow-x-auto">
         {TRACKING_STEPS.map((step, i) => (
           <div key={step} className="flex flex-1 items-start min-w-[80px]">
             <div className="flex flex-col items-center w-full">
-              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-400"}`}>
+              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-night-700 text-night-300"}`}>
                 {i < currentStep ? "✓" : i + 1}
               </div>
-              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-700 font-medium" : "text-slate-400"}`}>
+              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-700 font-medium" : "text-night-300"}`}>
                 {step}
               </p>
             </div>
             {i < TRACKING_STEPS.length - 1 && (
-              <div className={`mt-3 h-0.5 flex-1 ${i < currentStep ? "bg-brand-600" : "bg-slate-200"}`} />
+              <div className={`mt-3 h-0.5 flex-1 ${i < currentStep ? "bg-brand-600" : "bg-night-700"}`} />
             )}
           </div>
         ))}

@@ -85,6 +85,88 @@ export function extractId(result: MCPResponse, key: string): string {
   return "";
 }
 
+// Tools migrated to Supabase Edge Functions. Membership in this set flips
+// transport from /api/mcp (Node MCP gateway) to /functions/v1/<domain>
+// (Supabase Edge). Add tools here as their domain function ships and passes
+// parity tests. The MCP path remains available as fallback and is the AI
+// surface (apps/web-v2/src/app/api/chat/route.ts).
+const TOOLS_ON_EDGE = new Set<string>([
+  "escrow.create_escrow",
+  "escrow.hold_funds",
+  "escrow.release_funds",
+  "escrow.freeze_escrow",
+  "escrow.refund_escrow",
+  "escrow.set_release_conditions",
+  "escrow.approve_release_condition",
+  "escrow.get_escrow",
+  "escrow.list_escrows",
+  "escrow.ping",
+  "listing.create_listing",
+  "listing.update_listing",
+  "listing.upload_images",
+  "listing.publish_listing",
+  "listing.archive_listing",
+  "listing.get_listing",
+  "listing.get_my_listings",
+  "listing.list_listings",
+  "listing.add_favorite",
+  "listing.remove_favorite",
+  "listing.list_favorites",
+  "listing.create_category",
+  "listing.update_category",
+  "listing.list_categories",
+  "listing.get_category",
+  "listing.ping",
+  "search.search_materials",
+  "search.geo_search",
+  "search.filter_by_category",
+  "search.save_search",
+  "search.get_saved_searches",
+  "search.index_listing",
+  "search.remove_from_index",
+  "search.ping",
+  "orders.create_order",
+  "orders.get_order",
+  "orders.list_orders",
+  "orders.update_order_status",
+  "orders.cancel_order",
+  "orders.ping",
+  "payments.process_payment",
+  "payments.get_wallet_balance",
+  "payments.top_up_wallet",
+  "payments.manage_payment_methods",
+  "payments.get_transaction_history",
+  "payments.ping",
+]);
+
+const SUPABASE_FN_BASE =
+  (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "") + "/functions/v1";
+
+async function callViaEdge<T>(
+  tool: string,
+  args: Record<string, unknown>,
+  token: string,
+): Promise<MCPResponse<T>> {
+  const [domain, ...rest] = tool.split(".");
+  const toolName = rest.join(".");
+  try {
+    const res = await fetch(`${SUPABASE_FN_BASE}/${domain}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tool: toolName, args }),
+    });
+    const text = await res.text();
+    const parsed = JSON.parse(text) as MCPResponse<T>;
+    if (!parsed.success) return { success: false, error: normalizeError(parsed.error) };
+    return parsed;
+  } catch {
+    return { success: false, error: { code: "NETWORK_ERROR", message: GENERIC_ERROR_MESSAGE } };
+  }
+}
+
 export async function callTool<T = Record<string, unknown>>(
   tool: string,
   args: Record<string, unknown> = {},
@@ -97,6 +179,10 @@ export async function callTool<T = Record<string, unknown>>(
   // Don't make authenticated calls without a token
   if (!isPublic && !token) {
     return { success: false, error: { code: "UNAUTHENTICATED", message: "Not logged in." } };
+  }
+
+  if (TOOLS_ON_EDGE.has(tool) && token) {
+    return callViaEdge<T>(tool, args, token);
   }
 
   const res = await fetch("/api/mcp", {

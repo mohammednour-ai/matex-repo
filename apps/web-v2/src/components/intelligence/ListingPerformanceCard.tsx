@@ -47,11 +47,11 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
   }, [listingId, materialKey, materialLabel, askingPrice]);
 
   if (loading) {
-    return <div className="animate-pulse rounded-2xl border border-steel-100 bg-white p-5 h-48" />;
+    return <div className="animate-pulse rounded-2xl border border-night-700 bg-night-850 p-5 h-48" />;
   }
   if (error || !metrics) {
     return (
-      <div className="rounded-2xl border border-steel-100 bg-white p-5 text-sm text-steel-500">
+      <div className="rounded-2xl border border-night-700 bg-night-850 p-5 text-sm text-night-300">
         Listing intelligence unavailable.
       </div>
     );
@@ -62,25 +62,25 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
   const viewsTrendIcon = (metrics.views_change_pct ?? 0) >= 0 ? TrendingUp : TrendingDown;
   const ViewsIcon = viewsTrendIcon;
   return (
-    <div className="rounded-2xl border border-steel-100 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
             Listing performance
           </p>
-          <h3 className="mt-1 text-base font-semibold text-steel-900">
+          <h3 className="mt-1 text-base font-semibold text-night-100">
             {material?.label ?? materialLabel ?? "This listing"}
           </h3>
-          <p className="text-xs text-steel-500">Refreshed {formatRelativeAgo(metrics.updated_at)}</p>
+          <p className="text-xs text-night-300">Refreshed {formatRelativeAgo(metrics.updated_at)}</p>
         </div>
         <span
           className={clsx(
             "rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
             (metrics.benchmark_delta_pct ?? 0) > 4
-              ? "bg-warning-50 text-warning-800 ring-warning-500/30"
+              ? "bg-warning-500/15 text-warning-400 ring-warning-500/30"
               : (metrics.benchmark_delta_pct ?? 0) < -4
                 ? "bg-info-50 text-brand-800 ring-brand-500/30"
-                : "bg-success-50 text-success-800 ring-success-500/30",
+                : "bg-success-500/15 text-success-400 ring-success-500/30",
           )}
         >
           {metrics.ai_status_label ?? "Tracking"}
@@ -114,7 +114,7 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
       </div>
 
       {metrics.ai_tip && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl bg-brand-50 px-3 py-2 ring-1 ring-inset ring-brand-500/20">
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-brand-500/10 px-3 py-2 ring-1 ring-inset ring-brand-500/20">
           <Sparkles className="h-4 w-4 shrink-0 text-brand-700" />
           <p className="text-xs text-brand-900">{metrics.ai_tip}</p>
         </div>
@@ -135,23 +135,23 @@ function Stat({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-steel-100 bg-surface-50 p-3">
-      <div className="flex items-center gap-2 text-steel-500">
+    <div className="rounded-xl border border-night-700 bg-night-850/90 p-3">
+      <div className="flex items-center gap-2 text-night-300">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
       </div>
-      <p className="mt-1 text-base font-semibold text-steel-900">{value}</p>
-      {sub && <p className="text-[10px] text-steel-500">{sub}</p>}
+      <p className="mt-1 text-base font-semibold text-night-100">{value}</p>
+      {sub && <p className="text-[10px] text-night-300">{sub}</p>}
     </div>
   );
 }
 
 function PriceCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-steel-100 p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-steel-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-steel-900">{value}</p>
-      {sub && <p className="text-[10px] text-steel-500">{sub}</p>}
+    <div className="rounded-xl border border-night-700 p-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-night-300">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-night-100">{value}</p>
+      {sub && <p className="text-[10px] text-night-300">{sub}</p>}
     </div>
   );
 }

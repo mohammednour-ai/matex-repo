@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   ClipboardList,
   Calendar,
@@ -166,7 +167,7 @@ export default function InspectionsPage() {
               type="button"
               onClick={() => setView("list")}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                view === "list" ? "bg-brand-600 text-white shadow-sm" : "border border-sky-300 text-sky-600 hover:bg-sky-50"
+                view === "list" ? "bg-brand-600 text-white shadow-sm" : "border border-night-600 text-night-200 hover:bg-night-900"
               }`}
             >
               <List className="h-4 w-4" /> List
@@ -175,7 +176,7 @@ export default function InspectionsPage() {
               type="button"
               onClick={() => setView("calendar")}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                view === "calendar" ? "bg-brand-600 text-white shadow-sm" : "border border-sky-300 text-sky-600 hover:bg-sky-50"
+                view === "calendar" ? "bg-brand-600 text-white shadow-sm" : "border border-night-600 text-night-200 hover:bg-night-900"
               }`}
             >
               <Calendar className="h-4 w-4" /> Week
@@ -191,14 +192,14 @@ export default function InspectionsPage() {
           const completedCount = inspections.filter((i) => i.status === "completed").length;
           const failedCount = inspections.filter((i) => i.status === "failed").length;
           const cards: { label: string; value: number; valueClass: string }[] = [
-            { label: "Scheduled", value: scheduledCount, valueClass: "text-sky-900" },
-            { label: "This Week", value: upcomingThisWeek.length, valueClass: "text-sky-900" },
-            { label: "Completed", value: completedCount, valueClass: completedCount > 0 ? "text-emerald-600" : "text-sky-900" },
-            { label: "Failed", value: failedCount, valueClass: failedCount > 0 ? "text-red-600" : "text-sky-900" },
+            { label: "Scheduled", value: scheduledCount, valueClass: "text-night-100" },
+            { label: "This Week", value: upcomingThisWeek.length, valueClass: "text-night-100" },
+            { label: "Completed", value: completedCount, valueClass: completedCount > 0 ? "text-emerald-600" : "text-night-100" },
+            { label: "Failed", value: failedCount, valueClass: failedCount > 0 ? "text-red-600" : "text-night-100" },
           ];
           return cards.map((c) => (
             <div key={c.label} className="marketplace-card p-4">
-              <p className="text-xs text-slate-500">{c.label}</p>
+              <p className="text-xs text-night-300">{c.label}</p>
               <p className={`mt-1 text-2xl font-bold ${c.valueClass}`}>{c.value}</p>
             </div>
           ));
@@ -206,7 +207,7 @@ export default function InspectionsPage() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -219,14 +220,14 @@ export default function InspectionsPage() {
         <CalendarView inspections={inspections} />
       ) : inspections.length === 0 ? (
         <EmptyState
-          image="/illustrations/inspection-pending.png"
+          image="/grphs/Brand/empty-inspections-b-empty-inspections.png"
           title="No inspections yet"
           description="Scheduled CAW weight checks and grading visits will appear here."
           size="lg"
         />
       ) : (
         <div className="marketplace-card overflow-hidden">
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-zinc-100">
             {inspections.map((insp) => (
               <InspectionRow
                 key={insp.inspection_id}
@@ -266,35 +267,35 @@ function InspectionRow({
   return (
     <div>
       <div
-        className="flex cursor-pointer flex-wrap items-center gap-4 px-5 py-4 hover:bg-slate-50 transition"
+        className="flex cursor-pointer flex-wrap items-center gap-4 px-5 py-4 hover:bg-night-900 transition"
         onClick={onToggle}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-          <ClipboardList className="h-5 w-5" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-night-800 text-night-200">
+          <Image src="/grphs/Icons/weight-scale-i-scale.png" alt="" width={22} height={22} className="h-5 w-5 object-contain" aria-hidden />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-900 text-sm truncate">{insp.listing_title}</p>
+            <p className="font-medium text-night-100 text-sm truncate">{insp.listing_title}</p>
             {statusBadge(insp.status, insp.result)}
             <Badge variant="gray">{INSPECTION_TYPE_LABELS[insp.type]}</Badge>
             {hasDiscrepancy && (
               <Badge variant="danger">⚠ Weight Discrepancy {discrepancy?.toFixed(1)}%</Badge>
             )}
           </div>
-          <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-slate-500">
+          <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-night-300">
             <span className="flex items-center gap-1"><User className="h-3 w-3" />{insp.inspector}</span>
             <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDate(insp.scheduled_at)}</span>
           </div>
         </div>
-        {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+        {expanded ? <ChevronUp className="h-4 w-4 text-night-300" /> : <ChevronDown className="h-4 w-4 text-night-300" />}
       </div>
 
       {expanded && (
-        <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-4">
+        <div className="border-t border-night-700/60 bg-night-900 px-5 py-4 space-y-4">
           {/* Weight chain */}
           {Object.values(insp.weights).some((v) => v !== undefined) && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-3">
                 Weight Certification Chain (kg)
               </p>
               <div className="flex flex-wrap items-center gap-2">
@@ -310,15 +311,15 @@ function InspectionRow({
                   if (!val) return null;
                   return (
                     <div key={key} className="flex items-center gap-2">
-                      <div className={`rounded-lg border-2 p-3 text-center min-w-[100px] ${key === "w4_third_party" ? "border-emerald-400 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-                        <p className={`text-xs font-medium mb-1 ${key === "w4_third_party" ? "text-emerald-700" : "text-slate-500"}`}>{label}</p>
-                        <p className={`text-base font-bold ${key === "w4_third_party" ? "text-emerald-800" : "text-slate-800"}`}>
+                      <div className={`rounded-lg border-2 p-3 text-center min-w-[100px] ${key === "w4_third_party" ? "border-emerald-400 bg-success-500/10" : "border-night-700 bg-night-850"}`}>
+                        <p className={`text-xs font-medium mb-1 ${key === "w4_third_party" ? "text-success-400" : "text-night-300"}`}>{label}</p>
+                        <p className={`text-base font-bold ${key === "w4_third_party" ? "text-success-400" : "text-night-100"}`}>
                           {val.toLocaleString()} kg
                         </p>
                         {key === "w4_third_party" && <p className="text-[10px] text-emerald-600 mt-0.5">Authoritative</p>}
                       </div>
                       {i < arr.filter((a) => insp.weights[a.key] !== undefined).length - 1 && (
-                        <span className="text-slate-300 text-lg">→</span>
+                        <span className="text-zinc-300 text-lg">→</span>
                       )}
                     </div>
                   );
@@ -334,9 +335,9 @@ function InspectionRow({
           )}
 
           {insp.notes && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <p className="text-xs font-medium text-slate-500 mb-1">Inspector Notes</p>
-              <p className="text-sm text-slate-700">{insp.notes}</p>
+            <div className="rounded-lg border border-night-700 bg-night-850 p-3">
+              <p className="text-xs font-medium text-night-300 mb-1">Inspector Notes</p>
+              <p className="text-sm text-night-200">{insp.notes}</p>
             </div>
           )}
 
@@ -376,8 +377,8 @@ function CalendarView({ inspections }: { inspections: Inspection[] }) {
   });
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
-      <p className="text-sm font-semibold text-slate-600 mb-4">Week of {today.toLocaleDateString("en-CA", { month: "long", day: "numeric" })}</p>
+    <div className="rounded-xl border border-night-700 bg-night-850 p-5 shadow-sm overflow-x-auto">
+      <p className="text-sm font-semibold text-night-200 mb-4">Week of {today.toLocaleDateString("en-CA", { month: "long", day: "numeric" })}</p>
       <div className="grid grid-cols-7 gap-2 min-w-[700px]">
         {weekDays.map((day) => {
           const dayInspections = inspections.filter((i) => {
@@ -390,10 +391,10 @@ function CalendarView({ inspections }: { inspections: Inspection[] }) {
           });
           const isToday = day.toDateString() === today.toDateString();
           return (
-            <div key={day.toISOString()} className={`rounded-lg border p-2 min-h-[100px] ${isToday ? "border-blue-300 bg-blue-50" : "border-slate-200"}`}>
-              <p className={`text-xs font-semibold mb-2 ${isToday ? "text-blue-700" : "text-slate-500"}`}>
+            <div key={day.toISOString()} className={`rounded-lg border p-2 min-h-[100px] ${isToday ? "border-blue-300 bg-brand-500/10" : "border-night-700"}`}>
+              <p className={`text-xs font-semibold mb-2 ${isToday ? "text-brand-400" : "text-night-300"}`}>
                 {day.toLocaleDateString("en-CA", { weekday: "short" })}{" "}
-                <span className={isToday ? "text-blue-900" : "text-slate-800"}>{day.getDate()}</span>
+                <span className={isToday ? "text-blue-900" : "text-night-100"}>{day.getDate()}</span>
               </p>
               <div className="space-y-1">
                 {dayInspections.map((i) => (

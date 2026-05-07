@@ -20,13 +20,12 @@ import {
   LineChart,
   ChevronLeft,
   ChevronRight,
-  Bell,
   Menu,
   X,
   UserCog,
   LogOut,
 } from "lucide-react";
-import { callTool, getUser } from "@/lib/api";
+import { getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
 import clsx from "clsx";
 
@@ -106,14 +105,14 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[linear-gradient(165deg,#dbeafe_0%,#f0f7ff_42%,#fff7ed_100%)] px-6">
+      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[linear-gradient(165deg,#0e1116_0%,#15191f_42%,#1a1f27_100%)] px-6">
         <div
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.07)_1px,transparent_1px)] bg-[length:24px_24px] opacity-60"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(150,165,190,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(150,165,190,0.04)_1px,transparent_1px)] bg-[length:24px_24px]"
           aria-hidden
         />
         <div className="relative flex flex-col items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl border-2 border-brand-500/40 border-t-brand-500 animate-spin shadow-[0_0_20px_-4px_rgba(234,88,12,0.45)]" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+          <div className="h-11 w-11 rounded-2xl border-2 border-brand-500/30 border-t-brand-500 animate-spin shadow-[0_0_18px_-6px_rgba(232,119,34,0.30)]" />
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-night-300">
             Loading Matex
           </p>
         </div>
@@ -126,104 +125,6 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 
 const COLLAPSED_W = 72;
 const EXPANDED_W = 312;
-
-function getPageMeta(pathname: string): { title: string; subtitle: string; eyebrow: string } {
-  const segment = pathname.split("/")[1] || "dashboard";
-  switch (segment) {
-    case "dashboard":
-      return {
-        title: "",
-        subtitle: "",
-        eyebrow: "",
-      };
-    case "listings":
-      return {
-        title: "Listings",
-        subtitle: "Manage inventory, visibility, and buyer-ready supply.",
-        eyebrow: "Sell",
-      };
-    case "search":
-      return {
-        title: "Search",
-        subtitle: "Source verified materials with industrial-grade confidence.",
-        eyebrow: "Buy",
-      };
-    case "auction":
-    case "auctions":
-      return {
-        title: "Auctions",
-        subtitle: "Track live bidding opportunities and market movement.",
-        eyebrow: "Market",
-      };
-    case "messages":
-      return {
-        title: "Messages",
-        subtitle: "Keep negotiations, approvals, and buyer conversations moving.",
-        eyebrow: "Inbox",
-      };
-    case "checkout":
-      return {
-        title: "Checkout",
-        subtitle: "Monitor deal execution, payment, and order progression.",
-        eyebrow: "Orders",
-      };
-    case "escrow":
-      return {
-        title: "Escrow",
-        subtitle: "Review protected transactions and secure payment milestones.",
-        eyebrow: "Operations",
-      };
-    case "logistics":
-      return {
-        title: "Logistics",
-        subtitle: "Coordinate dispatch, transport, and delivery readiness.",
-        eyebrow: "Operations",
-      };
-    case "inspection":
-    case "inspections":
-      return {
-        title: "Inspections",
-        subtitle: "Plan visits, checks, and technical verification events.",
-        eyebrow: "Operations",
-      };
-    case "contracts":
-      return {
-        title: "Contracts",
-        subtitle: "Centralize commercial paperwork and trading terms.",
-        eyebrow: "Governance",
-      };
-    case "analytics":
-      return {
-        title: "Analytics",
-        subtitle: "Platform-wide metrics on users, listings, orders, and revenue.",
-        eyebrow: "Insights",
-      };
-    case "market":
-      return {
-        title: "Market Intelligence",
-        subtitle: "Daily AI-driven market signals, price forecasts, and alerts.",
-        eyebrow: "Insights",
-      };
-    case "settings":
-      return {
-        title: "Settings",
-        subtitle: "Manage company identity, KYC, and platform preferences.",
-        eyebrow: "Account",
-      };
-    case "admin":
-      return {
-        title: "Platform admin",
-        subtitle: "Configure internal controls and platform-wide oversight.",
-        eyebrow: "Admin",
-      };
-    default:
-      return {
-        title: segment.charAt(0).toUpperCase() + segment.slice(1),
-        subtitle: "Operate faster with a clean, unified Matex workspace.",
-        eyebrow: "Workspace",
-      };
-  }
-}
 
 function Sidebar({
   collapsed,
@@ -244,13 +145,6 @@ function Sidebar({
     setUser(getUser());
   }, [pathname]);
   const width = collapsed ? COLLAPSED_W : EXPANDED_W;
-  const accountLabel =
-    user?.accountType === "buyer"
-      ? "Buyer workspace"
-      : user?.accountType === "seller"
-        ? "Seller workspace"
-        : "Marketplace workspace";
-  const emailLabel = user?.email ?? "";
 
   const logo = (
     <Link
@@ -258,26 +152,18 @@ function Sidebar({
       className="flex min-w-0 flex-shrink-0 items-center"
       onClick={onMobileClose}
     >
-      <span
+      <Image
+        src="/LogoOrangeTrns.png"
+        alt="Matex"
+        width={320}
+        height={110}
         className={
           collapsed
-            ? "app-sidebar-logo-badge app-sidebar-logo-badge--collapsed"
-            : "app-sidebar-logo-badge app-sidebar-logo-badge--expanded"
+            ? "h-16 w-16 object-contain object-center drop-shadow-[0_0_14px_rgba(232,119,34,0.22)]"
+            : "h-28 w-auto max-w-[17rem] object-contain object-left drop-shadow-[0_0_14px_rgba(232,119,34,0.22)] sm:h-32 sm:max-w-[18rem]"
         }
-      >
-        <Image
-          src="/LogoOrangeTrns.png"
-          alt="Matex"
-          width={320}
-          height={110}
-          className={
-            collapsed
-              ? "h-full w-full object-contain object-center drop-shadow-md"
-              : "h-14 w-auto max-w-[16rem] object-contain object-left drop-shadow-lg sm:h-16 sm:max-w-[18rem]"
-          }
-          priority
-        />
-      </span>
+        priority
+      />
     </Link>
   );
 
@@ -364,18 +250,6 @@ function Sidebar({
           {logo}
         </div>
 
-        {!collapsed && (
-          <div className="px-3 pt-4">
-            <div className="app-sidebar-meta">
-              <p className="app-sidebar-meta-label">Workspace</p>
-              <p className="app-sidebar-meta-value">{accountLabel}</p>
-              {emailLabel ? (
-                <p className="mt-1 truncate text-xs text-slate-400">{emailLabel}</p>
-              ) : null}
-            </div>
-          </div>
-        )}
-
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
           {navLinks(false)}
         </nav>
@@ -384,15 +258,15 @@ function Sidebar({
           <div className={collapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-500">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-night-300">
                   Experience
                 </p>
-                <p className="mt-1 text-xs text-slate-400">Production-grade workspace</p>
+                <p className="mt-1 text-xs text-night-300">Production-grade workspace</p>
               </div>
             )}
             <button
               onClick={onToggle}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 transition-colors hover:text-white hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 transition-colors hover:text-white hover:bg-night-850/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -427,33 +301,22 @@ function Sidebar({
               <div className="app-shell-sidebar-content">
                 <div className="app-sidebar-logo-wrap flex items-center justify-between">
                   <Link href="/dashboard" className="flex items-center gap-3" onClick={onMobileClose}>
-                    <span className="app-sidebar-logo-badge app-sidebar-logo-badge--expanded">
-                      <Image
-                        src="/LogoOrangeTrns.png"
-                        alt="Matex"
-                        width={320}
-                        height={110}
-                        className="h-14 w-auto max-w-[15rem] object-contain object-left drop-shadow-lg sm:h-16 sm:max-w-[18rem]"
-                        priority
-                      />
-                    </span>
+                    <Image
+                      src="/LogoOrangeTrns.png"
+                      alt="Matex"
+                      width={320}
+                      height={110}
+                      className="h-28 w-auto max-w-[17rem] object-contain object-left drop-shadow-[0_0_14px_rgba(232,119,34,0.22)] sm:h-32 sm:max-w-[18rem]"
+                      priority
+                    />
                   </Link>
                   <button
                     onClick={onMobileClose}
                     aria-label="Close navigation"
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-2 text-slate-400 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 hover:bg-night-850/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
                     <X size={18} />
                   </button>
-                </div>
-                <div className="px-3 pt-4">
-                  <div className="app-sidebar-meta">
-                    <p className="app-sidebar-meta-label">Workspace</p>
-                    <p className="app-sidebar-meta-value">{accountLabel}</p>
-                    {emailLabel ? (
-                      <p className="mt-1 truncate text-xs text-slate-400">{emailLabel}</p>
-                    ) : null}
-                  </div>
                 </div>
                 <nav className="flex-1 py-3 overflow-y-auto">
                   {navLinks(true)}
@@ -470,62 +333,28 @@ function Sidebar({
   );
 }
 
-function Header({
-  sidebarWidth,
-  onMobileMenuOpen,
-}: {
-  sidebarWidth: number;
-  onMobileMenuOpen: () => void;
-}) {
+function MobileMenuTrigger({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Open navigation"
+      className="fixed left-4 top-4 z-30 rounded-2xl border border-night-700 bg-night-850/80 p-2.5 text-night-200 backdrop-blur transition-colors hover:border-brand-400/40 hover:text-white md:hidden"
+    >
+      <Menu size={20} />
+    </button>
+  );
+}
+
+function UserMenu() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<CurrentUser>(null);
-  const [searchValue, setSearchValue] = useState("");
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const pageMeta = getPageMeta(pathname);
-  const hasPageHeading = Boolean(
-    pageMeta.eyebrow.trim() || pageMeta.title.trim() || pageMeta.subtitle.trim(),
-  );
 
   useEffect(() => {
     setUser(getUser());
   }, [pathname]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadUnread(): Promise<void> {
-      const u = getUser();
-      if (!u?.userId) return;
-      const res = await callTool("notifications.get_notifications", {
-        user_id: u.userId,
-        unread_only: true,
-        limit: 50,
-      });
-      if (cancelled || !res.success) return;
-      const data = res.data as unknown as {
-        notifications?: { read?: boolean }[];
-        total_unread?: number;
-      };
-      const count = Array.isArray(data?.notifications)
-        ? data.notifications.filter((n) => !n.read).length
-        : Number(data?.total_unread ?? 0);
-      setUnreadNotifications(Number.isFinite(count) ? count : 0);
-    }
-    void loadUnread();
-    const id = window.setInterval(() => void loadUnread(), 60000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [pathname]);
-
-  function handleSearch(e: React.FormEvent): void {
-    e.preventDefault();
-    const q = searchValue.trim();
-    if (!q) return;
-    router.push(`/search?q=${encodeURIComponent(q)}`);
-  }
 
   function handleSignOut() {
     localStorage.removeItem("matex_token");
@@ -533,136 +362,78 @@ function Header({
   }
 
   const userInitial = user?.email?.charAt(0).toUpperCase() ?? "M";
-  const companyLabel = user?.accountType === "buyer" ? "Buyer" : user?.accountType === "seller" ? "Seller" : "Hybrid";
+  const companyLabel =
+    user?.accountType === "buyer"
+      ? "Buyer"
+      : user?.accountType === "seller"
+        ? "Seller"
+        : "Hybrid";
 
   return (
-    <header
-      className="app-glass-header fixed top-0 right-0 z-20 h-20 transition-all duration-200"
-      style={{ left: sidebarWidth }}
-    >
-      <div className="app-header-surface">
+    <div className="fixed right-4 top-4 z-30">
+      <div className="relative">
         <button
-          className="rounded-2xl border border-slate-600/40 bg-slate-900/40 p-2.5 text-slate-300 transition-colors hover:border-orange-400/35 hover:bg-slate-800/70 hover:text-white md:hidden"
-          onClick={onMobileMenuOpen}
-          aria-label="Open navigation"
+          type="button"
+          onClick={() => setAvatarOpen((o) => !o)}
+          aria-label="Account menu"
+          aria-expanded={avatarOpen}
+          aria-haspopup="true"
+          className="flex items-center gap-3 rounded-2xl border border-night-700 bg-night-850/80 px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition-all hover:border-brand-400/40 hover:bg-night-800/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
         >
-          <Menu size={20} />
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-night-700 to-night-800 text-sm font-black text-white ring-1 ring-brand-500/30 shadow-[0_8px_20px_-10px_rgba(0,0,0,0.65)]">
+            {userInitial}
+          </span>
+          <span className="hidden min-w-0 sm:block">
+            <span className="block truncate text-sm font-semibold text-night-100">
+              {user?.email?.split("@")[0] ?? "Matex user"}
+            </span>
+            <span className="text-xs text-night-300">{companyLabel}</span>
+          </span>
         </button>
 
-        {hasPageHeading ? (
-          <div className="min-w-0">
-            {pageMeta.eyebrow ? (
-              <div className="app-page-eyebrow hidden sm:block">{pageMeta.eyebrow}</div>
-            ) : null}
-            {pageMeta.title ? <h1 className="app-page-title truncate">{pageMeta.title}</h1> : null}
-            {pageMeta.subtitle ? (
-              <p className="app-page-sub hidden truncate sm:block">{pageMeta.subtitle}</p>
-            ) : null}
-          </div>
-        ) : (
+        {avatarOpen && (
           <>
-            <h1 className="sr-only">
-              {pathname.split("/").filter(Boolean)[0] === "dashboard" ? "Dashboard" : "Matex"}
-            </h1>
-            <div className="min-w-0 flex-1 md:flex-[0.5] lg:flex-[0.35]" aria-hidden />
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setAvatarOpen(false)}
+              aria-hidden
+            />
+            <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-night-700 bg-night-900 py-1 shadow-2xl">
+              <div className="border-b border-night-700/60 px-4 py-3">
+                <p className="truncate text-sm font-semibold text-night-100">
+                  {user?.email?.split("@")[0] ?? "Matex user"}
+                </p>
+                <p className="truncate text-xs text-night-300">{user?.email}</p>
+              </div>
+              <div className="py-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatarOpen(false);
+                    router.push("/settings");
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                >
+                  <Settings size={15} />
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAvatarOpen(false);
+                    handleSignOut();
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                >
+                  <LogOut size={15} />
+                  Sign out
+                </button>
+              </div>
+            </div>
           </>
         )}
-
-        <form onSubmit={handleSearch} className="ml-2 hidden max-w-md flex-1 xl:block">
-          <div className="relative">
-            <Search
-              size={15}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
-            />
-            <input
-              type="search"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search materials, listings, orders..."
-              className="app-header-search"
-              aria-label="Search materials and orders"
-            />
-          </div>
-        </form>
-
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            className="app-header-icon-button relative"
-            aria-label={
-              unreadNotifications > 0
-                ? `Notifications (${unreadNotifications} unread)`
-                : "Notifications"
-            }
-            onClick={() => router.push("/notifications")}
-          >
-            <Bell size={18} />
-            {unreadNotifications > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-accent-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-sky-950">
-                {unreadNotifications > 9 ? "9+" : unreadNotifications}
-              </span>
-            )}
-          </button>
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setAvatarOpen((o) => !o)}
-              aria-label="Account menu"
-              aria-expanded={avatarOpen}
-              aria-haspopup="true"
-              className="flex items-center gap-3 rounded-2xl border border-slate-600/40 bg-slate-900/40 px-2.5 py-2 text-left text-white transition-all hover:border-orange-400/35 hover:bg-slate-800/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 text-sm font-black text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.75)]">
-                {userInitial}
-              </span>
-              <span className="hidden min-w-0 sm:block">
-                <span className="block truncate text-sm font-semibold text-slate-100">
-                  {user?.email?.split("@")[0] ?? "Matex user"}
-                </span>
-                <span className="text-xs text-slate-400">{companyLabel}</span>
-              </span>
-            </button>
-
-            {avatarOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setAvatarOpen(false)}
-                  aria-hidden
-                />
-                <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 py-1 shadow-2xl">
-                  <div className="border-b border-white/5 px-4 py-3">
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {user?.email?.split("@")[0] ?? "Matex user"}
-                    </p>
-                    <p className="truncate text-xs text-slate-400">{user?.email}</p>
-                  </div>
-                  <div className="py-1">
-                    <button
-                      type="button"
-                      onClick={() => { setAvatarOpen(false); router.push("/settings"); }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
-                    >
-                      <Settings size={15} />
-                      Settings
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAvatarOpen(false); handleSignOut(); }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
-                    >
-                      <LogOut size={15} />
-                      Sign out
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -683,14 +454,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      <Header
-        sidebarWidth={sidebarWidth}
-        onMobileMenuOpen={() => setMobileOpen(true)}
-      />
+      <MobileMenuTrigger onOpen={() => setMobileOpen(true)} />
+      <UserMenu />
 
       <main
         className={clsx(
-          "app-shell-canvas min-h-screen pt-20 transition-all duration-200",
+          "app-shell-canvas min-h-screen transition-all duration-200",
           isDashboard && "dashboard-canvas",
         )}
         style={{ marginLeft: sidebarWidth }}
@@ -698,8 +467,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="app-shell-canvas-texture" aria-hidden>
           <div className="metal-texture absolute inset-0" />
         </div>
+        {isDashboard && (
+          <div
+            aria-hidden
+            className="dashboard-og-watermark pointer-events-none absolute inset-0 z-0 opacity-[0.07] mix-blend-screen"
+            style={{
+              backgroundImage: "url('/grphs/Brand/og-social-share-image-b-og-share.jpg')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              maskImage:
+                "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,0,0,0.85), transparent 78%)",
+              WebkitMaskImage:
+                "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,0,0,0.85), transparent 78%)",
+            }}
+          />
+        )}
         <div className="app-content-frame">
-          {children}
+          <div key={pathname} className="page-enter">
+            {children}
+          </div>
         </div>
       </main>
 

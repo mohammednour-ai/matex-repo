@@ -42,9 +42,9 @@ function SignalRow({ icon, title, body, strength }: SignalRowProps) {
       <span
         className={clsx(
           "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-          strength === "ok" && "bg-emerald-100 text-emerald-700",
-          strength === "soft" && "bg-warning-100 text-warning-700",
-          strength === "missing" && "bg-sky-100 text-sky-600",
+          strength === "ok" && "bg-emerald-100 text-success-400",
+          strength === "soft" && "bg-warning-100 text-warning-400",
+          strength === "missing" && "bg-night-800 text-night-200",
         )}
         aria-hidden
       >
@@ -57,8 +57,8 @@ function SignalRow({ icon, title, body, strength }: SignalRowProps) {
         )}
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-sky-950">{title}</p>
-        <p className="mt-0.5 text-xs text-sky-700">{body}</p>
+        <p className="text-sm font-semibold text-night-100">{title}</p>
+        <p className="mt-0.5 text-xs text-night-200">{body}</p>
       </div>
     </li>
   );
@@ -92,12 +92,12 @@ export function ConfidenceStack({
       className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-5 shadow-sm"
     >
       <header className="mb-4 flex items-start gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-success-400">
           <ShieldCheck className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold text-sky-950">Trust signals</h2>
-          <p className="text-xs text-sky-700">
+          <h2 className="text-sm font-bold text-night-100">Trust signals</h2>
+          <p className="text-xs text-night-200">
             What Matex verifies for you on this listing.
           </p>
         </div>

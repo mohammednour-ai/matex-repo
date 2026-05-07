@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   User,
   Building2,
@@ -128,6 +129,22 @@ function ProfileTab() {
 
   return (
     <div className="space-y-6 max-w-lg">
+      {/* Profile illustration banner */}
+      <div className="flex items-center gap-4 rounded-2xl bg-[linear-gradient(135deg,rgba(232,119,34,0.12),rgba(232,119,34,0.04)_60%,rgba(20,30,37,0.85))] border border-brand-500/30 px-5 py-4">
+        <Image
+          src="/grphs/Platform%20Domains/profile-d-profile.png"
+          alt=""
+          aria-hidden
+          width={80}
+          height={80}
+          className="h-20 w-20 flex-shrink-0 object-contain"
+        />
+        <div>
+          <p className="text-sm font-semibold text-brand-300">Your Profile</p>
+          <p className="text-xs text-night-200">Manage your identity and contact details.</p>
+        </div>
+      </div>
+
       {/* Avatar */}
       <div className="flex items-center gap-5">
         <div className="relative">
@@ -139,7 +156,12 @@ function ProfileTab() {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <User className="h-8 w-8 text-brand-400" />
+              <img
+                src="/grphs/Brand/avatar-placeholder-b-avatar.png"
+                alt=""
+                aria-hidden
+                className="h-full w-full object-cover"
+              />
             )}
           </div>
           <button
@@ -147,12 +169,12 @@ function ProfileTab() {
             onClick={() => fileRef.current?.click()}
             disabled={uploadingAvatar}
             aria-label="Upload avatar"
-            className="absolute -bottom-1 -right-1 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="absolute -bottom-1 -right-1 rounded-full border border-night-700 bg-night-850 p-1.5 shadow-sm hover:bg-night-900 transition-colors disabled:opacity-50"
           >
             {uploadingAvatar ? (
-              <Spinner className="h-3 w-3 text-slate-600" />
+              <Spinner className="h-3 w-3 text-night-200" />
             ) : (
-              <Upload className="h-3 w-3 text-slate-600" />
+              <Upload className="h-3 w-3 text-night-200" />
             )}
           </button>
           <input
@@ -170,8 +192,8 @@ function ProfileTab() {
           />
         </div>
         <div>
-          <p className="font-medium text-slate-800">Profile Photo</p>
-          <p className="text-sm text-slate-500">JPG, PNG or GIF. Max 2 MB.</p>
+          <p className="font-medium text-night-100">Profile Photo</p>
+          <p className="text-sm text-night-300">JPG, PNG or GIF. Max 2 MB.</p>
         </div>
       </div>
 
@@ -183,11 +205,11 @@ function ProfileTab() {
       />
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Province</label>
+        <label className="mb-1.5 block text-sm font-medium text-night-200">Province</label>
         <select
           value={form.province}
           onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           {PROVINCES.map((p) => (
             <option key={p} value={p}>
@@ -198,11 +220,11 @@ function ProfileTab() {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Timezone</label>
+        <label className="mb-1.5 block text-sm font-medium text-night-200">Timezone</label>
         <select
           value={form.timezone}
           onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         >
           {TIMEZONES.map((tz) => (
             <option key={tz} value={tz}>
@@ -213,7 +235,7 @@ function ProfileTab() {
       </div>
 
       {error && (
-        <p className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+        <p className="rounded-lg border border-danger-200 bg-danger-500/15 px-3 py-2 text-xs text-danger-400">
           {error}
         </p>
       )}
@@ -288,7 +310,7 @@ function CompanyTab() {
   return (
     <div className="space-y-5 max-w-lg">
       {submitted && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <div className="rounded-lg border border-amber-200 bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
           Company information is under review. Contact support to make changes.
         </div>
       )}
@@ -323,12 +345,12 @@ function CompanyTab() {
       />
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">Industry</label>
+        <label className="mb-1.5 block text-sm font-medium text-night-200">Industry</label>
         <select
           value={form.industry}
           onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
           disabled={submitted}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-400"
+          className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-night-900 disabled:text-night-300"
         >
           <option value="">Select industry</option>
           <option value="ferrous_metals">Ferrous Metals</option>
@@ -342,14 +364,14 @@ function CompanyTab() {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label className="mb-1.5 block text-sm font-medium text-night-200">
           Estimated Annual Volume (CAD)
         </label>
         <select
           value={form.annual_volume}
           onChange={(e) => setForm((f) => ({ ...f, annual_volume: e.target.value }))}
           disabled={submitted}
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-400"
+          className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-night-900 disabled:text-night-300"
         >
           <option value="">Select range</option>
           <option value="under_100k">Under $100,000</option>
@@ -361,7 +383,7 @@ function CompanyTab() {
       </div>
 
       {companyError && (
-        <p className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+        <p className="rounded-lg border border-danger-200 bg-danger-500/15 px-3 py-2 text-xs text-danger-400">
           {companyError}
         </p>
       )}
@@ -492,7 +514,7 @@ function KycTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-slate-500">
+      <div className="flex items-center gap-2 text-sm text-night-300">
         <Spinner className="h-4 w-4" />
         Loading KYC status…
       </div>
@@ -501,11 +523,27 @@ function KycTab() {
 
   return (
     <div className="max-w-xl space-y-6">
+      {/* KYC illustration banner */}
+      <div className="flex items-center gap-4 rounded-2xl bg-[linear-gradient(135deg,rgba(232,119,34,0.12),rgba(232,119,34,0.04)_60%,rgba(20,30,37,0.85))] border border-brand-500/30 px-5 py-4">
+        <Image
+          src="/grphs/Platform%20Domains/kyc-d-kyc.png"
+          alt=""
+          aria-hidden
+          width={80}
+          height={80}
+          className="h-20 w-20 flex-shrink-0 object-contain"
+        />
+        <div>
+          <p className="text-sm font-semibold text-brand-300">Identity Verification</p>
+          <p className="text-xs text-night-200">Complete KYC to unlock higher trading limits and full platform access.</p>
+        </div>
+      </div>
+
       {/* Current level */}
       <div className="flex items-center gap-3">
         <ShieldCheck className="h-5 w-5 text-brand-500" />
         <div>
-          <p className="text-sm text-slate-500">Current KYC Level</p>
+          <p className="text-sm text-night-300">Current KYC Level</p>
           <Badge variant={kycBadgeVariants[kycLevel]} className="mt-0.5">
             {kycLevelLabels[kycLevel]}
           </Badge>
@@ -523,10 +561,10 @@ function KycTab() {
               className={clsx(
                 "rounded-xl border p-5 transition-colors",
                 completed
-                  ? "border-emerald-200 bg-emerald-50/50"
+                  ? "border-emerald-200 bg-success-500/50"
                   : active
-                  ? "border-brand-200 bg-brand-50/50"
-                  : "border-slate-100 bg-white opacity-60"
+                  ? "border-brand-200 bg-brand-500/50"
+                  : "border-night-700/60 bg-night-850 opacity-60"
               )}
             >
               <div className="flex items-start gap-3">
@@ -535,7 +573,7 @@ function KycTab() {
                     "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
                     completed
                       ? "bg-emerald-500 text-white"
-                      : "bg-slate-200 text-slate-400"
+                      : "bg-night-700 text-night-300"
                   )}
                 >
                   {completed ? (
@@ -546,24 +584,24 @@ function KycTab() {
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-800">{step.title}</h3>
+                    <h3 className="text-sm font-semibold text-night-100">{step.title}</h3>
                     {completed && <Badge variant="success">Verified</Badge>}
                     {active && <Badge variant="info">Next step</Badge>}
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{step.description}</p>
+                  <p className="mt-1 text-sm text-night-300">{step.description}</p>
 
                   {active && (
                     <div className="mt-3 space-y-2">
                       {step.docs.map((doc) => (
                         <div
                           key={doc}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+                          className="flex items-center justify-between gap-2 rounded-lg border border-night-700 bg-night-850 px-3 py-2.5"
                         >
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <div className="flex items-center gap-2 text-sm text-night-200">
                             {uploadedDocs.has(doc) ? (
                               <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                             ) : (
-                              <Upload className="h-4 w-4 shrink-0 text-slate-400" />
+                              <Upload className="h-4 w-4 shrink-0 text-night-300" />
                             )}
                             <span className="capitalize">
                               {doc.replace(/_/g, " ")}
@@ -657,12 +695,12 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={clsx(
         "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2",
-        checked ? "bg-brand-600" : "bg-slate-200"
+        checked ? "bg-brand-600" : "bg-night-700"
       )}
     >
       <span
         className={clsx(
-          "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform duration-200",
+          "pointer-events-none inline-block h-5 w-5 rounded-full bg-night-850 shadow ring-0 transition-transform duration-200",
           checked ? "translate-x-5" : "translate-x-0"
         )}
       />
@@ -698,15 +736,15 @@ function NotificationsTab() {
   return (
     <div className="max-w-lg space-y-6">
       {/* Channels */}
-      <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+      <div className="divide-y divide-zinc-100 rounded-xl border border-night-700 bg-night-850">
         <div className="px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-700">Channels</h3>
+          <h3 className="text-sm font-semibold text-night-200">Channels</h3>
         </div>
         {CHANNELS.map((item) => (
           <div key={item.key} className="flex items-center justify-between px-5 py-4">
             <div>
-              <p className="text-sm font-medium text-slate-700">{item.label}</p>
-              <p className="text-xs text-slate-500">{item.desc}</p>
+              <p className="text-sm font-medium text-night-200">{item.label}</p>
+              <p className="text-xs text-night-300">{item.desc}</p>
             </div>
             <Toggle
               checked={prefs[item.key]}
@@ -717,13 +755,13 @@ function NotificationsTab() {
       </div>
 
       {/* Event types */}
-      <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+      <div className="divide-y divide-zinc-100 rounded-xl border border-night-700 bg-night-850">
         <div className="px-5 py-4">
-          <h3 className="text-sm font-semibold text-slate-700">Event Types</h3>
+          <h3 className="text-sm font-semibold text-night-200">Event Types</h3>
         </div>
         {EVENT_TYPES.map((item) => (
           <div key={item.key} className="flex items-center justify-between px-5 py-4">
-            <p className="text-sm font-medium text-slate-700">{item.label}</p>
+            <p className="text-sm font-medium text-night-200">{item.label}</p>
             <Toggle
               checked={prefs[item.key]}
               onChange={(v) => update(item.key, v)}
@@ -768,7 +806,7 @@ export default function SettingsPage() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Sidebar nav */}
-        <nav className="flex shrink-0 gap-1 rounded-2xl border border-sky-200/80 bg-white/80 p-1 lg:w-52 lg:flex-col">
+        <nav className="flex shrink-0 gap-1 rounded-2xl border border-night-700/80 bg-night-850/80 p-1 lg:w-52 lg:flex-col">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -777,8 +815,8 @@ export default function SettingsPage() {
               className={clsx(
                 "flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
                 activeTab === tab.id
-                  ? "bg-brand-50 text-brand-700"
-                  : "text-sky-600 hover:bg-sky-100"
+                  ? "bg-brand-500/10 text-brand-700"
+                  : "text-night-200 hover:bg-night-800"
               )}
             >
               <tab.icon className="h-4 w-4 shrink-0" />

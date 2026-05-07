@@ -36,6 +36,22 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  apps/event-relay:
+    dependencies:
+      '@matex/utils':
+        specifier: workspace:*
+        version: link:../../packages/shared/utils
+      '@supabase/supabase-js':
+        specifier: ^2.40.0
+        version: 2.99.1
+    devDependencies:
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.4.5
+
   apps/mcp-gateway:
     dependencies:
       '@matex/types':
@@ -662,6 +678,9 @@ importers:
 
   packages/mcp-servers/escrow-mcp:
     dependencies:
+      '@matex/logic':
+        specifier: workspace:*
+        version: link:../../shared/logic
       '@matex/types':
         specifier: workspace:*
         version: link:../../shared/types
@@ -750,6 +769,9 @@ importers:
 
   packages/mcp-servers/listing-mcp:
     dependencies:
+      '@matex/logic':
+        specifier: workspace:*
+        version: link:../../shared/logic
       '@matex/types':
         specifier: workspace:*
         version: link:../../shared/types
@@ -838,6 +860,31 @@ importers:
 
   packages/mcp-servers/notifications-mcp:
     dependencies:
+      '@matex/types':
+        specifier: workspace:*
+        version: link:../../shared/types
+      '@matex/utils':
+        specifier: workspace:*
+        version: link:../../shared/utils
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.27.1(zod@4.3.6)
+      '@supabase/supabase-js':
+        specifier: ^2.40.0
+        version: 2.99.1
+    devDependencies:
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      vitest:
+        specifier: ^1.3.0
+        version: 1.6.1(@types/node@20.19.37)
+
+  packages/mcp-servers/orders-mcp:
+    dependencies:
+      '@matex/logic':
+        specifier: workspace:*
+        version: link:../../shared/logic
       '@matex/types':
         specifier: workspace:*
         version: link:../../shared/types
@@ -989,6 +1036,12 @@ importers:
       vitest:
         specifier: ^1.3.0
         version: 1.6.1(@types/node@20.19.37)
+
+  packages/shared/logic:
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.4.5
 
   packages/shared/mcp-http-adapter:
     dependencies:

@@ -20,7 +20,7 @@ export default function CreateContractPage() {
         }
       />
       <EmptyState
-        image="/illustrations/contracts-hero.png"
+        image="/grphs/Platform%20Domains/contracts-d-contracts.png"
         title="Contract builder — coming soon"
         description="Use the AI Contract Assistant in an existing contract to draft clauses, or contact Matex support to set up your first supply agreement."
         cta={{ label: "Back to contracts", onClick: () => router.push("/contracts") }}

@@ -228,7 +228,7 @@ export function MediaUploader({
   return (
     <div className={clsx("flex flex-col gap-3", className)}>
       {blocked && (
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+        <p className="text-xs text-warning-400 bg-warning-500/10 border border-amber-100 rounded-lg px-3 py-2">
           Complete step 1 and use <strong>Next</strong> (or <strong>Save as draft</strong>) so a draft listing exists before uploading photos.
         </p>
       )}
@@ -238,18 +238,18 @@ export function MediaUploader({
           "flex flex-col items-center justify-center rounded-xl border-2 border-dashed",
           "px-6 py-8 transition-colors duration-150",
           blocked || files.length >= maxFiles
-            ? "border-sky-200 bg-sky-50 cursor-not-allowed"
+            ? "border-night-700 bg-night-900 cursor-not-allowed"
             : isDragActive
-            ? "border-blue-400 bg-blue-50 cursor-pointer"
-            : "border-sky-300 bg-white cursor-pointer hover:border-orange-400 hover:bg-orange-50/50",
+            ? "border-blue-400 bg-brand-500/10 cursor-pointer"
+            : "border-night-600 bg-night-850 cursor-pointer hover:border-orange-400 hover:bg-brand-500/50",
         )}
       >
         <input {...getInputProps()} />
-        <UploadCloud className="h-8 w-8 text-sky-400 mb-2" />
-        <p className="text-sm font-medium text-sky-700">
+        <UploadCloud className="h-8 w-8 text-night-300 mb-2" />
+        <p className="text-sm font-medium text-night-200">
           {blocked ? "Upload locked until draft exists" : isDragActive ? "Drop files here" : "Drag & drop or click to upload"}
         </p>
-        <p className="text-xs text-sky-400 mt-1">
+        <p className="text-xs text-night-300 mt-1">
           JPG, PNG, WebP, MP4, MOV · Up to {maxFiles} files
         </p>
       </div>
@@ -259,7 +259,7 @@ export function MediaUploader({
           {files.map((entry) => (
             <li
               key={entry.id}
-              className="relative rounded-lg overflow-hidden border border-sky-200 bg-sky-50 aspect-square"
+              className="relative rounded-lg overflow-hidden border border-night-700 bg-night-900 aspect-square"
             >
               {entry.preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -270,8 +270,8 @@ export function MediaUploader({
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center w-full h-full gap-1 p-2">
-                  <FileVideo className="h-6 w-6 text-sky-400" />
-                  <p className="text-[10px] text-sky-500 text-center leading-tight line-clamp-2">
+                  <FileVideo className="h-6 w-6 text-night-300" />
+                  <p className="text-[10px] text-night-300 text-center leading-tight line-clamp-2">
                     {entry.file.name}
                   </p>
                 </div>
