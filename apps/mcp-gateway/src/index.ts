@@ -270,6 +270,23 @@ function isPublicTool(tool: string): boolean {
   ].includes(tool);
 }
 
+// Tools whose human-traffic surface is now Supabase Edge Functions. Auth
+// stays on MCP indefinitely (bootstrap path); the AI/chat surface keeps
+// access via the x-matex-source: chat header.
+const EDGE_MIGRATED_DOMAINS = new Set([
+  "escrow", "listing", "search", "orders", "payments",
+  "storage", "log", "profile", "tax", "analytics",
+  "bidding", "auction", "booking", "inspection", "contracts",
+  "dispute", "pricing", "credit",
+  "messaging", "kyc", "logistics", "notifications", "esign",
+  "admin",
+]);
+
+function isEdgeMigratedTool(tool: string): boolean {
+  const domain = tool.split(".")[0];
+  return EDGE_MIGRATED_DOMAINS.has(domain ?? "");
+}
+
 async function publishEvent(eventName: string, payload: Record<string, unknown>): Promise<void> {
   if (!redis) return;
   await redis.xadd(
@@ -1531,6 +1548,23 @@ const server = createServer(async (req, res) => {
     if (!body) {
       writeJson(res, 400, { success: false, error: { code: "INVALID_JSON", message: "Malformed JSON request body" } });
       return;
+    }
+
+    // Decommission gate: when MCP_GATEWAY_HUMAN_DEPRECATED=1, reject any tool
+    // whose domain is now on Supabase Edge unless the request is AI/chat
+    // traffic (x-matex-source: chat). Default behavior is unchanged.
+    if (process.env.MCP_GATEWAY_HUMAN_DEPRECATED === "1") {
+      const isAi = (req.headers["x-matex-source"] as string | undefined) === "chat";
+      if (!isAi && body.tool && isEdgeMigratedTool(body.tool) && !isPublicTool(body.tool)) {
+        writeJson(res, 410, {
+          success: false,
+          error: {
+            code: "MOVED_TO_EDGE",
+            message: `Tool '${body.tool}' is served by Supabase Edge Functions. Update the client to call /functions/v1/<domain> directly.`,
+          },
+        });
+        return;
+      }
     }
 
     const ipAddress = getClientIp(req);

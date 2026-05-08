@@ -293,7 +293,10 @@ async function runTool(
 ) {
   const mcpRes = await fetch(`${req.nextUrl.origin}/api/mcp`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    // x-matex-source=chat marks the call as AI-side. The gateway optionally
+    // rejects human-traffic tools when MCP_GATEWAY_HUMAN_DEPRECATED=1 to make
+    // the AI surface canonical post-edge migration; this header opts out.
+    headers: { "content-type": "application/json", "x-matex-source": "chat" },
     body: JSON.stringify({ tool, args, token }),
   });
 

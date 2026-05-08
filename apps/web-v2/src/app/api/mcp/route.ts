@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
   if (body.token) {
     headers.authorization = `Bearer ${body.token}`;
   }
+  // Forward AI-source marker so the gateway can distinguish chat traffic from
+  // direct UI fallbacks once human traffic is migrated to edge functions.
+  const source = req.headers.get("x-matex-source");
+  if (source) headers["x-matex-source"] = source;
 
   try {
     const r = await fetch(`${gateway}/tool`, {
