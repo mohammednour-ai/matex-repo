@@ -14,6 +14,11 @@
 
 import { runAll, type ParityConfig, type ParityFixture, type ParityResult } from "./parity/runner.ts";
 import { escrowFixtures } from "./parity/fixtures/escrow.ts";
+import { storageFixtures } from "./parity/fixtures/storage.ts";
+import { logFixtures } from "./parity/fixtures/log.ts";
+import { profileFixtures } from "./parity/fixtures/profile.ts";
+import { taxFixtures } from "./parity/fixtures/tax.ts";
+import { analyticsFixtures } from "./parity/fixtures/analytics.ts";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -37,6 +42,11 @@ interface DomainSpec {
 
 const DOMAINS: DomainSpec[] = [
   { name: "escrow", fixtures: escrowFixtures, rw: process.env.ESCROW_RW === "1" },
+  { name: "storage", fixtures: storageFixtures, rw: false },
+  { name: "log", fixtures: logFixtures, rw: false },
+  { name: "profile", fixtures: profileFixtures, rw: false },
+  { name: "tax", fixtures: taxFixtures, rw: false },
+  { name: "analytics", fixtures: analyticsFixtures, rw: false },
   // listing, search, orders, payments fixtures wire in once Plan C smoke is green.
 ];
 
