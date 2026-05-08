@@ -19,6 +19,14 @@ import { logFixtures } from "./parity/fixtures/log.ts";
 import { profileFixtures } from "./parity/fixtures/profile.ts";
 import { taxFixtures } from "./parity/fixtures/tax.ts";
 import { analyticsFixtures } from "./parity/fixtures/analytics.ts";
+import { biddingFixtures } from "./parity/fixtures/bidding.ts";
+import { auctionFixtures } from "./parity/fixtures/auction.ts";
+import { bookingFixtures } from "./parity/fixtures/booking.ts";
+import { inspectionFixtures } from "./parity/fixtures/inspection.ts";
+import { contractsFixtures } from "./parity/fixtures/contracts.ts";
+import { disputeFixtures } from "./parity/fixtures/dispute.ts";
+import { pricingFixtures } from "./parity/fixtures/pricing.ts";
+import { creditFixtures } from "./parity/fixtures/credit.ts";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -47,6 +55,14 @@ const DOMAINS: DomainSpec[] = [
   { name: "profile", fixtures: profileFixtures, rw: false },
   { name: "tax", fixtures: taxFixtures, rw: false },
   { name: "analytics", fixtures: analyticsFixtures, rw: false },
+  { name: "bidding", fixtures: biddingFixtures, rw: false },
+  { name: "auction", fixtures: auctionFixtures, rw: false },
+  { name: "booking", fixtures: bookingFixtures, rw: false },
+  { name: "inspection", fixtures: inspectionFixtures, rw: false },
+  { name: "contracts", fixtures: contractsFixtures, rw: false },
+  { name: "dispute", fixtures: disputeFixtures, rw: false },
+  { name: "pricing", fixtures: pricingFixtures, rw: false },
+  { name: "credit", fixtures: creditFixtures, rw: false },
   // listing, search, orders, payments fixtures wire in once Plan C smoke is green.
 ];
 
