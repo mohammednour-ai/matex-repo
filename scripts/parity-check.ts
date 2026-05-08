@@ -32,6 +32,7 @@ import { kycFixtures } from "./parity/fixtures/kyc.ts";
 import { logisticsFixtures } from "./parity/fixtures/logistics.ts";
 import { notificationsFixtures } from "./parity/fixtures/notifications.ts";
 import { esignFixtures } from "./parity/fixtures/esign.ts";
+import { adminFixtures } from "./parity/fixtures/admin.ts";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -73,6 +74,7 @@ const DOMAINS: DomainSpec[] = [
   { name: "logistics", fixtures: logisticsFixtures, rw: false },
   { name: "notifications", fixtures: notificationsFixtures, rw: false },
   { name: "esign", fixtures: esignFixtures, rw: false },
+  { name: "admin", fixtures: adminFixtures, rw: false },
   // listing, search, orders, payments fixtures wire in once Plan C smoke is green.
 ];
 
