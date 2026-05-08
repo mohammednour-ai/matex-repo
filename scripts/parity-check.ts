@@ -27,6 +27,11 @@ import { contractsFixtures } from "./parity/fixtures/contracts.ts";
 import { disputeFixtures } from "./parity/fixtures/dispute.ts";
 import { pricingFixtures } from "./parity/fixtures/pricing.ts";
 import { creditFixtures } from "./parity/fixtures/credit.ts";
+import { messagingFixtures } from "./parity/fixtures/messaging.ts";
+import { kycFixtures } from "./parity/fixtures/kyc.ts";
+import { logisticsFixtures } from "./parity/fixtures/logistics.ts";
+import { notificationsFixtures } from "./parity/fixtures/notifications.ts";
+import { esignFixtures } from "./parity/fixtures/esign.ts";
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -63,6 +68,11 @@ const DOMAINS: DomainSpec[] = [
   { name: "dispute", fixtures: disputeFixtures, rw: false },
   { name: "pricing", fixtures: pricingFixtures, rw: false },
   { name: "credit", fixtures: creditFixtures, rw: false },
+  { name: "messaging", fixtures: messagingFixtures, rw: false },
+  { name: "kyc", fixtures: kycFixtures, rw: false },
+  { name: "logistics", fixtures: logisticsFixtures, rw: false },
+  { name: "notifications", fixtures: notificationsFixtures, rw: false },
+  { name: "esign", fixtures: esignFixtures, rw: false },
   // listing, search, orders, payments fixtures wire in once Plan C smoke is green.
 ];
 
