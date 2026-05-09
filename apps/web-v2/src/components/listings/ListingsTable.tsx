@@ -182,7 +182,7 @@ export function ListingsTable({ rows }: { rows: ListingsTableRow[] }) {
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-night-700/60">
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id} className="hover:bg-night-900">
                 {row.getVisibleCells().map((cell) => (
