@@ -13,10 +13,10 @@ export default function NotFound() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-400">
           404
         </p>
-        <h1 className="text-2xl font-semibold text-night-100">
+        <h1 className="text-2xl font-semibold text-fg">
           We couldn&apos;t find that page
         </h1>
-        <p className="max-w-md text-sm text-night-100/80">
+        <p className="max-w-md text-sm text-fg/80">
           The link may be broken or the page has moved. Head back to your
           dashboard or reach out to the Matex team if you need a hand.
         </p>
@@ -30,7 +30,7 @@ export default function NotFound() {
         </Link>
         <Link
           href="/"
-          className="inline-flex items-center gap-2 rounded-xl border border-night-600 px-4 py-2 text-sm font-semibold text-night-100 hover:border-orange-300 hover:bg-brand-500/60"
+          className="inline-flex items-center gap-2 rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-fg hover:border-orange-300 hover:bg-brand-500/60"
         >
           Back home
         </Link>

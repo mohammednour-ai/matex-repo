@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 text-night-100">
+    <main className="mx-auto max-w-3xl px-6 py-16 text-fg">
       <Link
         href="/"
         className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-400 hover:text-brand-300"
       >
         ← Back to Matex
       </Link>
-      <h1 className="mt-6 text-3xl font-extrabold text-night-100">Terms of Service</h1>
-      <p className="mt-2 text-sm text-night-300">Last updated: April 2026</p>
+      <h1 className="mt-6 text-3xl font-extrabold text-fg">Terms of Service</h1>
+      <p className="mt-2 text-sm text-fg-subtle">Last updated: April 2026</p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed">
         <p>
@@ -28,7 +28,7 @@ export default function TermsPage() {
           platform you agree to these terms in full.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">1. Account &amp; verification</h2>
+        <h2 className="text-lg font-bold text-fg">1. Account &amp; verification</h2>
         <p>
           You must complete identity verification (KYC) appropriate to your
           intended trade volume. Higher KYC levels unlock larger trades, faster
@@ -36,7 +36,7 @@ export default function TermsPage() {
           that fail to meet verification or compliance requirements.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">2. Listings &amp; auctions</h2>
+        <h2 className="text-lg font-bold text-fg">2. Listings &amp; auctions</h2>
         <p>
           Sellers are responsible for the accuracy of every listing, including
           material classification, weights, certifications, and logistics
@@ -45,7 +45,7 @@ export default function TermsPage() {
           warehouse, or take title to listed materials.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">3. Escrow &amp; payments</h2>
+        <h2 className="text-lg font-bold text-fg">3. Escrow &amp; payments</h2>
         <p>
           Funds held in escrow are released against milestones agreed in the
           purchase contract (e.g. inspection, shipment, delivery). Disputes
@@ -53,7 +53,7 @@ export default function TermsPage() {
           released.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">4. Acceptable use</h2>
+        <h2 className="text-lg font-bold text-fg">4. Acceptable use</h2>
         <p>
           You may not use the platform to list controlled, hazardous, or
           stolen materials, to manipulate auction prices, or to circumvent
@@ -61,14 +61,14 @@ export default function TermsPage() {
           suspension and reporting to the appropriate authorities.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">5. Liability</h2>
+        <h2 className="text-lg font-bold text-fg">5. Liability</h2>
         <p>
           Matex provides the platform on an &ldquo;as-is&rdquo; basis. To the
           maximum extent permitted by law, Matex is not liable for indirect or
           consequential damages arising from trades executed between members.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">6. Contact</h2>
+        <h2 className="text-lg font-bold text-fg">6. Contact</h2>
         <p>
           Questions about these terms? Reach us at{" "}
           <a className="text-brand-400 underline" href="mailto:legal@matex.app">

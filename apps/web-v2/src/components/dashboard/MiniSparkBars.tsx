@@ -18,9 +18,9 @@ export function MiniSparkBars({ series, className, label }: MiniSparkBarsProps) 
   const max = Math.max(1, ...vals.map((v) => (Number.isFinite(v) ? v : 0)));
 
   return (
-    <div className={clsx("rounded-xl border border-night-700/80 bg-brand-500/10/[0.35] px-3 py-2.5", className)}>
+    <div className={clsx("rounded-xl border border-line/80 bg-brand-500/10/[0.35] px-3 py-2.5", className)}>
       {label && (
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-night-200">{label}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">{label}</p>
       )}
       <div className={clsx("flex h-12 items-end gap-1", label && "mt-1.5")}>
         {vals.map((v, i) => {

@@ -62,3 +62,4 @@ apps/web-v2/NUL
 # Supabase CLI workdir — keep migrations and config in git; ignore local dev data
 supabase/.branches/
 supabase/.temp/
+.claude/

@@ -71,7 +71,7 @@ export function LotProgressBar({ startTime, endTime, className }: LotProgressBar
       aria-label={callerLabel}
       className={cn("space-y-1.5", className)}
     >
-      <div className="h-2 w-full overflow-hidden rounded-full bg-night-800">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-elevated">
         <div
           className={cn("h-full transition-[width] duration-500 ease-linear", fillClass)}
           style={{ width: `${pct}%` }}
@@ -88,7 +88,7 @@ export function LotProgressBar({ startTime, endTime, className }: LotProgressBar
         >
           {callerLabel}
         </span>
-        <span className="text-night-300 tabular-nums">{pct}%</span>
+        <span className="text-fg-subtle tabular-nums">{pct}%</span>
       </div>
     </div>
   );
