@@ -179,12 +179,22 @@ function DisputeModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dispute-modal-title"
+    >
       <div className="w-full max-w-md rounded-2xl border border-night-700 bg-night-850 p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-bold text-night-100">File a Dispute</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-night-300 hover:bg-night-800 hover:text-night-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
-            <XCircle className="h-5 w-5" />
+          <h3 id="dispute-modal-title" className="text-base font-bold text-night-100">File a Dispute</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dispute dialog"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-night-300 hover:bg-night-800 hover:text-night-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          >
+            <XCircle className="h-5 w-5" aria-hidden />
           </button>
         </div>
         <p className="mb-4 text-sm text-night-200">

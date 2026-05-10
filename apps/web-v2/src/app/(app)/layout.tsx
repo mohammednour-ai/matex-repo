@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import clsx from "clsx";
 
 type NavItem = {
@@ -270,7 +271,8 @@ function Sidebar({
             )}
             <button
               onClick={onToggle}
-              className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 transition-colors hover:text-white hover:bg-night-850/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/[0.04] text-night-300 transition-colors hover:text-night-100 hover:bg-night-850/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -316,10 +318,11 @@ function Sidebar({
                   </Link>
                   <button
                     onClick={onMobileClose}
+                    type="button"
                     aria-label="Close navigation"
-                    className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 hover:bg-night-850/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/[0.04] text-night-300 hover:bg-night-850/[0.08] hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
-                    <X size={18} />
+                    <X size={18} aria-hidden />
                   </button>
                 </div>
                 <nav className="flex-1 py-3 overflow-y-auto">
@@ -343,9 +346,9 @@ function MobileMenuTrigger({ onOpen }: { onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       aria-label="Open navigation"
-      className="fixed left-4 top-4 z-30 rounded-2xl border border-night-700 bg-night-850/80 p-2.5 text-night-200 backdrop-blur transition-colors hover:border-brand-400/40 hover:text-white md:hidden"
+      className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/80 text-night-200 backdrop-blur transition-colors hover:border-brand-400/40 hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:hidden"
     >
-      <Menu size={20} />
+      <Menu size={20} aria-hidden />
     </button>
   );
 }
@@ -402,12 +405,18 @@ function UserMenu() {
               onClick={() => setAvatarOpen(false)}
               aria-hidden
             />
-            <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-night-700 bg-night-900 py-1 shadow-2xl">
+            <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-night-700 bg-night-900 py-1 shadow-2xl">
               <div className="border-b border-night-700/60 px-4 py-3">
                 <p className="truncate text-sm font-semibold text-night-100">
                   {user?.email?.split("@")[0] ?? "Matex user"}
                 </p>
                 <p className="truncate text-xs text-night-300">{user?.email}</p>
+              </div>
+              <div className="border-b border-night-700/60 px-4 py-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-night-400">
+                  Theme
+                </p>
+                <ThemeToggle />
               </div>
               <div className="py-1">
                 <button
@@ -416,9 +425,9 @@ function UserMenu() {
                     setAvatarOpen(false);
                     router.push("/settings");
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
-                  <Settings size={15} />
+                  <Settings size={15} aria-hidden />
                   Settings
                 </button>
                 <button
@@ -427,9 +436,9 @@ function UserMenu() {
                     setAvatarOpen(false);
                     handleSignOut();
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-danger-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
-                  <LogOut size={15} />
+                  <LogOut size={15} aria-hidden />
                   Sign out
                 </button>
               </div>
@@ -451,6 +460,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ClientAuthGuard>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-brand-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
+      >
+        Skip to main content
+      </a>
+
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
@@ -458,12 +474,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      <MobileMenuTrigger onOpen={() => setMobileOpen(true)} />
-      <UserMenu />
+      <header role="banner">
+        <MobileMenuTrigger onOpen={() => setMobileOpen(true)} />
+        <UserMenu />
+      </header>
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className={clsx(
-          "app-shell-canvas min-h-screen transition-all duration-200",
+          "app-shell-canvas min-h-screen transition-[margin] duration-200 focus:outline-none",
           isDashboard && "dashboard-canvas",
         )}
         style={{ marginLeft: sidebarWidth }}
