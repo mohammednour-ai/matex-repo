@@ -177,3 +177,58 @@ Phase 1 invented light-mode values for the entire palette but no visual snapshot
 - [ ] Light-mode visual regression — deferred (needs human eyeballs).
 
 The deferred QA items are documented with verbatim run commands so a follow-up session with the dev stack online can knock them out in a focused pass.
+
+---
+
+## Addendum — Phase 5 follow-up: dev-server probe
+
+A second pass added `eslint-config-next` (closing the lint gate) and ran `next dev` against a stub `.env.local` (no Supabase, no gateway) to probe the served HTML/CSS. Full Playwright + Lighthouse still needs the full stack, but the dev probe confirmed:
+
+### Lint gate
+
+- `pnpm --filter @matex/web-v2 lint` exits 0 after installing `eslint-config-next@^14.2.0` plus the explicit `eslint-plugin-react@^7` / `-react-hooks@^4` peers (newer pnpm picked v16+ which targets ESLint 9 flat config and broke under our 8.57.x).
+- `apps/web-v2/.eslintrc.json` extends `next/core-web-vitals`. `no-img-element` and `react-hooks/exhaustive-deps` demoted to warnings so 9 pre-existing issues don't block CI; new code still gets flagged.
+- 5 lint errors that surfaced (unescaped quotes in JSX text on chat/listings/search) fixed in the same commit.
+
+### HTTP probe vs running dev server
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /login` | 200 | 27 KB; renders the login shell |
+| `GET /dashboard` | 200 | 19 KB; renders the auth-guard loader (no token in localStorage) |
+| `HEAD /listings` | 200 | shell shipped |
+| `HEAD /search` | 200 | shell shipped |
+| `GET /api/intelligence/summary` | 200 | 5.6 KB JSON; the no-auth intelligence endpoint works without the gateway |
+
+No server-side render errors in `next dev` output across the probed routes.
+
+### HTML/CSS evidence of the redesign work
+
+Verified directly from the served bundles (no stack needed):
+
+- `<html lang="en" class="__variable_<hash>">` — Inter font variable applied to the html element via `next/font` (Phase 0 issue #2 closed).
+- `/_next/static/media/<hash>.woff2` — Inter actually loads. Was not loading before this PR despite being declared.
+- Theme bootstrap script inline in `<head>` — reads `localStorage.matex-theme`, applies `dark` class before paint (no FOWT).
+- Auth-guard loader carries `class="app-shell-canvas ..."` and the hardcoded `#0e1116` gradient is gone (Phase 3 D — confirmed by a `grep -c "0e1116" /tmp/dashboard.html` returning 0).
+- `OG meta` still references `/grphs/Brand/og-social-share-image-b-og-share.jpg` (correct — kept as the actual `og:image` while the dashboard's 7 % overlay was removed).
+- Compiled `/_next/static/css/app/layout.css` (6437 lines) contains:
+  - `:root` block with all 12 light values (`--color-night-100: 14 16 20`, etc.).
+  - `.dark` block with all 12 dark values (`--color-night-100: 242 244 247`, etc.).
+  - `html { font-size: 100% }` — the 80 % override is gone.
+  - 40 references to Inter font-face from `next/font`.
+  - 28 references to `--shadow-card`, plus `--bg-app-canvas`, `--bg-sidebar`, etc. — themed gradient/shadow vars wired through.
+  - The extended `prefers-reduced-motion` block kills `.animate-spin`, `.animate-pulse`, `.animate-bounce`, `.animate-ping` (Phase 0 issue #8 closed).
+
+### What this probe did NOT verify
+
+The (app) routes ship the auth-guard loader server-side because there's no `matex_token` in localStorage on first paint. To exercise the actual redesigned shell (skip-link, header landmark, user-menu ThemeToggle, sidebar collapse hit-target) you need:
+
+1. The full dev stack up (`pnpm dev:web-v2-stack`) so the gateway responds.
+2. A seeded session in localStorage (the smoke suite uses `matex_token: "smoke-test-token"`).
+3. A real browser (DevTools → Application → Local Storage → set the token, then reload).
+
+That's the eyeball pass that closes Phase 5 fully. axe + Lighthouse plug into the same setup.
+
+### What I'm comfortable signing off
+
+Everything that can be verified without a real browser checks out. The compile + lint + HTTP signals are all green. The remaining unknowns are visual fit-and-finish on the rendered DOM, which is irreducibly a human eyeballing job — one or two screenshots per route per theme is the proof that closes the loop.
