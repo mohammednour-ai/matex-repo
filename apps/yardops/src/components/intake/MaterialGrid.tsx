@@ -169,7 +169,7 @@ export function MaterialGrid({ tenantId, actorId, ticketId, onLinesUpdated, onNe
                     <p className="text-sm font-semibold text-night-100 leading-tight">{m.name}</p>
                     <p className="mt-1 text-xs tabular-nums text-night-400">${m.unit_price_per_kg.toFixed(3)}/kg</p>
                     {m.is_cat_converter && (
-                      <p className="mt-1 flex items-center gap-1 text-[10px] text-warning-400">
+                      <p className="mt-1 flex items-center gap-1 text-xs text-warning-400">
                         <ShieldAlert size={10} />
                         Cat converter
                       </p>

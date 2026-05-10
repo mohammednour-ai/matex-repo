@@ -88,7 +88,7 @@ export function TicketSummary({ ticketNumber, sellerName, netWeight, lines, subt
           </div>
         </div>
 
-        <p className="text-[10px] text-night-600 text-center leading-relaxed">
+        <p className="text-xs text-night-600 text-center leading-relaxed">
           This is a legally required record under Ontario Municipal Act and the Scrap Metal Dealers Act.
           Retain for 7 years per CRA requirements.
         </p>

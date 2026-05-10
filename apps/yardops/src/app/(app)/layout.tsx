@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -136,14 +137,16 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: {
     >
       <div className="flex flex-shrink-0 items-center justify-between p-4 border-b border-night-700/60">
         {!collapsed && (
-          <div>
-            <p className="text-sm font-bold text-night-100">YardOps</p>
-            <p className="text-[10px] text-night-500 uppercase tracking-widest">Ontario</p>
+          <div className="overflow-hidden">
+            <Image src="/images/LogoOrange.png" alt="Matex YardOps" height={28} width={120} style={{ height: "28px", width: "auto" }} priority />
           </div>
+        )}
+        {collapsed && (
+          <Image src="/images/gear-mark.png" alt="YardOps" height={28} width={28} className="mx-auto" priority />
         )}
         <button
           onClick={onToggle}
-          className="rounded-xl border border-night-700 p-1.5 text-night-400 hover:text-night-100 hover:border-night-600 transition-colors"
+          className="rounded-xl border border-night-700 p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-night-400 hover:text-night-100 hover:border-night-600 transition-colors"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -166,11 +169,10 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: {
           <aside className="relative z-50 flex flex-col" style={{ width: EXPANDED_W }}>
             <div className="flex h-screen flex-col border-r border-night-700 bg-night-900">
               <div className="flex items-center justify-between p-4 border-b border-night-700/60">
-                <div>
-                  <p className="text-sm font-bold text-night-100">YardOps</p>
-                  <p className="text-[10px] text-night-500 uppercase tracking-widest">Ontario</p>
+                <div className="overflow-hidden">
+                  <Image src="/images/LogoOrange.png" alt="Matex YardOps" height={28} width={120} style={{ height: "28px", width: "auto" }} priority />
                 </div>
-                <button onClick={onMobileClose} aria-label="Close navigation" className="rounded-xl border border-night-700 p-1.5 text-night-400 hover:text-night-100">
+                <button onClick={onMobileClose} aria-label="Close navigation" className="rounded-xl border border-night-700 p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-night-400 hover:text-night-100">
                   <X size={16} />
                 </button>
               </div>
@@ -202,6 +204,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ClientAuthGuard>
+      <a href="#main-content" className="skip-to-content">Skip to main content</a>
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
@@ -219,6 +222,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </button>
 
       <main
+        id="main-content"
         className="min-h-screen transition-all duration-200 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
