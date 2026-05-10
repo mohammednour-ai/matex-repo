@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/shadcn/dialog";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ConfidenceStack } from "@/components/listings/ConfidenceStack";
 import { CertifiedWeightCard } from "@/components/listings/CertifiedWeightCard";
 import { InspectionReportSection } from "@/components/listings/InspectionReportSection";
@@ -162,6 +163,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
   const [activeIdx, setActiveIdx] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const media = [...photos];
 
   const goTo = (idx: number) => setActiveIdx(Math.max(0, Math.min(idx, media.length - 1)));
@@ -172,14 +174,23 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
       <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-night-800">
         {showVideo && videoUrl ? (
           <div className="w-full h-full flex items-center justify-center bg-black">
-            <video controls autoPlay className="w-full h-full object-contain">
+            <video
+              controls
+              autoPlay={!reducedMotion}
+              muted
+              playsInline
+              className="w-full h-full object-contain"
+            >
               <source src={videoUrl} />
+              Your browser does not support video playback.
             </video>
             <button
+              type="button"
               onClick={() => setShowVideo(false)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center"
+              aria-label="Close video"
+              className="absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <X size={16} />
+              <X size={16} aria-hidden />
             </button>
           </div>
         ) : media[activeIdx] ? (

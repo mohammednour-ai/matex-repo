@@ -149,6 +149,16 @@ function Sidebar({
     setShowAdminNav(Boolean(getUser()?.isPlatformAdmin));
     setUser(getUser());
   }, [pathname]);
+  // Esc closes the mobile drawer when it's open. Click-outside backdrop is
+  // already wired; this gives keyboard users an equivalent affordance.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") onMobileClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen, onMobileClose]);
   const width = collapsed ? COLLAPSED_W : EXPANDED_W;
 
   const logo = (
@@ -296,7 +306,12 @@ function Sidebar({
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden flex">
+        <div
+          className="fixed inset-0 z-40 md:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main navigation"
+        >
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={onMobileClose}
