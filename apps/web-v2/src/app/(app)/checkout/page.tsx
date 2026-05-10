@@ -50,10 +50,6 @@ function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 }
 
-function generateInvoiceNumber(year: number, seq: number): string {
-  return `MTX-${year}-${String(seq).padStart(6, "0")}`;
-}
-
 export default function CheckoutPage() {
   const router = useRouter();
   const user = getUser();
@@ -213,19 +209,34 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Required args per packages/mcp-servers/tax-mcp/src/index.ts:89 and
+    // supabase/functions/tax/index.ts: { order_id, seller_id, buyer_id,
+    // seller_province, buyer_province, subtotal }. The previous call was
+    // sending `amount`/`tax_amount`/`province_buyer`/`province_seller` and
+    // omitting seller_id/buyer_id, so the server rejected it and the UI
+    // silently fell back to a client-side random "MTX-YYYY-NNN" that was
+    // never persisted anywhere. Now we send the right shape and refuse to
+    // proceed to escrow if the invoice didn't actually get issued.
     const invoiceRes = await callTool("tax.generate_invoice", {
       order_id: orderId,
-      amount: effectiveTax.subtotal,
-      tax_amount: effectiveTax.total_tax,
-      province_buyer: effectiveTax.province_buyer,
-      province_seller: effectiveTax.province_seller,
+      seller_id: item.seller_id,
+      buyer_id: user.userId,
+      seller_province: effectiveTax.province_seller,
+      buyer_province: effectiveTax.province_buyer,
+      subtotal: effectiveTax.subtotal,
+      commission_amount: effectiveTax.commission,
     });
-    const inv =
-      extractId(invoiceRes, "invoice_number") ||
-      generateInvoiceNumber(
-        new Date().getFullYear(),
-        Math.floor(Math.random() * 999) + 1
-      );
+    if (!invoiceRes.success) {
+      setProcessing(false);
+      setItemError(invoiceRes.error?.message ?? "Could not issue invoice.");
+      return;
+    }
+    const inv = extractId(invoiceRes, "invoice_number");
+    if (!inv) {
+      setProcessing(false);
+      setItemError("Invoice was created but no invoice number was returned.");
+      return;
+    }
 
     const escrowRes = await callTool("escrow.create_escrow", {
       order_id: orderId,
