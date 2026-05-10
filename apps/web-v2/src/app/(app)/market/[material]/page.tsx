@@ -45,7 +45,7 @@ export default function MaterialDetailPage() {
     return (
       <div className="rounded-2xl border border-night-700 bg-night-850 p-6 text-center">
         <p className="text-sm font-semibold text-night-200">Unknown material</p>
-        <Link href="/market" className="mt-2 inline-block text-xs text-brand-700">
+        <Link href="/market" className="mt-2 inline-block text-xs text-brand-400">
           Back to market dashboard
         </Link>
       </div>
@@ -57,7 +57,7 @@ export default function MaterialDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/market" className="inline-flex items-center gap-1 text-xs font-semibold text-night-200 hover:text-brand-700">
+        <Link href="/market" className="inline-flex items-center gap-1 text-xs font-semibold text-night-200 hover:text-brand-400">
           <ArrowLeft className="h-3 w-3" /> Back to market
         </Link>
         <button
@@ -83,7 +83,7 @@ export default function MaterialDetailPage() {
           {latest && <MarketSummaryCard snapshot={latest} history={history} onSetAlert={() => setDialogOpen(true)} />}
 
           <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
               30-day price history
             </p>
             <h3 className="mt-1 text-base font-semibold text-night-100">

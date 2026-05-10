@@ -90,7 +90,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     case "escrow":
       return (
-        <span className={clsx(base, "bg-brand-500/10 text-brand-600")}>
+        <span className={clsx(base, "bg-brand-500/10 text-brand-400")}>
           <Shield size={18} />
         </span>
       );
@@ -126,7 +126,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     case "contract":
       return (
-        <span className={clsx(base, "bg-brand-500/10 text-orange-600")}>
+        <span className={clsx(base, "bg-brand-500/10 text-brand-400")}>
           <FileText size={18} />
         </span>
       );
@@ -332,7 +332,7 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => void markAllRead()}
               disabled={unreadCount === 0}
-              className="rounded-xl px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-500/10 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-xl px-3 py-1.5 text-sm font-medium text-brand-400 transition-colors hover:bg-brand-500/10 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Mark all read
             </button>
@@ -354,7 +354,7 @@ export default function NotificationsPage() {
                 className={clsx(
                   "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors",
                   active
-                    ? "border-brand-600 text-brand-700"
+                    ? "border-brand-600 text-brand-400"
                     : "border-transparent text-night-300 hover:text-night-200 hover:border-night-600",
                 )}
               >
@@ -364,7 +364,7 @@ export default function NotificationsPage() {
                     className={clsx(
                       "text-[11px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
                       active
-                        ? "bg-brand-100 text-brand-700"
+                        ? "bg-brand-500/15 text-brand-400"
                         : "bg-night-800 text-night-300",
                     )}
                   >
@@ -389,7 +389,7 @@ export default function NotificationsPage() {
             <p className="font-medium text-night-200 text-sm">{error}</p>
             <button
               onClick={() => void fetchNotifications()}
-              className="mt-3 text-sm text-brand-600 hover:underline font-medium"
+              className="mt-3 text-sm text-brand-400 hover:underline font-medium"
             >
               Try again
             </button>

@@ -21,16 +21,17 @@ import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ─── Tab definitions ────────────────────────────────────────────────────────
 
-type Tab = "profile" | "company" | "kyc" | "notifications";
+type Tab = "kyc" | "profile" | "company" | "notifications";
 
 const TABS: {
   id: Tab;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
+  // KYC first — drives compliance + unlocks higher trade limits.
+  { id: "kyc", label: "KYC & Verification", icon: ShieldCheck },
   { id: "profile", label: "Profile", icon: User },
   { id: "company", label: "Company", icon: Building2 },
-  { id: "kyc", label: "KYC & Verification", icon: ShieldCheck },
   { id: "notifications", label: "Notifications", icon: Bell },
 ];
 
@@ -148,7 +149,7 @@ function ProfileTab() {
       {/* Avatar */}
       <div className="flex items-center gap-5">
         <div className="relative">
-          <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-brand-200 bg-brand-100 flex items-center justify-center">
+          <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-brand-500/30 bg-brand-500/15 flex items-center justify-center">
             {form.avatar_url ? (
               <img
                 src={form.avatar_url}
@@ -310,7 +311,7 @@ function CompanyTab() {
   return (
     <div className="space-y-5 max-w-lg">
       {submitted && (
-        <div className="rounded-lg border border-amber-200 bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
+        <div className="rounded-lg border border-warning-500/30 bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
           Company information is under review. Contact support to make changes.
         </div>
       )}
@@ -561,9 +562,9 @@ function KycTab() {
               className={clsx(
                 "rounded-xl border p-5 transition-colors",
                 completed
-                  ? "border-emerald-200 bg-success-500/50"
+                  ? "border-success-500/30 bg-success-500/50"
                   : active
-                  ? "border-brand-200 bg-brand-500/50"
+                  ? "border-brand-500/30 bg-brand-500/50"
                   : "border-night-700/60 bg-night-850 opacity-60"
               )}
             >
@@ -795,7 +796,29 @@ function NotificationsTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const [activeTab, setActiveTab] = useState<Tab>("kyc");
+  // Surface KYC level at the page so the sidebar can show an "Incomplete"
+  // pip on the KYC tab without each tab refetching independently.
+  const [pageKycLevel, setPageKycLevel] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    callTool("kyc.get_kyc_level", {}).then((res) => {
+      if (cancelled) return;
+      if (res.success) {
+        const lvl = (res.data as { level?: number } | undefined)?.level ?? 0;
+        setPageKycLevel(lvl);
+        // If user is already KYC ≥ 2, default landing tab to Profile (more
+        // commonly visited for returning users).
+        if (lvl >= 2) setActiveTab("profile");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const kycIncomplete = pageKycLevel != null && pageKycLevel < 2;
 
   return (
     <div className="space-y-6">
@@ -807,22 +830,32 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Sidebar nav */}
         <nav className="flex shrink-0 gap-1 rounded-2xl border border-night-700/80 bg-night-850/80 p-1 lg:w-52 lg:flex-col">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={clsx(
-                "flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "bg-brand-500/10 text-brand-700"
-                  : "text-night-200 hover:bg-night-800"
-              )}
-            >
-              <tab.icon className="h-4 w-4 shrink-0" />
-              {tab.label}
-            </button>
-          ))}
+          {TABS.map((tab) => {
+            const showIncomplete = tab.id === "kyc" && kycIncomplete;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  "relative flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
+                  activeTab === tab.id
+                    ? "bg-brand-500/10 text-brand-400"
+                    : "text-night-200 hover:bg-night-800"
+                )}
+              >
+                <tab.icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{tab.label}</span>
+                {showIncomplete && (
+                  <span
+                    className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-warning-400 shadow-[0_0_0_3px_rgba(251,191,36,0.18)]"
+                    aria-label="Incomplete"
+                    title="Action required to unlock higher trade limits"
+                  />
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Content panel */}

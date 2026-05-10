@@ -28,12 +28,12 @@ export function InspectionReportSection({
     <div
       className={cn(
         "rounded-xl border bg-night-850 p-4 space-y-3",
-        hasReport ? "border-emerald-200" : "border-night-700",
+        hasReport ? "border-success-500/30" : "border-night-700",
         className,
       )}
     >
       <h3 className="font-semibold text-night-100 text-sm flex items-center gap-2">
-        <ClipboardCheck className="h-4 w-4 text-brand-600" />
+        <ClipboardCheck className="h-4 w-4 text-brand-400" />
         Inspection report
       </h3>
 
@@ -44,9 +44,9 @@ export function InspectionReportSection({
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              "flex items-center justify-between gap-3 rounded-lg border border-emerald-200",
+              "flex items-center justify-between gap-3 rounded-lg border border-success-500/30",
               "bg-success-500/10 px-3 py-2.5 text-sm text-success-400",
-              "hover:bg-emerald-100 transition-colors",
+              "hover:bg-success-500/15 transition-colors",
             )}
           >
             <span className="flex items-center gap-2 min-w-0">

@@ -337,7 +337,7 @@ export default function EscrowPage() {
           const releasedN = escrows.filter((e) => e.status === "released").length;
           const frozenN = escrows.filter((e) => e.status === "frozen").length;
           const stats: { label: string; value: string | number; color: string }[] = [
-            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-600" : "text-night-100" },
+            { label: "Total Held", value: formatCAD(heldAmt), color: heldAmt > 0 ? "text-brand-400" : "text-night-100" },
             { label: "Active", value: activeN, color: "text-night-100" },
             { label: "Released", value: releasedN, color: releasedN > 0 ? "text-emerald-600" : "text-night-100" },
             { label: "Frozen", value: frozenN, color: frozenN > 0 ? "text-red-600" : "text-night-100" },
@@ -369,7 +369,7 @@ export default function EscrowPage() {
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -468,7 +468,7 @@ function EscrowRow({
                     >
                       {i < step ? "✓" : i + 1}
                     </div>
-                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-brand-700 font-medium" : "text-night-300"}`}>{s}</p>
+                    <p className={`mt-1 text-[10px] text-center w-16 leading-tight ${i <= step ? "text-brand-400 font-medium" : "text-night-300"}`}>{s}</p>
                   </div>
                   {i < TIMELINE_STEPS.length - 1 && (
                     <div className={`h-0.5 flex-1 mb-4 ${i < step ? "bg-brand-600" : "bg-night-700"}`} />

@@ -246,7 +246,7 @@ export default function LogisticsPage() {
         title="Logistics"
         description="Manage shipments, get multi-carrier quotes, and track deliveries."
         actions={
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/90 bg-success-500/90 px-4 py-2 shadow-sm">
+          <div className="flex items-center gap-2 rounded-2xl border border-success-500/30/90 bg-success-500/90 px-4 py-2 shadow-sm">
             <Leaf className="h-4 w-4 text-emerald-600" />
             <div className="text-sm">
               <span className="font-semibold text-success-400">{totalCO2.toFixed(1)} kg CO₂</span>
@@ -459,7 +459,7 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
               <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-night-700 text-night-300"}`}>
                 {i < currentStep ? "✓" : i + 1}
               </div>
-              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-700 font-medium" : "text-night-300"}`}>
+              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-400 font-medium" : "text-night-300"}`}>
                 {step}
               </p>
             </div>

@@ -94,12 +94,12 @@ const TYPE_LABELS: Record<ContractType, string> = {
 };
 
 const TYPE_COLORS: Record<ContractType, string> = {
-  standing: "bg-blue-100 text-brand-400",
-  volume: "bg-emerald-100 text-success-400",
-  hybrid: "bg-purple-100 text-brand-400",
-  index_linked: "bg-amber-100 text-warning-400",
-  rfq_framework: "bg-night-800 text-night-200",
-  consignment: "bg-orange-100 text-orange-700",
+  standing: "bg-brand-500/15 text-brand-400 ring-1 ring-brand-500/25",
+  volume: "bg-success-500/15 text-success-400 ring-1 ring-success-500/25",
+  hybrid: "bg-info-500/15 text-info-400 ring-1 ring-info-500/25",
+  index_linked: "bg-warning-500/15 text-warning-400 ring-1 ring-warning-500/25",
+  rfq_framework: "bg-night-800 text-night-200 ring-1 ring-night-700",
+  consignment: "bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/25",
 };
 
 function statusBadge(s: ContractStatus) {
@@ -267,7 +267,7 @@ export default function ContractsPage() {
       </div>
 
       {contractsError && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {contractsError}
         </div>
       )}
@@ -405,7 +405,7 @@ export default function ContractsPage() {
                     { label: "Jun", pct: 0 },
                   ].map((m) => (
                     <div key={m.label} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="w-full rounded-t bg-blue-200 transition-all" style={{ height: `${m.pct}%` }}>
+                      <div className="w-full rounded-t bg-info-500/30 transition-all" style={{ height: `${m.pct}%` }}>
                         {m.pct > 0 && <div className="h-full rounded-t bg-blue-600" style={{ height: `${Math.min(m.pct, 100)}%` }} />}
                       </div>
                       <p className="text-[10px] text-night-300">{m.label}</p>
@@ -454,7 +454,7 @@ export default function ContractsPage() {
             )}
 
             {/* AI Contract Assistant */}
-            <div className="rounded-xl border border-blue-200 bg-brand-500/10 p-4">
+            <div className="rounded-xl border border-info-500/30 bg-brand-500/10 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
                   <Bot className="h-3.5 w-3.5" />
@@ -466,14 +466,14 @@ export default function ContractsPage() {
                   <button
                     key={chip}
                     onClick={() => handleAiChip(chip)}
-                    className="rounded-full border border-blue-300 bg-night-850 px-3 py-1 text-xs text-brand-400 hover:bg-blue-100 transition"
+                    className="rounded-full border border-info-500/40 bg-night-850 px-3 py-1 text-xs text-brand-400 hover:bg-info-500/15 transition"
                   >
                     {chip}
                   </button>
                 ))}
               </div>
               {aiResponse && (
-                <div className="mb-3 rounded-lg bg-night-850 border border-blue-200 p-3 text-xs text-night-200 leading-relaxed">
+                <div className="mb-3 rounded-lg bg-night-850 border border-info-500/30 p-3 text-xs text-night-200 leading-relaxed">
                   {aiResponse}
                 </div>
               )}
@@ -484,7 +484,7 @@ export default function ContractsPage() {
                   value={aiMessage}
                   onChange={(e) => setAiMessage(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAiSend()}
-                  className="flex-1 rounded-lg border border-blue-200 bg-night-850 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="flex-1 rounded-lg border border-info-500/30 bg-night-850 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
                 <button
                   onClick={handleAiSend}

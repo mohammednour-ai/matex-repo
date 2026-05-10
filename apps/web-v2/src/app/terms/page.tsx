@@ -12,7 +12,7 @@ export default function TermsPage() {
     <main className="mx-auto max-w-3xl px-6 py-16 text-night-100">
       <Link
         href="/"
-        className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700 hover:text-brand-900"
+        className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-400 hover:text-brand-300"
       >
         ← Back to Matex
       </Link>
@@ -71,7 +71,7 @@ export default function TermsPage() {
         <h2 className="text-lg font-bold text-night-100">6. Contact</h2>
         <p>
           Questions about these terms? Reach us at{" "}
-          <a className="text-brand-700 underline" href="mailto:legal@matex.app">
+          <a className="text-brand-400 underline" href="mailto:legal@matex.app">
             legal@matex.app
           </a>
           .

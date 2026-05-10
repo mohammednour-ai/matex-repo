@@ -36,19 +36,46 @@
   100% { transform: translateX(-50%); }
 }
 
+/* Listing-create wizard — pulsing halo on the active step */
+@keyframes step-bar-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%      { transform: scale(1.20); opacity: 0;    }
+}
+.step-bar__pulse { animation: step-bar-pulse 2.4s ease-in-out infinite; }
+
+/* OG watermark — right-to-left travel with shine + fade.
+   The watermark blob slides across the canvas every loop, brightens at the
+   centre (shine), and fades out at the edges so the loop seam is invisible.
+   Transform + opacity only — no filter:blur since it's expensive to repaint
+   during scroll and the radial mask already softens edges. */
+@keyframes og-watermark-travel {
+  0%   { opacity: 0;    transform: translateX(55%)  scale(1);     }
+  12%  { opacity: 0.10; transform: translateX(40%)  scale(1);     }
+  35%  { opacity: 0.18;                                            }
+  50%  { opacity: 0.24; transform: translateX(0)    scale(1.045); }
+  65%  { opacity: 0.18;                                            }
+  88%  { opacity: 0.08; transform: translateX(-40%) scale(1);     }
+  100% { opacity: 0;    transform: translateX(-55%) scale(1);     }
+}
+
 /* Page enter — slide up + fade in on each route mount */
 @keyframes page-enter {
   from { transform: translateY(16px); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
 }
-.page-enter { animation: page-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.page-enter { animation: page-enter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-/* Subtle ambient fade-in for the dashboard OG watermark */
-@keyframes og-watermark-fade {
-  from { opacity: 0; }
-  to   { opacity: 0.07; }
+/* Dashboard OG watermark — viewport-pinned right-to-left sweep on infinite loop.
+   Each pass takes 14s. `contain: strict` plus its own stacking context
+   isolates paint so the animation never invalidates document layout —
+   scrolling the page is decoupled from the watermark's repaints. */
+.dashboard-og-watermark {
+  animation: og-watermark-travel 14s ease-in-out infinite;
+  will-change: transform, opacity;
+  transform-origin: 60% 50%;
+  contain: strict;
+  isolation: isolate;
 }
-.dashboard-og-watermark { animation: og-watermark-fade 1.2s ease-out both; }
 
 .gear-rotate         { animation: gear-rotate          20s linear infinite; }
 .gear-rotate-reverse { animation: gear-rotate-reverse  15s linear infinite; }
@@ -75,7 +102,8 @@
   .gear-rotate                { animation: none !important; }
   .gear-rotate-reverse        { animation: none !important; }
   .page-enter                 { animation: none !important; transform: none !important; opacity: 1 !important; }
-  .dashboard-og-watermark     { animation: none !important; opacity: 0.07 !important; }
+  .dashboard-og-watermark     { animation: none !important; opacity: 0.13 !important; transform: none !important; }
+  .step-bar__pulse            { animation: none !important; }
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */

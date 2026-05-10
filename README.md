@@ -51,7 +51,7 @@ Matex is a next-generation B2B marketplace built entirely on the Model Context P
 | Cache/Events | Redis (Upstash) |
 | Payments | Stripe Connect |
 | Auth | Supabase Auth + JWT |
-| Hosting | Vercel (web) + Railway (MCP servers) |
+| Hosting | Railway (web-v2 + MCP gateway + adapters) |
 
 ## Project Structure
 

@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.industrial-bg {
+  background: linear-gradient(135deg, #0a0a0b 0%, #0f1115 25%, #1a1e25 50%, #0f1115 75%, #0a0a0b 100%);
+}
+
+.metal-texture {
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(232, 119, 34, 0.10) 2px, transparent 2px),
+    linear-gradient(45deg,  rgba(150, 165, 190, 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(150, 165, 190, 0.06) 25%, transparent 25%);
+  background-size: 40px 40px, 20px 20px, 20px 20px;
+}
+
+@keyframes page-enter {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.page-enter { animation: page-enter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes spin-brand {
+  to { transform: rotate(360deg); }
+}
+.spin-brand { animation: spin-brand 0.8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none !important; }
+  .spin-brand { animation: none !important; }
+}
+
+/* Yard-specific utility classes */
+.yard-card {
+  @apply rounded-2xl border border-night-700 bg-night-850 p-6 shadow-card;
+}
+
+.yard-input {
+  @apply w-full rounded-xl border border-night-700 bg-night-800 px-4 py-3 text-night-100
+         placeholder:text-night-400 focus:border-brand-500 focus:outline-none focus:ring-2
+         focus:ring-brand-500/20 transition-colors;
+}
+
+.yard-btn-primary {
+  @apply rounded-xl bg-brand-500 px-5 py-3 font-semibold text-white shadow-sm
+         hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2
+         focus-visible:ring-brand-500/50 disabled:opacity-50 disabled:cursor-not-allowed
+         transition-colors;
+}
+
+.yard-btn-secondary {
+  @apply rounded-xl border border-night-700 bg-night-800 px-5 py-3 font-semibold text-night-100
+         hover:bg-night-750 hover:border-night-600 focus-visible:outline-none focus-visible:ring-2
+         focus-visible:ring-brand-500/30 transition-colors;
+}
+
+.yard-btn-danger {
+  @apply rounded-xl bg-danger-600 px-5 py-3 font-semibold text-white
+         hover:bg-danger-700 focus-visible:outline-none focus-visible:ring-2
+         focus-visible:ring-danger-500/50 transition-colors;
+}
+
+/* Status badges */
+.badge-green  { @apply inline-flex items-center rounded-full bg-success-500/15 px-2.5 py-0.5 text-xs font-semibold text-success-400; }
+.badge-amber  { @apply inline-flex items-center rounded-full bg-warning-500/15 px-2.5 py-0.5 text-xs font-semibold text-warning-400; }
+.badge-red    { @apply inline-flex items-center rounded-full bg-danger-500/15  px-2.5 py-0.5 text-xs font-semibold text-danger-400; }
+.badge-steel  { @apply inline-flex items-center rounded-full bg-steel-700/30   px-2.5 py-0.5 text-xs font-semibold text-steel-300; }
+.badge-brand  { @apply inline-flex items-center rounded-full bg-brand-500/15   px-2.5 py-0.5 text-xs font-semibold text-brand-400; }
+
+/* Nav */
+.yard-nav-link {
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-night-300
+         transition-colors hover:bg-night-800 hover:text-night-100;
+}
+.yard-nav-link-active {
+  @apply bg-brand-500/10 text-brand-400 hover:bg-brand-500/15 hover:text-brand-300;
+}
+
+/* Scale display — big, sun-readable */
+.scale-display {
+  @apply text-6xl font-black tabular-nums text-night-100 leading-none tracking-tight;
+}
+.scale-label {
+  @apply text-xs font-bold uppercase tracking-widest text-night-400;
+}

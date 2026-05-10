@@ -300,9 +300,20 @@ async function callViaEdge<T>(
       body: JSON.stringify({ tool: toolName, args }),
     });
     const text = await res.text();
-    const parsed = JSON.parse(text) as MCPResponse<T>;
+    const parsed = JSON.parse(text) as Partial<MCPResponse<T>> & { code?: string; message?: string; msg?: string };
+    // Supabase platform-level rejections (verify_jwt failure, gateway-timeouts,
+    // etc) come back as a flat {code, message} envelope, not our {success,error}
+    // shape. Normalize them so the UI sees a consistent error.
+    if (parsed && typeof parsed === "object" && parsed.success === undefined && (parsed.code || parsed.message)) {
+      const code = String(parsed.code ?? `EDGE_${res.status}`);
+      const msg = String(parsed.message ?? parsed.msg ?? GENERIC_ERROR_MESSAGE);
+      const friendly = code.includes("JWT") || res.status === 401
+        ? "Your session is invalid. Please sign out and sign in again."
+        : msg;
+      return { success: false, error: { code, message: friendly } };
+    }
     if (!parsed.success) return { success: false, error: normalizeError(parsed.error) };
-    return parsed;
+    return parsed as MCPResponse<T>;
   } catch {
     return { success: false, error: { code: "NETWORK_ERROR", message: GENERIC_ERROR_MESSAGE } };
   }

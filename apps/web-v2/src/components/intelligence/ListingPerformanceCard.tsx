@@ -65,7 +65,7 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
     <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
             Listing performance
           </p>
           <h3 className="mt-1 text-base font-semibold text-night-100">
@@ -79,7 +79,7 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
             (metrics.benchmark_delta_pct ?? 0) > 4
               ? "bg-warning-500/15 text-warning-400 ring-warning-500/30"
               : (metrics.benchmark_delta_pct ?? 0) < -4
-                ? "bg-info-50 text-brand-800 ring-brand-500/30"
+                ? "bg-info-50 text-brand-300 ring-brand-500/30"
                 : "bg-success-500/15 text-success-400 ring-success-500/30",
           )}
         >
@@ -115,8 +115,8 @@ export function ListingPerformanceCard({ listingId, materialKey, materialLabel, 
 
       {metrics.ai_tip && (
         <div className="mt-4 flex items-start gap-2 rounded-xl bg-brand-500/10 px-3 py-2 ring-1 ring-inset ring-brand-500/20">
-          <Sparkles className="h-4 w-4 shrink-0 text-brand-700" />
-          <p className="text-xs text-brand-900">{metrics.ai_tip}</p>
+          <Sparkles className="h-4 w-4 shrink-0 text-brand-400" />
+          <p className="text-xs text-brand-300">{metrics.ai_tip}</p>
         </div>
       )}
     </div>

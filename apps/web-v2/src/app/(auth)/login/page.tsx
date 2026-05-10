@@ -164,7 +164,7 @@ function SubmitButton({
       type={onClick ? "button" : "submit"}
       disabled={loading}
       onClick={onClick}
-      className="flex w-full items-center justify-center rounded-2xl bg-night-850 py-3 px-4 text-base font-bold text-black shadow-xl transition-all duration-300 hover:scale-[1.02] hover:bg-night-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+      className="flex w-full items-center justify-center rounded-2xl bg-night-850 py-3 px-4 text-base font-bold text-white shadow-xl transition-all duration-300 hover:scale-[1.02] hover:bg-night-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
     >
       {loading ? (
         <span className="flex items-center gap-2">
@@ -213,6 +213,12 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
         "matex_user",
         JSON.stringify({ userId, email, accountType, isPlatformAdmin }),
       );
+      // Set HTTP-only session cookie for server-side route protection
+      fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      }).catch(() => {});
       identify(userId, { account_type: accountType, is_platform_admin: isPlatformAdmin });
       router.push("/dashboard");
     } catch (err) {
@@ -546,7 +552,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     setGlobalError(null);
     setLoading(true);
     try {
-      await callMcp("auth.verify_email", { email, code: otpCode, user_id: userId });
+      await callMcp("auth.verify_email", { email, otp_code: otpCode, user_id: userId });
       track("email_verified");
 
       const loginData = await callMcp("auth.login", { email, password });
@@ -832,13 +838,17 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 <label className="text-base font-semibold text-zinc-100">Primary operating provinces</label>
                 <ChipSelect value={provinces} options={CA_PROVINCES} onChange={setProvinces} />
               </div>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-night-850/5 px-3 py-2.5">
-                <div
-                  role="switch"
-                  aria-checked={crossBorder}
-                  onClick={() => setCrossBorder((v) => !v)}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={crossBorder}
+                onClick={() => setCrossBorder((v) => !v)}
+                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-night-850/5 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+              >
+                <span
+                  aria-hidden
                   className={clsx(
-                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
                     crossBorder ? "bg-orange-500" : "bg-zinc-600"
                   )}
                 >
@@ -848,9 +858,9 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                       crossBorder ? "translate-x-4" : "translate-x-0"
                     )}
                   />
-                </div>
+                </span>
                 <span className="text-base font-medium text-zinc-100">I trade Canada–US cross-border</span>
-              </label>
+              </button>
             </div>
           </div>
         )}
@@ -961,7 +971,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           label="Password"
           value={password}
           onChange={setPassword}
-          placeholder="Min. 8 characters"
+          placeholder="Min. 12 characters"
           error={fieldErrors.password}
           autoComplete="new-password"
         />
@@ -1014,9 +1024,49 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 const LOGIN_BG_VIDEOS = ["/login-bg3.mp4", "/login-bg2.mp4"] as const;
 
 const LOGIN_HERO_TRUST_CHIPS = [
-  "CAD settlement & invoicing-ready flows",
-  "Canada–US trade documentation awareness",
-  "Immutable audit trail for each transaction",
+  "FINTRAC / PCMLTFA compliance built-in",
+  "Interac e-Transfer — Canada's primary B2B payment rail",
+  "Catalytic converter regulatory tracking",
+  "Immutable audit trail for every transaction",
+] as const;
+
+const DIFFERENTIATOR_FEATURES = [
+  {
+    icon: "🛡️",
+    title: "FINTRAC compliance",
+    detail: "Auto-generated LCTRs, STR filing, 5-year record retention — PCMLTFA-ready out of the box.",
+    unique: true,
+  },
+  {
+    icon: "💳",
+    title: "Interac e-Transfer",
+    detail: "Canada's dominant B2B payment rail — no US-only processors, no cross-border friction.",
+    unique: true,
+  },
+  {
+    icon: "🔒",
+    title: "Escrow-backed settlement",
+    detail: "Funds held in escrow until delivery and inspection are confirmed. No net-30 exposure.",
+    unique: true,
+  },
+  {
+    icon: "📋",
+    title: "Cat converter tracking",
+    detail: "Serial number, VIN, and seller ID capture per converter — Bill C-36 compliant by default.",
+    unique: true,
+  },
+  {
+    icon: "📊",
+    title: "Live LME price feeds",
+    detail: "Real-time copper, aluminum, and PGM prices tied directly to listing and contract values.",
+    unique: false,
+  },
+  {
+    icon: "🤖",
+    title: "AI trading copilot",
+    detail: "Natural-language access to every platform tool — search, contracts, escrow, analytics.",
+    unique: false,
+  },
 ] as const;
 
 
@@ -1244,15 +1294,42 @@ export default function LoginPage() {
               </div>
             ))}
           </div>
-          <Image
-            src="/grphs/Brand/factory-skyline-hero-b-factory.png"
-            alt=""
-            aria-hidden
-            width={640}
-            height={260}
-            className="login-reveal-item mt-6 hidden w-full max-w-xl self-end object-contain drop-shadow-2xl lg:block"
-            style={loginRevealDelay(800)}
-          />
+
+          {/* Compliance-first differentiator grid */}
+          <div
+            className="login-reveal-item mt-6 w-full"
+            style={loginRevealDelay(780)}
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/10" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-400/80">
+                Why Matex
+              </span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {DIFFERENTIATOR_FEATURES.map((f) => (
+                <div
+                  key={f.title}
+                  className="group relative overflow-hidden rounded-xl border border-white/8 bg-white/[0.04] px-3.5 py-3 backdrop-blur-sm transition-colors hover:border-orange-400/25 hover:bg-white/[0.07]"
+                >
+                  {f.unique && (
+                    <span className="absolute right-2 top-2 rounded-full bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-orange-300">
+                      Only Matex
+                    </span>
+                  )}
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-base leading-none" aria-hidden>{f.icon}</span>
+                    <span className="text-sm font-semibold text-white">{f.title}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-zinc-400">{f.detail}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-center text-[10px] text-zinc-500">
+              The only Canadian B2B scrap marketplace with PCMLTFA compliance + Interac + escrow built in.
+            </p>
+          </div>
           </div>
         </section>
 

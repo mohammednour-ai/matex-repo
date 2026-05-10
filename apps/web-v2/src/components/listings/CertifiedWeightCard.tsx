@@ -41,7 +41,7 @@ export function CertifiedWeightCard({
           className={cn(
             "flex h-9 w-9 items-center justify-center rounded-xl",
             hasCertification
-              ? "bg-emerald-100 text-success-400"
+              ? "bg-success-500/15 text-success-400"
               : "bg-night-800 text-night-200",
           )}
           aria-hidden

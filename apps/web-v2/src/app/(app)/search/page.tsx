@@ -57,6 +57,11 @@ type ListingResult = {
   auction_session_date?: string;
   // Pricing context
   currency?: string;
+  // Trust signals (optional — gateway may or may not include these)
+  seller_kyc_level?: 0 | 1 | 2 | 3 | number;
+  seller_verified?: boolean;
+  seller_pis_score?: number; // 0–5
+  hazmat_class?: string | null; // e.g. "class_8", "none"
 };
 
 type SavedSearch = {
@@ -184,9 +189,47 @@ function ListingCard({
           </span>
         </div>
 
+        {/* Trust row — KYC tier + verified-seller + PIS rating */}
+        {(listing.seller_kyc_level != null || listing.seller_verified || listing.seller_pis_score != null) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            {listing.seller_verified && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/10 px-1.5 py-0.5 font-semibold text-success-400"
+                title="Verified Canadian seller"
+              >
+                <Image
+                  src="/grphs/Icons/verified-seller-ca-ic-verified-seller.png"
+                  alt=""
+                  width={12}
+                  height={12}
+                  className="h-3 w-3 object-contain"
+                  aria-hidden
+                />
+                Verified
+              </span>
+            )}
+            {listing.seller_kyc_level != null && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-night-700 bg-night-800 px-1.5 py-0.5 font-semibold text-night-200"
+                title={`KYC Level ${listing.seller_kyc_level}`}
+              >
+                KYC L{listing.seller_kyc_level}
+              </span>
+            )}
+            {listing.seller_pis_score != null && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full border border-night-700 bg-night-800 px-1.5 py-0.5 font-semibold text-warning-400"
+                title="Performance Index Score"
+              >
+                ★ {listing.seller_pis_score.toFixed(1)}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Price */}
         <div className="flex items-baseline gap-1">
-          <span className="text-xl font-bold text-brand-600">
+          <span className="text-xl font-bold text-brand-400">
             ${listing.price.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="text-xs text-night-300">CAD / {listing.unit}</span>
@@ -200,9 +243,18 @@ function ListingCard({
           </span>
         </div>
 
-        {/* Inspection badge */}
-        {listing.inspection_required && (
-          <Badge variant="warning" className="self-start">Inspection Required</Badge>
+        {/* Compliance row — Inspection + Hazmat */}
+        {(listing.inspection_required || (listing.hazmat_class && listing.hazmat_class !== "none")) && (
+          <div className="flex flex-wrap gap-1.5">
+            {listing.inspection_required && (
+              <Badge variant="warning" className="self-start">Inspection Required</Badge>
+            )}
+            {listing.hazmat_class && listing.hazmat_class !== "none" && (
+              <Badge variant="danger" className="self-start" title="Hazardous material classification — review before bidding">
+                Hazmat · {String(listing.hazmat_class).replace("class_", "Class ")}
+              </Badge>
+            )}
+          </div>
         )}
 
         {/* Bidding-specific info */}
@@ -235,7 +287,7 @@ function ListingCard({
             </div>
             <Link
               href={`/auction?session=${listing.auction_session_date}`}
-              className="text-xs font-semibold text-warning-400 bg-amber-100 hover:bg-amber-200 px-2 py-1 rounded-md transition-colors"
+              className="text-xs font-semibold text-warning-400 bg-warning-500/15 hover:bg-warning-500/25 px-2 py-1 rounded-md transition-colors"
             >
               Register →
             </Link>
@@ -246,7 +298,7 @@ function ListingCard({
         <div className="flex gap-2 mt-auto pt-2">
           <Link
             href={`/listings/${listing.listing_id}`}
-            className="flex-1 text-center text-xs font-medium text-brand-700 bg-brand-500/10 hover:bg-brand-100 py-1.5 rounded-lg transition-colors"
+            className="flex-1 text-center text-xs font-medium text-brand-400 bg-brand-500/10 hover:bg-brand-500/15 py-1.5 rounded-lg transition-colors"
           >
             View Details
           </Link>
@@ -412,7 +464,7 @@ function FilterSidebar({
                 value={t}
                 checked={materialType === t}
                 onChange={() => setMaterialType(t)}
-                className="text-brand-600 focus:ring-brand-400"
+                className="text-brand-400 focus:ring-brand-400"
               />
               <span className="text-sm text-night-200 capitalize">{t === "both" ? "Scrap & Surplus" : t}</span>
             </label>
@@ -430,7 +482,7 @@ function FilterSidebar({
                 type="checkbox"
                 checked={provinces.includes(p.code)}
                 onChange={() => toggleProvince(p.code)}
-                className="rounded text-brand-600 focus:ring-brand-400"
+                className="rounded text-brand-400 focus:ring-brand-400"
               />
               <span className="text-xs text-night-200">{p.name}</span>
             </label>
@@ -507,7 +559,7 @@ function FilterSidebar({
                 type="checkbox"
                 checked={saleModes.includes(mode)}
                 onChange={() => toggleSaleMode(mode)}
-                className="rounded text-brand-600 focus:ring-brand-400"
+                className="rounded text-brand-400 focus:ring-brand-400"
               />
               <span className={clsx("inline-block w-2 h-2 rounded-full flex-shrink-0", SALE_MODE_CONFIG[mode].color)} />
               <span className="text-sm text-night-200">{SALE_MODE_CONFIG[mode].label}</span>
@@ -518,14 +570,18 @@ function FilterSidebar({
 
       {/* Inspection required */}
       <div>
-        <label className="flex items-center justify-between cursor-pointer">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={inspectionOnly}
+          onClick={() => setInspectionOnly(!inspectionOnly)}
+          className="flex w-full items-center justify-between cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+        >
           <span className="text-xs font-semibold text-night-200 uppercase tracking-wide">Inspection Required</span>
-          <div
-            role="switch"
-            aria-checked={inspectionOnly}
-            onClick={() => setInspectionOnly(!inspectionOnly)}
+          <span
+            aria-hidden
             className={clsx(
-              "relative w-10 h-5 rounded-full transition-colors cursor-pointer",
+              "relative w-10 h-5 rounded-full transition-colors",
               inspectionOnly ? "bg-brand-600" : "bg-night-700"
             )}
           >
@@ -535,8 +591,8 @@ function FilterSidebar({
                 inspectionOnly ? "translate-x-5" : "translate-x-0.5"
               )}
             />
-          </div>
-        </label>
+          </span>
+        </button>
       </div>
 
       {/* Sort */}
@@ -568,7 +624,7 @@ function FilterSidebar({
         <button
           onClick={onSaveSearch}
           disabled={savingSearch}
-          className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-700 bg-brand-500/10 hover:bg-brand-100 rounded-lg transition-colors disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-400 bg-brand-500/10 hover:bg-brand-500/15 rounded-lg transition-colors disabled:opacity-50"
         >
           <BookmarkPlus size={14} />
           {savingSearch ? "Saving…" : "Save This Search"}
@@ -599,9 +655,9 @@ function SavedSearchesPanel({
         onClick={() => setExpanded((e) => !e)}
       >
         <div className="flex items-center gap-2 text-sm font-medium text-night-200">
-          <BookmarkPlus size={15} className="text-brand-600" />
+          <BookmarkPlus size={15} className="text-brand-400" />
           <span>Saved Searches</span>
-          <span className="bg-brand-100 text-brand-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+          <span className="bg-brand-500/15 text-brand-400 text-xs font-semibold px-1.5 py-0.5 rounded-full">
             {searches.length}
           </span>
         </div>
@@ -616,13 +672,13 @@ function SavedSearchesPanel({
               className="w-full text-left px-4 py-2.5 hover:bg-brand-500/10 transition-colors flex items-center justify-between group"
             >
               <div>
-                <p className="text-sm font-medium text-night-100 group-hover:text-brand-700">{s.name || s.query || "Untitled Search"}</p>
+                <p className="text-sm font-medium text-night-100 group-hover:text-brand-400">{s.name || s.query || "Untitled Search"}</p>
                 <p className="text-xs text-night-300 mt-0.5">
                   <Clock size={10} className="inline mr-1" />
                   {new Date(s.created_at).toLocaleDateString("en-CA")}
                 </p>
               </div>
-              <span className="text-xs text-brand-600 opacity-0 group-hover:opacity-100 transition-opacity">Load →</span>
+              <span className="text-xs text-brand-400 opacity-0 group-hover:opacity-100 transition-opacity">Load →</span>
             </button>
           ))}
         </div>
@@ -667,7 +723,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
                 key={s}
                 type="button"
                 onClick={() => onSuggest(s)}
-                className="rounded-full border border-night-700 bg-night-850 px-4 py-1.5 text-sm text-night-200 shadow-sm transition-all hover:border-brand-300 hover:bg-brand-500/10 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="rounded-full border border-night-700 bg-night-850 px-4 py-1.5 text-sm text-night-200 shadow-sm transition-all hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               >
                 {s}
               </button>
@@ -884,7 +940,7 @@ export default function SearchPage() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-night-200">
                 Showing <span className="font-semibold text-night-100">{results.length}</span> result{results.length !== 1 ? "s" : ""}
-                {query && <> for <span className="font-medium text-brand-700">"{query}"</span></>}
+                {query && <> for <span className="font-medium text-brand-400">"{query}"</span></>}
               </p>
               {results.length > 0 && (
                 <span className="text-xs text-night-300">

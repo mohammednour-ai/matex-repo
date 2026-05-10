@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -24,6 +24,8 @@ import {
   X,
   UserCog,
   LogOut,
+  HelpCircle,
+  FileSearch,
 } from "lucide-react";
 import { getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
@@ -47,10 +49,11 @@ const iconSize = 18;
 
 const NAV_SECTIONS: NavSection[] = [
   {
+    // Top section ordered as the user-journey: discover → list → bid → talk → pay
     items: [
       { label: "Overview", href: "/dashboard", icon: <LayoutDashboard size={iconSize} /> },
-      { label: "Listings", href: "/listings", icon: <Package size={iconSize} /> },
       { label: "Search", href: "/search", icon: <Search size={iconSize} /> },
+      { label: "Listings", href: "/listings", icon: <Package size={iconSize} /> },
       { label: "Auctions", href: "/auctions", icon: <Gavel size={iconSize} />, accent: true },
       { label: "Messages", href: "/messages", icon: <MessageSquare size={iconSize} /> },
       { label: "Checkout", href: "/checkout", icon: <ShoppingCart size={iconSize} /> },
@@ -63,6 +66,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: "Logistics", href: "/logistics", icon: <Truck size={iconSize} /> },
       { label: "Inspections", href: "/inspections", icon: <Calendar size={iconSize} /> },
       { label: "Contracts", href: "/contracts", icon: <FileText size={iconSize} /> },
+      { label: "Compliance", href: "/compliance", icon: <FileSearch size={iconSize} /> },
     ],
   },
   {
@@ -76,6 +80,7 @@ const NAV_SECTIONS: NavSection[] = [
     heading: "Account",
     items: [
       { label: "Settings", href: "/settings", icon: <Settings size={iconSize} /> },
+      { label: "Help & AI Copilot", href: "/chat", icon: <HelpCircle size={iconSize} /> },
     ],
   },
 ];
@@ -356,8 +361,10 @@ function UserMenu() {
     setUser(getUser());
   }, [pathname]);
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
     localStorage.removeItem("matex_token");
+    localStorage.removeItem("matex_user");
     router.replace("/login");
   }
 
@@ -441,9 +448,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
 
   const sidebarWidth = collapsed ? COLLAPSED_W : EXPANDED_W;
   const isDashboard = pathname === "/dashboard" || pathname === "/dashboard/";
+
+  // Re-trigger the page-enter CSS animation on route change WITHOUT
+  // remounting children. Removing/re-adding the class + a forced reflow
+  // restarts the keyframes; React subtree state stays intact so navigation
+  // doesn't refire all the page-level data fetches.
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+    el.classList.remove("page-enter");
+    // Force reflow so the next class addition restarts the animation.
+    void el.offsetWidth;
+    el.classList.add("page-enter");
+  }, [pathname]);
 
   return (
     <ClientAuthGuard>
@@ -468,23 +489,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="metal-texture absolute inset-0" />
         </div>
         {isDashboard && (
+          // Fixed to the viewport (not the scroll container) so the
+          // animation only ever has to paint a viewport-sized area —
+          // independent of page height, decoupled from scroll.
           <div
             aria-hidden
-            className="dashboard-og-watermark pointer-events-none absolute inset-0 z-0 opacity-[0.07] mix-blend-screen"
+            className="dashboard-og-watermark pointer-events-none fixed inset-y-0 right-0 z-0 opacity-[0.13] mix-blend-screen"
             style={{
+              left: sidebarWidth,
               backgroundImage: "url('/grphs/Brand/og-social-share-image-b-og-share.jpg')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
+              backgroundSize: "60% auto",
+              backgroundPosition: "60% center",
               backgroundRepeat: "no-repeat",
               maskImage:
-                "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,0,0,0.85), transparent 78%)",
+                "radial-gradient(ellipse 35% 50% at 60% 50%, rgba(0,0,0,0.95), transparent 78%)",
               WebkitMaskImage:
-                "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,0,0,0.85), transparent 78%)",
+                "radial-gradient(ellipse 35% 50% at 60% 50%, rgba(0,0,0,0.95), transparent 78%)",
             }}
           />
         )}
         <div className="app-content-frame">
-          <div key={pathname} className="page-enter">
+          <div ref={pageRef} className="page-enter">
             {children}
           </div>
         </div>

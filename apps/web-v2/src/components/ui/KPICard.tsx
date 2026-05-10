@@ -22,7 +22,7 @@ export type KPICardProps = {
 
 const TONE_TEXT: Record<KPITone, string> = {
   neutral: "text-night-100",
-  brand: "text-orange-900",
+  brand: "text-brand-400",
   success: "text-success-400",
   warning: "text-warning-400",
   danger: "text-danger-400",
@@ -32,8 +32,8 @@ const TONE_TEXT: Record<KPITone, string> = {
 const TONE_ICON_BG: Record<KPITone, string> = {
   neutral: "bg-night-700/90 text-night-100",
   brand: "bg-orange-500/12 text-brand-400",
-  success: "bg-emerald-100 text-success-400",
-  warning: "bg-amber-100 text-warning-400",
+  success: "bg-success-500/15 text-success-400",
+  warning: "bg-warning-500/15 text-warning-400",
   danger: "bg-danger-100 text-danger-400",
   info: "bg-night-800 text-night-200",
 };
@@ -86,7 +86,7 @@ export function KPICard({
                 trend.startsWith("-")
                   ? "text-danger-600"
                   : tone === "brand"
-                    ? "text-orange-600"
+                    ? "text-brand-400"
                     : "text-emerald-600"
               )}
             >

@@ -312,7 +312,7 @@ function PaymentOption({
       />
       <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-night-200"}`}>{label}</p>
+        <p className={`text-sm font-medium ${selected ? "text-info-400" : "text-night-200"}`}>{label}</p>
         <p className="text-xs text-night-300">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}

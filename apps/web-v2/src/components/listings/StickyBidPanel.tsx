@@ -102,23 +102,23 @@ export function StickyBidPanel({
           "p-5 shadow-sm",
         )}
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-brand-700">
+        <p className="text-xs font-medium uppercase tracking-wide text-brand-400">
           Live bidding
         </p>
-        <p className="mt-1 text-2xl font-bold text-brand-800">
+        <p className="mt-1 text-2xl font-bold text-brand-300">
           {fmtCAD(currentBid ?? price)}{" "}
           <span className="text-sm font-normal text-brand-500">CAD</span>
         </p>
-        <p className="mt-0.5 text-xs text-brand-700">
+        <p className="mt-0.5 text-xs text-brand-400">
           {bidCount ?? 0} bid{bidCount === 1 ? "" : "s"} placed
         </p>
         {biddingEndsAt && (
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-night-850/70 px-3 py-2 ring-1 ring-brand-100">
             <Clock className="h-4 w-4 text-brand-500" />
-            <span className="text-xs text-brand-700">Ends in</span>
+            <span className="text-xs text-brand-400">Ends in</span>
             <CountdownTimer
               targetDate={biddingEndsAt}
-              className="ml-auto text-sm font-semibold text-brand-800"
+              className="ml-auto text-sm font-semibold text-brand-300"
             />
           </div>
         )}
@@ -126,7 +126,7 @@ export function StickyBidPanel({
           <Gavel className="h-4 w-4" />
           Place bid
         </Button>
-        <p className="mt-3 text-[11px] text-brand-700/80">
+        <p className="mt-3 text-[11px] text-brand-400/80">
           Outbid alerts sent by email. Top bid at close wins.
         </p>
       </aside>
@@ -138,7 +138,7 @@ export function StickyBidPanel({
     <aside
       aria-label="Auction panel"
       className={cn(
-        "rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50/80 to-white",
+        "rounded-2xl border border-warning-500/30 bg-gradient-to-br from-amber-50/80 to-white",
         "p-5 shadow-sm",
       )}
     >

@@ -288,7 +288,7 @@ export default function AdminPage() {
       />
 
       {msg && (
-        <div className="rounded-lg border border-emerald-200 bg-success-500/10 text-emerald-900 text-sm px-4 py-2">{msg}</div>
+        <div className="rounded-lg border border-success-500/30 bg-success-500/10 text-success-400 text-sm px-4 py-2">{msg}</div>
       )}
       {err && (
         <div className="rounded-lg border border-danger-200 bg-danger-500/15 text-danger-400 text-sm px-4 py-2">{err}</div>

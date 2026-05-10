@@ -51,7 +51,7 @@ export function MarketIntelligenceDashboard() {
             className="h-12 w-12 flex-shrink-0 object-contain"
           />
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
               Matex Intelligence
             </p>
             <h2 className="mt-1 text-2xl font-bold text-night-100">Market dashboard</h2>
@@ -65,7 +65,7 @@ export function MarketIntelligenceDashboard() {
           <button
             type="button"
             onClick={() => setRefreshKey((n) => n + 1)}
-            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1.5 text-xs font-semibold text-night-200 hover:border-brand-400 hover:text-brand-700"
+            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1.5 text-xs font-semibold text-night-200 hover:border-brand-400 hover:text-brand-400"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </button>
@@ -121,7 +121,7 @@ export function MarketIntelligenceDashboard() {
           <button
             type="button"
             onClick={() => openDialog()}
-            className="text-xs font-semibold text-brand-700 hover:text-brand-900"
+            className="text-xs font-semibold text-brand-400 hover:text-brand-300"
           >
             + Add alert
           </button>
