@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   User,
   Building2,
@@ -148,16 +149,19 @@ function ProfileTab() {
         <div className="relative">
           <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-brand-200 bg-brand-100 flex items-center justify-center">
             {form.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded avatar URLs from arbitrary Supabase storage hosts
               <img
                 src={form.avatar_url}
                 alt="Avatar"
                 className="h-full w-full object-cover"
               />
             ) : (
-              <img
+              <Image
                 src="/avatar-placeholder.svg"
                 alt=""
                 aria-hidden
+                width={96}
+                height={96}
                 className="h-full w-full object-cover"
               />
             )}

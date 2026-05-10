@@ -66,29 +66,30 @@ The work is structured as 5 phases that landed in 5 commits on this branch. Each
 
 Each deferred item has a verbatim run recipe in the relevant doc. Listed for follow-up sessions:
 
-| # | Item | Doc |
-|---|---|---|
-| 1 | Logo SVG (`logo-wordmark.svg`, `logo-mark.svg`) — needs Canva MCP polish | `03 §D` |
-| 2 | Favicon set (16/32/48/180/192/512 PNG) from logo SVG via sharp | `03 §E` |
-| 3 | OG / Twitter image compression (1.1 MB → ≤ 200 KB via mozjpeg) | `03 §F` |
-| 4 | Login video re-encode (67 MB → ~6 MB via ffmpeg) | `03 §G` |
-| 5 | 13 empty-state SVGs via Canva MCP | `03 §H` |
-| 6 | 11 status SVGs (escrow / inspection / kyc / contract / etc.) | `03 §I` |
-| 7 | 18 material thumbnail re-exports (1024 px PNG → 240 px AVIF + WebP via sharp) | `03 §J` |
-| 8 | Avatar placeholder SVG | `03 §L` |
-| 9 | KPICard duplicate archive (both files dead code) | `04 §E` |
-| 10 | `outline-none` → `focus-visible` standardization sweep (~26 elements) | `04 §F` |
-| 11 | `escrow/create/page.tsx` mock-data replacement | `04 §G` |
-| 12 | Autoplay video reduced-motion guard | `04 §H` |
-| 13 | Within-`grphs/` orphan archive (44 PNGs, ~5 MB) | `04 §I` |
-| 14 | Lucide migration for 22 platform-domain PNGs | `04 §J` |
-| 15 | Sidebar width tokenization | `04 §K` |
-| 16 | Mobile drawer Esc-key handler | `04 §L` |
-| 17 | Component-mockup carry-over archive | `04 §M` |
-| 18 | Semantic-alias codemod (`bg-night-*` → `bg-canvas` etc., ~200 files) | `04 §N` |
-| 19 | Playwright smoke + functional + axe suites against running stack | `05` |
-| 20 | Lighthouse pass | `05` |
-| 21 | Light-mode visual regression | `05` |
+| # | Item | Status | Doc |
+|---|---|---|---|
+| 1 | Logo SVG (`logo-wordmark.svg`, `logo-mark.svg`) | ✅ hand-written drafts shipped (F); designer review pending before swapping the sidebar PNG | `03 §D` |
+| 2 | Favicon set (16/32/48/180/192/512 PNG) from logo SVG via sharp | ✅ shipped (F) | `03 §E` |
+| 3 | OG / Twitter image compression (1.1 MB → ≤ 200 KB via mozjpeg) | ✅ shipped (F) | `03 §F` |
+| 4 | Login video re-encode (67 MB → ~6 MB via ffmpeg) | ❌ blocked — ffmpeg system binary not available in the sandbox | `03 §G` |
+| 5 | 13 empty-state SVGs via Canva MCP | ✅ replaced with the cleaner Lucide-icon-in-badge approach (X) — Canva MCP works but the sandbox blocks Canva CDN, so generated PNGs can't be downloaded | `03 §H` / X |
+| 6 | 11 status SVGs (escrow / inspection / kyc / contract / etc.) | ✅ same Lucide pattern is now available; status pages can adopt as needed | `03 §I` |
+| 7 | 18 material thumbnail re-exports | ✅ shipped (J) — 5.5 MB → 242 KB via sharp resize-in-place | `03 §J` |
+| 8 | Avatar placeholder SVG | ✅ shipped (F) — 40 KB PNG → 276 B SVG | `03 §L` |
+| 9 | KPICard duplicate archive | ✅ shipped (E) | `04 §E` |
+| 10 | `outline-none` → `focus-visible` standardization sweep | ✅ Sheet button + escrow modal close fixed (C); rest are intentional input patterns | `04 §F` |
+| 11 | `escrow/create/page.tsx` mock-data replacement | ✅ shipped — wired `orders.get_order` + `listing.get_listing`, `loading\|error\|empty\|data` state machine, demo fallback only when no `order_id` query param | `04 §G` |
+| 12 | Autoplay video reduced-motion guard | ✅ shipped (C) | `04 §H` |
+| 13 | Within-`grphs/` orphan archive | ✅ shipped (E + X) — 43 + 16 files archived; grphs/ now 7.1 MB across 23 files (was ~28 MB before Phase 2) | `04 §I` |
+| 14 | Lucide migration for 22 platform-domain PNGs | ✅ shipped (D + X) — banners (D, 5 files) + EmptyState (X, 16 call sites) | `04 §J` |
+| 15 | Sidebar width tokenization | ⏳ deferred (cosmetic only) | `04 §K` |
+| 16 | Mobile drawer Esc-key handler | ✅ shipped (C) | `04 §L` |
+| 17 | Component-mockup carry-over archive | ✅ shipped (E — 6 component PNGs in /grphs/Components/) | `04 §M` |
+| 18 | Semantic-alias codemod (`bg-night-*` → `bg-canvas` etc.) | ✅ shipped (G) — 1,070 renames across 63 files | `04 §N` |
+| 19 | Playwright smoke + functional + axe suites against running stack | ❌ blocked on Supabase secrets + running gateway | `05` |
+| 20 | Lighthouse pass | ❌ blocked on running stack | `05` |
+| 21 | Light-mode visual regression | ❌ blocked — needs human eyeballing in a browser, sandbox can't render UI | `05` |
+| 22 | Pre-existing CI lint warnings (9) | ✅ shipped — 5× `<img>` migrated to `<Image>` or annotated with rationale; useEffect deps + CountdownTimer useMemo fixed; lint exits 0 with zero warnings | – |
 
 ---
 

@@ -78,6 +78,8 @@ Apply mechanically except for elements where `:focus` is intentionally distinct 
 
 **Action for follow-up:** replace with `callTool("get_escrow_drafts", ...)` (or whichever escrow MCP tool fits) plus the `loading | error | empty | data` state machine. Should be ~30 lines.
 
+**Status (post-F+J pass):** ✅ done. Wired `orders.get_order` + `listing.get_listing` (sequential — listing depends on `order.listing_id`). Tax estimated client-side at the HST 13% rate as a placeholder; the real `tax.calculate_tax` call needs the seller + buyer provinces (would require a third profile fetch and is queued separately). Page now ships a proper `loading | error | empty | data` state machine, surfaces tool errors, falls back to a clearly-labeled "Demo mode" warning when no `order_id` query param is present so direct visits to `/escrow/create` still demo the flow.
+
 ### H. Autoplay video audit
 
 `apps/web-v2/src/app/(app)/listings/[id]/page.tsx:175` has `<video controls autoPlay>`. Per Phase 0 issue, autoplay needs `muted` attribute (verified ✓ — `controls` is set, browsers block sound autoplay) plus a `prefers-reduced-motion` guard. The `controls` give the user a stop affordance, so this is borderline acceptable. Phase 5 manual a11y check should re-verify.

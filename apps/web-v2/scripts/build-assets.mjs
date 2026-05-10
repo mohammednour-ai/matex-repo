@@ -102,4 +102,32 @@ try {
   console.warn(`OG compression skipped: ${e.message}`);
 }
 
+// ─── 4. Material thumbnails — resize in place 1024×1024 → 240×240 PNG ──────
+// These render at 80–120 px in product cards; 240 px is 2× HiDPI safety.
+// Re-saved as palette PNG for tiny weight; same path so no code changes.
+import { readdir } from "node:fs/promises";
+const MATERIALS_DIR = join(PUBLIC_DIR, "grphs", "Materials");
+try {
+  const files = (await readdir(MATERIALS_DIR)).filter((f) => f.endsWith(".png"));
+  let totalBefore = 0;
+  let totalAfter = 0;
+  for (const name of files) {
+    const path = join(MATERIALS_DIR, name);
+    const before = (await sharp(path).metadata()).size ?? 0;
+    const buf = await sharp(path)
+      .resize(240, 240, { fit: "inside", withoutEnlargement: true })
+      .png({ compressionLevel: 9, palette: true, quality: 90 })
+      .toBuffer();
+    await writeFile(path, buf);
+    totalBefore += before;
+    totalAfter += buf.length;
+    console.log(`mat   ${name.padEnd(36)} ${before} → ${buf.length} B`);
+  }
+  console.log(
+    `materials total: ${(totalBefore / 1024).toFixed(0)} KB → ${(totalAfter / 1024).toFixed(0)} KB`,
+  );
+} catch (e) {
+  console.warn(`Materials resize skipped: ${e.message}`);
+}
+
 console.log("\nDone.");

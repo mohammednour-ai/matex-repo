@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 
 type CountdownTimerProps = {
@@ -34,7 +34,10 @@ function pad(n: number) {
 }
 
 export function CountdownTimer({ targetDate, className }: CountdownTimerProps) {
-  const target = typeof targetDate === "string" ? new Date(targetDate) : targetDate;
+  const target = useMemo(
+    () => (typeof targetDate === "string" ? new Date(targetDate) : targetDate),
+    [targetDate],
+  );
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(() => calcTimeLeft(target));
 
   useEffect(() => {

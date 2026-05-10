@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -200,15 +201,18 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
             className="block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Open photo in lightbox"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts; <Image> would require enumerating remotePatterns */}
             <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
           </button>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
-            <img
+          <div className="relative w-full h-full bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
+            <Image
               src="/grphs/Materials/scrap-metal-pile-s-scrap.png"
               alt=""
               aria-hidden
-              className="h-full w-full object-cover opacity-50"
+              fill
+              sizes="(min-width: 1024px) 60vw, 100vw"
+              className="object-cover opacity-50"
             />
           </div>
         )}
@@ -264,6 +268,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
                 i === activeIdx && !showVideo ? "border-brand-600" : "border-transparent hover:border-line-strong"
               )}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts */}
               <img src={src} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
@@ -290,6 +295,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           <DialogTitle className="sr-only">{`${title} — photo ${activeIdx + 1} of ${media.length}`}</DialogTitle>
           <div className="relative aspect-[16/10] w-full">
             {media[activeIdx] && (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts
               <img
                 src={media[activeIdx]}
                 alt={`${title} — photo ${activeIdx + 1}`}

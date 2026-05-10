@@ -33,16 +33,13 @@ type OrderSummary = {
   grand_total: number;
 };
 
-// TODO(redesign-followup): replace with callTool fetch keyed on `order_id` query
-// param plus the standard loading | error | empty | data state machine. Tool
-// name + payload shape need verification against the listing/payments MCPs
-// before swap. Tracked in docs/redesign/04-implementation-sweep.md §G.
-// AGENTS.md "no mock arrays" rule applies — this stays only until that fetch
-// lands.
-const MOCK_ORDER: OrderSummary = {
-  order_id: "ord-001",
-  title: "HMS #1 Scrap Steel — Lot 3",
-  seller: "Ontario Metal Works",
+// Demo fallback. Used only when no `order_id` query param is present (e.g. a
+// recruiter or stakeholder lands on /escrow/create directly to see the flow).
+// Real orders go through orders.get_order + listing.get_listing fetches below.
+const DEMO_ORDER: OrderSummary = {
+  order_id: "demo-order",
+  title: "HMS #1 Scrap Steel — Lot 3 (demo)",
+  seller: "Ontario Metal Works (demo)",
   quantity: "18 MT",
   unit_price: 1583.33,
   total_price: 28500,
@@ -51,6 +48,13 @@ const MOCK_ORDER: OrderSummary = {
   grand_total: 30797.25,
 };
 
+type LoadState =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "empty"; message: string }
+  | { kind: "data"; order: OrderSummary };
+
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 }
@@ -58,10 +62,14 @@ function formatCAD(n: number): string {
 export default function CreateEscrowPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const orderId = searchParams.get("order_id") ?? "ord-001";
+  const orderIdParam = searchParams.get("order_id");
   const user = getUser();
 
-  const [order] = useState<OrderSummary>(MOCK_ORDER);
+  // No order_id → demo mode (no fetch). With order_id → real fetch via
+  // orders.get_order + listing.get_listing.
+  const [state, setState] = useState<LoadState>(
+    orderIdParam ? { kind: "loading" } : { kind: "data", order: DEMO_ORDER },
+  );
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [walletBalance] = useState(12500);
   const [accepted, setAccepted] = useState(false);
@@ -70,7 +78,73 @@ export default function CreateEscrowPage() {
   const [escrowId, setEscrowId] = useState("");
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!orderIdParam) return;
+    let cancelled = false;
+    (async () => {
+      const orderRes = await callTool("orders.get_order", { order_id: orderIdParam });
+      if (cancelled) return;
+      if (!orderRes.success) {
+        setState({
+          kind: orderRes.error?.code === "NOT_FOUND" ? "empty" : "error",
+          message: orderRes.error?.message ?? "Could not load this order.",
+        });
+        return;
+      }
+      const orderRow =
+        ((orderRes.data as Record<string, unknown> | undefined)?.order as
+          | Record<string, unknown>
+          | undefined) ?? null;
+      if (!orderRow) {
+        setState({ kind: "empty", message: "Order not found." });
+        return;
+      }
+
+      const listingId = String(orderRow.listing_id ?? "");
+      const listingRes = listingId
+        ? await callTool("listing.get_listing", { listing_id: listingId })
+        : null;
+      if (cancelled) return;
+      const listingRow =
+        ((listingRes?.data as Record<string, unknown> | undefined)?.listing as
+          | Record<string, unknown>
+          | undefined) ?? null;
+
+      const subtotal = Number(orderRow.original_amount ?? 0);
+      const commission = Number(orderRow.commission_amount ?? 0);
+      const quantity = Number(orderRow.quantity ?? 0);
+      const unit = String(orderRow.unit ?? "MT");
+      const taxEstimate = +(subtotal * 0.13).toFixed(2);
+      const grand = +(subtotal + commission + taxEstimate).toFixed(2);
+
+      setState({
+        kind: "data",
+        order: {
+          order_id: String(orderRow.order_id ?? orderIdParam),
+          title: String(listingRow?.title ?? `Order ${orderIdParam.slice(0, 8)}`),
+          seller: String(
+            listingRow?.seller_name ??
+              listingRow?.company_name ??
+              `Seller ${String(orderRow.seller_id ?? "").slice(0, 8)}`,
+          ),
+          quantity: `${quantity} ${unit}`,
+          unit_price: quantity > 0 ? +(subtotal / quantity).toFixed(2) : 0,
+          total_price: subtotal,
+          commission,
+          tax: taxEstimate,
+          grand_total: grand,
+        },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderIdParam]);
+
+  const order = state.kind === "data" ? state.order : null;
+
   async function handleFundEscrow(): Promise<void> {
+    if (!order) return;
     setLoading(true);
     const userId = user?.userId ?? "";
 
@@ -104,7 +178,7 @@ export default function CreateEscrowPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (step === "success") {
+  if (step === "success" && order) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <div className="w-full max-w-md space-y-5">
@@ -156,12 +230,60 @@ export default function CreateEscrowPage() {
     );
   }
 
+  if (state.kind === "loading") {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <AppPageHeader
+          title="Fund Escrow"
+          description="Loading order…"
+        />
+        <div className="flex items-center justify-center py-16">
+          <Spinner className="h-6 w-6 text-brand-500" />
+        </div>
+      </div>
+    );
+  }
+
+  if (state.kind === "error" || state.kind === "empty") {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <AppPageHeader
+          title="Fund Escrow"
+          description="Funds will be held securely until all release conditions are met."
+        />
+        <div className="marketplace-card p-8 text-center">
+          <p className="text-sm font-semibold text-fg">{state.message}</p>
+          <p className="mt-2 text-sm text-fg-subtle">
+            Open a checked-out order from the listings flow to fund its escrow, or return to the dashboard.
+          </p>
+          <Button
+            size="md"
+            variant="secondary"
+            className="mt-4"
+            onClick={() => router.push("/dashboard")}
+          >
+            Back to dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // state.kind === "data" — order is non-null
+  if (!order) return null;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <AppPageHeader
         title="Fund Escrow"
         description="Funds will be held securely until all release conditions are met."
       />
+
+      {!orderIdParam && (
+        <div className="rounded-xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 text-xs text-warning-400">
+          Demo mode — no <code>order_id</code> in the URL. Showing a sample order so you can preview the flow. Real flows arrive from the checkout page with the order id attached.
+        </div>
+      )}
 
       {/* Order summary */}
       <div className="marketplace-card p-5">

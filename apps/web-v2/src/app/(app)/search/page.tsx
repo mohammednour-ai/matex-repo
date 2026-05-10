@@ -154,6 +154,7 @@ function ListingCard({
       {/* Photo */}
       <div className="relative h-44">
         {listing.photo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts
           <img src={listing.photo_url} alt={listing.title} className="w-full h-full object-cover" />
         ) : (
           <div className={clsx("w-full h-full bg-gradient-to-br flex items-center justify-center", gradientColors[gradientIdx])}>
@@ -755,19 +756,23 @@ export default function SearchPage() {
     setLoading(false);
   }, [query, sort, categories, materialType, provinces, priceMin, priceMax, weightMin, weightMax, weightUnit, saleModes, inspectionOnly]);
 
-  // Auto-search on mount
+  // Auto-search on mount only — `query` is the initial search-param value;
+  // re-running on every change is handled by the debounced effect below.
   useEffect(() => {
     if (!hasTriggeredInitial.current) {
       hasTriggeredInitial.current = true;
       runSearch(query);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounce re-search on query change
+  // Debounce re-search on query change. `runSearch` is intentionally omitted —
+  // it's recreated on every filter-state change and including it would loop.
   useEffect(() => {
     if (hasTriggeredInitial.current) {
       runSearch(debouncedQuery);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
   async function handleMessageSeller(listingId: string, title: string) {
