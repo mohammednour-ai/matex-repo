@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import Image from "next/image";
 
 type Step = 1 | 2 | 3;
-type PaymentMethod = "card" | "wallet" | "credit";
+type PaymentMethod = "card" | "wallet" | "credit" | "interac";
 
 type TaxBreakdown = {
   subtotal: number;
@@ -293,7 +293,7 @@ export default function CheckoutPage() {
       />
 
       {itemError && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {itemError}
         </div>
       )}
@@ -381,6 +381,24 @@ export default function CheckoutPage() {
           <div className="marketplace-card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Select Payment Method</h2>
             <div className="space-y-3">
+              <PaymentOption
+                id="interac"
+                icon={<Wallet className="h-5 w-5" />}
+                label="Interac e-Transfer"
+                description="Instant Canadian bank-to-bank transfer — most common for B2B scrap"
+                selected={paymentMethod === "interac"}
+                onSelect={() => setPaymentMethod("interac")}
+              />
+              {paymentMethod === "interac" && (
+                <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4 space-y-2 text-sm">
+                  <p className="font-semibold text-night-100">Send Interac e-Transfer to:</p>
+                  <p className="font-mono text-brand-400">payments@matex.ca</p>
+                  <p className="text-night-300 text-xs">
+                    Use your order number as the message/memo. Matex will confirm receipt and release escrow within 1
+                    business hour. Funds are held in escrow until delivery is confirmed.
+                  </p>
+                </div>
+              )}
               <PaymentOption
                 id="card"
                 icon={<CreditCard className="h-5 w-5" />}
@@ -549,7 +567,7 @@ function PaymentOption({
       <input type="radio" name="checkout-payment" value={id} checked={selected} onChange={onSelect} disabled={disabled} className="sr-only" />
       <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-night-200"}`}>{label}</p>
+        <p className={`text-sm font-medium ${selected ? "text-info-400" : "text-night-200"}`}>{label}</p>
         <p className="text-xs text-night-300">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}

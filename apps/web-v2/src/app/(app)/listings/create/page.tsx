@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import clsx from "clsx";
@@ -23,7 +23,6 @@ import { MediaUploader } from "@/components/ui/MediaUploader";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { ListingCreateOverview } from "@/components/listings/ListingCreateOverview";
 import { PriceRecommendation } from "@/components/intelligence/PriceRecommendation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -130,6 +129,7 @@ const CATEGORIES: { name: string; icon: string | null }[] = [
   { name: "Ferrous Metals", icon: "/grphs/Materials/steel-coil-s-coil.png" },
   { name: "Non-Ferrous Metals", icon: "/grphs/Materials/aluminum-extrusion-s-alu.png" },
   { name: "Precious Metals", icon: "/grphs/Materials/copper-wire-spool-s-copper.png" },
+  { name: "Catalytic Converters", icon: null },
   { name: "Plastics", icon: "/grphs/Materials/plastics-s-plastics.png" },
   { name: "Electronics", icon: "/grphs/Materials/e-waste-electronics-s-ewaste.png" },
   { name: "Paper & Cardboard", icon: "/grphs/Materials/paper-cardboard-s-paper.png" },
@@ -158,6 +158,7 @@ const HAZMAT_CLASSES = [
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const PAYMENT_METHOD_OPTIONS = [
+  { value: "interac", label: "Interac e-Transfer (Canada)" },
   { value: "stripe", label: "Stripe (credit / debit card)" },
   { value: "bank_transfer", label: "Bank transfer (EFT/wire)" },
   { value: "wallet", label: "Matex wallet balance" },
@@ -250,7 +251,7 @@ function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex gap-2 rounded-lg bg-brand-500/10 border border-brand-100 px-3 py-2.5">
       <Info className="w-4 h-4 text-brand-500 mt-0.5 shrink-0" />
-      <p className="text-xs text-brand-700">{children}</p>
+      <p className="text-xs text-brand-400">{children}</p>
     </div>
   );
 }
@@ -264,50 +265,128 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+function AutoSaveBadge({
+  status,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+}) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-night-300">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        Auto-saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-success-400">
+        <Check className="w-3 h-3" />
+        Draft saved
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-warning-400">
+      <AlertCircle className="w-3 h-3" />
+      Auto-save failed (use Save & Continue)
+    </span>
+  );
+}
+
 // ─── Step progress bar ───────────────────────────────────────────────────────
 
 function StepBar({ current }: { current: number }) {
+  const totalSteps = STEPS.length;
   return (
-    <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-1">
-      {STEPS.map((s, idx) => {
-        const done = s.n < current;
-        const active = s.n === current;
-        const Icon = s.icon;
-        return (
-          <div key={s.n} className="flex items-center">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={clsx(
-                  "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors shrink-0",
-                  done
-                    ? "bg-brand-600 border-brand-600 text-white"
-                    : active
-                    ? "bg-night-850 border-brand-600 text-brand-600"
-                    : "bg-night-850 border-night-700 text-night-300"
-                )}
-              >
-                {done ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+    <div className="step-bar relative mb-10 overflow-x-auto pb-2 pt-1">
+      <div className="flex items-start justify-between gap-1 min-w-max sm:min-w-0 px-1">
+        {STEPS.map((s, idx) => {
+          const done = s.n < current;
+          const active = s.n === current;
+          const Icon = s.icon;
+          const isLast = idx === STEPS.length - 1;
+          return (
+            <div key={s.n} className="flex flex-1 items-start" style={{ minWidth: 0 }}>
+              {/* Step block: circle + labels stacked vertically */}
+              <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+                <div className="relative flex items-center justify-center">
+                  {/* Pulsing glow ring on active step */}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="step-bar__pulse absolute inset-0 -m-2 rounded-full bg-brand-500/25"
+                    />
+                  )}
+                  <div
+                    className={clsx(
+                      "relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-[3px] shrink-0 transition-all duration-300",
+                      done &&
+                        "bg-brand-500 border-brand-500 text-white shadow-[0_8px_24px_-8px_rgba(232,119,34,0.55)]",
+                      active &&
+                        "bg-night-900 border-brand-500 text-brand-400 shadow-[0_0_0_4px_rgba(232,119,34,0.18),0_12px_28px_-12px_rgba(232,119,34,0.55)] scale-110",
+                      !done && !active && "bg-night-900 border-night-700 text-night-300",
+                    )}
+                  >
+                    {done ? (
+                      <Check className="w-6 h-6" strokeWidth={3} />
+                    ) : (
+                      <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                    )}
+                  </div>
+                </div>
+                {/* Step number */}
+                <span
+                  className={clsx(
+                    "text-[10px] font-black uppercase tracking-[0.18em] leading-none",
+                    active ? "text-brand-400" : done ? "text-brand-500/80" : "text-night-400",
+                  )}
+                >
+                  Step {s.n}
+                </span>
+                {/* Label */}
+                <span
+                  className={clsx(
+                    "text-sm sm:text-base font-bold whitespace-nowrap leading-tight transition-colors",
+                    active && "text-night-100",
+                    done && "text-night-200",
+                    !done && !active && "text-night-300",
+                  )}
+                >
+                  {s.label}
+                </span>
               </div>
-              <span
-                className={clsx(
-                  "text-[10px] font-medium whitespace-nowrap",
-                  active ? "text-brand-600" : done ? "text-night-200" : "text-night-300"
-                )}
-              >
-                {s.label}
-              </span>
+              {/* Connector line between this step and next */}
+              {!isLast && (
+                <div className="relative mt-7 sm:mt-8 h-1 flex-1 mx-1 sm:mx-2 rounded-full bg-night-700 overflow-hidden">
+                  {/* Filled portion: brand if step is done, partial if step is active */}
+                  <div
+                    aria-hidden
+                    className={clsx(
+                      "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-brand-400 transition-all duration-500",
+                      done ? "w-full" : active ? "w-1/2" : "w-0",
+                    )}
+                  />
+                </div>
+              )}
             </div>
-            {idx < STEPS.length - 1 && (
-              <div
-                className={clsx(
-                  "h-0.5 w-8 sm:w-12 mx-1 mt-[-12px] transition-colors",
-                  done ? "bg-brand-600" : "bg-night-700"
-                )}
-              />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {/* Page-level progress meter (subtle, under the row) */}
+      <div className="mt-4 flex items-center gap-3 px-1">
+        <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-night-800">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 via-brand-400 to-brand-500 transition-all duration-500"
+            style={{ width: `${(current / totalSteps) * 100}%` }}
+            aria-hidden
+          />
+        </div>
+        <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.18em] text-night-300">
+          {current}/{totalSteps}
+        </span>
+      </div>
     </div>
   );
 }
@@ -364,8 +443,8 @@ function Step1({
                   className={clsx(
                     "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     active
-                      ? "border-brand-500 bg-brand-500/10 text-brand-800 ring-2 ring-brand-200"
-                      : "border-night-700 bg-night-850 text-night-200 hover:border-brand-300 hover:bg-brand-500/40",
+                      ? "border-brand-500 bg-brand-500/10 text-brand-300 ring-2 ring-brand-200"
+                      : "border-night-700 bg-night-850 text-night-200 hover:border-brand-500/40 hover:bg-brand-500/40",
                   )}
                 >
                   {c.icon ? (
@@ -401,6 +480,71 @@ function Step1({
           </div>
         </div>
       </div>
+
+      {/* Catalytic converter regulatory fields — required by Bill C-36 and provincial regs */}
+      {data.category === "Catalytic Converters" && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-4">
+          <div className="flex items-start gap-2">
+            <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z" /></svg>
+            <div>
+              <p className="text-sm font-semibold text-amber-300">Regulatory compliance required</p>
+              <p className="text-xs text-amber-200/70 mt-0.5">
+                Catalytic converter listings require serial number documentation and seller identity verification under Bill C-36
+                (Combating Auto Theft Act) and provincial regulations.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Converter serial number(s)</FieldLabel>
+              <input
+                className={inputCls}
+                placeholder="e.g. TOY-3S-001, FORD-F150-2019"
+                value={(data as unknown as Record<string, string>).catSerialNumbers ?? ""}
+                onChange={(e) => onChange({ catSerialNumbers: e.target.value } as Partial<FormData>)}
+              />
+              <FieldHint>Comma-separate multiple serial numbers. Visible on converter body.</FieldHint>
+            </div>
+            <div>
+              <FieldLabel>Vehicle VIN (if applicable)</FieldLabel>
+              <input
+                className={inputCls}
+                placeholder="17-character VIN"
+                maxLength={17}
+                value={(data as unknown as Record<string, string>).catVin ?? ""}
+                onChange={(e) => onChange({ catVin: e.target.value.toUpperCase() } as Partial<FormData>)}
+              />
+              <FieldHint>Required if converters came from a specific vehicle.</FieldHint>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-amber-600 bg-night-850 text-amber-500 focus:ring-amber-500 focus:ring-offset-0"
+                checked={Boolean((data as unknown as Record<string, boolean>).catIdVerified)}
+                onChange={(e) => onChange({ catIdVerified: e.target.checked } as Partial<FormData>)}
+              />
+              <span className="text-sm text-night-200">
+                <span className="font-semibold text-amber-300">Seller ID verified</span> — I have collected and retained
+                a copy of the seller&apos;s government-issued photo ID as required by applicable regulations.
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-amber-600 bg-night-850 text-amber-500 focus:ring-amber-500 focus:ring-offset-0"
+                checked={Boolean((data as unknown as Record<string, boolean>).catPhotoUploaded)}
+                onChange={(e) => onChange({ catPhotoUploaded: e.target.checked } as Partial<FormData>)}
+              />
+              <span className="text-sm text-night-200">
+                <span className="font-semibold text-amber-300">Converter photos uploaded</span> — Photos showing the
+                serial number clearly are included in the listing media above.
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
 
       <div>
         <FieldLabel>Quality grade / ISRI code</FieldLabel>
@@ -462,7 +606,7 @@ function Step1({
             type="checkbox"
             checked={data.hasPermit}
             onChange={(e) => onChange({ hasPermit: e.target.checked })}
-            className="rounded border-night-600 text-brand-600 focus:ring-brand-200"
+            className="rounded border-night-600 text-brand-400 focus:ring-brand-200"
           />
           <span className="text-sm text-night-200">Has provincial transport permit</span>
         </label>
@@ -578,7 +722,7 @@ function SaleModeCard({
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={clsx("font-semibold text-sm", selected ? "text-brand-700" : "text-night-100")}>
+          <p className={clsx("font-semibold text-sm", selected ? "text-brand-400" : "text-night-100")}>
             {title}
           </p>
           <p className="text-xs text-night-300 mt-0.5">{description}</p>
@@ -1265,7 +1409,7 @@ function Step5({
                 type="checkbox"
                 checked={data.paymentMethods.includes(opt.value)}
                 onChange={() => togglePayment(opt.value)}
-                className="rounded border-night-600 text-brand-600 focus:ring-brand-200"
+                className="rounded border-night-600 text-brand-400 focus:ring-brand-200"
               />
               <span className="text-sm text-night-200">{opt.label}</span>
             </label>
@@ -1401,7 +1545,7 @@ function ReviewSection({
         <button
           type="button"
           onClick={() => onEdit(step)}
-          className="text-xs text-brand-600 hover:underline font-medium"
+          className="text-xs text-brand-400 hover:underline font-medium"
         >
           Edit
         </button>
@@ -1602,7 +1746,7 @@ function SuccessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-night-850 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+        <div className="w-16 h-16 rounded-full bg-success-500/15 flex items-center justify-center mx-auto mb-5">
           <Check className="w-8 h-8 text-emerald-600" />
         </div>
         <h2 className="text-xl font-bold text-night-100 mb-2">Listing published!</h2>
@@ -1640,6 +1784,8 @@ function SuccessModal({
 
 // ─── Main wizard page ─────────────────────────────────────────────────────────
 
+type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+
 export default function CreateListingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -1652,6 +1798,13 @@ export default function CreateListingPage() {
   const [publishError, setPublishError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [stepError, setStepError] = useState("");
+
+  // Auto-save state — separate from the manual `saving` flag so it doesn't
+  // dim the explicit Save & Continue button.
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedSnapshotRef = useRef<string>("");
+  const manualSaveInFlightRef = useRef(false);
 
   const patch = useCallback(
     (update: Partial<FormData>) => setFormData((prev) => ({ ...prev, ...update })),
@@ -1678,6 +1831,7 @@ export default function CreateListingPage() {
 
   const handleSaveDraft = async (): Promise<SaveDraftResult> => {
     setSaving(true);
+    manualSaveInFlightRef.current = true;
     setStepError("");
     try {
       const user = getUser();
@@ -1745,8 +1899,63 @@ export default function CreateListingPage() {
       return { ok: false, message: msg };
     } finally {
       setSaving(false);
+      manualSaveInFlightRef.current = false;
+      // After any manual save, snapshot what's saved so the auto-save
+      // effect doesn't immediately re-fire on the same content.
+      lastSavedSnapshotRef.current = JSON.stringify(formData);
+      setAutoSaveStatus("saved");
     }
   };
+
+  // ── Auto-save: silent debounced save once a draft listing exists ─────────
+  // Saves on any formData change after a 1500ms debounce. Won't run on step 1
+  // (no listingId yet) or step 6 (review only) or while a manual save is in
+  // flight. Errors are silenced — surfaced only in the status indicator.
+  useEffect(() => {
+    if (!listingId) return;                 // no draft to update yet
+    if (currentStep === 6) return;          // review step doesn't edit form
+    if (manualSaveInFlightRef.current) return;
+
+    const snapshot = JSON.stringify(formData);
+    if (snapshot === lastSavedSnapshotRef.current) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (manualSaveInFlightRef.current) return;
+      setAutoSaveStatus("saving");
+      try {
+        const imageUrls = [
+          ...new Set([...formData.uploadedUrls, ...formData.auctionTermsUrls]),
+        ].filter(Boolean);
+        const res = await callTool("listing.update_listing", {
+          listing_id: listingId,
+          title: formData.title,
+          description: formData.description,
+          category: formData.category,
+          material_type: formData.materialType,
+          quality_grade: formData.qualityGrade,
+          contamination_pct: formData.contaminationPct,
+          moisture_pct: formData.moisturePct,
+          quantity: formData.quantity,
+          unit: formData.unit,
+          status: "draft",
+          ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
+        });
+        if (res.success) {
+          lastSavedSnapshotRef.current = snapshot;
+          setAutoSaveStatus("saved");
+        } else {
+          setAutoSaveStatus("error");
+        }
+      } catch {
+        setAutoSaveStatus("error");
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [formData, listingId, currentStep]);
 
   const canProceed = (): boolean => {
     if (currentStep === 1) return !!formData.title && !!formData.category;
@@ -1859,8 +2068,6 @@ export default function CreateListingPage() {
           />
         </div>
 
-        <ListingCreateOverview />
-
         {/* Step progress */}
         <StepBar current={currentStep} />
 
@@ -1922,12 +2129,14 @@ export default function CreateListingPage() {
                 Back
               </Button>
               <div className="flex items-center gap-2">
-                {saving && (
+                {saving ? (
                   <span className="flex items-center gap-1.5 text-xs text-night-300">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Saving…
                   </span>
-                )}
+                ) : listingId && currentStep < 6 ? (
+                  <AutoSaveBadge status={autoSaveStatus} />
+                ) : null}
                 <Button onClick={handleNext} className="gap-1">
                   {currentStep === 5 ? "Review" : "Next"}
                   <ChevronRight className="w-4 h-4" />

@@ -77,7 +77,7 @@ function UserAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" })
   return (
     <div
       className={clsx(
-        "flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-600",
+        "flex shrink-0 items-center justify-center rounded-full bg-brand-500/15 font-semibold text-brand-400",
         size === "sm" ? "h-8 w-8 text-xs" : "h-9 w-9 text-sm"
       )}
     >
@@ -515,7 +515,7 @@ export default function MessagesPage() {
                   {listingCtx.status}
                 </Badge>
                 {listingCtx.price !== undefined && (
-                  <p className="text-sm font-semibold text-brand-700">
+                  <p className="text-sm font-semibold text-brand-400">
                     {formatCAD(listingCtx.price)}
                   </p>
                 )}

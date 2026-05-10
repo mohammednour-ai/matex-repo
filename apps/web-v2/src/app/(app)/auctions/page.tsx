@@ -161,7 +161,7 @@ export default function AuctionsPage() {
             {t.label}
             <span
               className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                tab === t.key ? "bg-brand-100 text-brand-700" : "bg-night-700 text-night-300"
+                tab === t.key ? "bg-brand-500/15 text-brand-400" : "bg-night-700 text-night-300"
               }`}
             >
               {loading && t.key === "live" ? "…" : t.count}
@@ -171,7 +171,7 @@ export default function AuctionsPage() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}

@@ -10,7 +10,7 @@ export default function NotFound() {
         aria-hidden
       />
       <div className="relative flex flex-col items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-400">
           404
         </p>
         <h1 className="text-2xl font-semibold text-night-100">

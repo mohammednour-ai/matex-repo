@@ -29,7 +29,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
   const unit = material?.unit ?? "mt";
   const series = (history ?? []).map((h) => h.lme_price ?? h.matex_avg_price ?? 0).filter((n) => n > 0);
   return (
-    <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm transition-colors hover:border-brand-200">
+    <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm transition-colors hover:border-brand-500/30">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {material?.image ? (
@@ -116,7 +116,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
       <div className="mt-4 flex items-center justify-between gap-2">
         <Link
           href={`/market/${snapshot.material_key}`}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-900"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-400 hover:text-brand-300"
         >
           Open detail <ExternalLink className="h-3 w-3" />
         </Link>
@@ -124,7 +124,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
           <button
             type="button"
             onClick={() => onSetAlert(snapshot.material_key)}
-            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1 text-xs font-semibold text-night-200 transition-colors hover:border-brand-400 hover:text-brand-700"
+            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1 text-xs font-semibold text-night-200 transition-colors hover:border-brand-400 hover:text-brand-400"
           >
             <Bell className="h-3 w-3" /> Set alert
           </button>

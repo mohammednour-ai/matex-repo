@@ -308,7 +308,7 @@ export default function AuctionRoomPage() {
           </div>
 
           {/* Lot timer + progress */}
-          <div className={`space-y-3 rounded-xl border p-4 ${isUrgent ? "border-red-200 bg-danger-500/10" : "border-amber-200 bg-warning-500/10"}`}>
+          <div className={`space-y-3 rounded-xl border p-4 ${isUrgent ? "border-danger-500/30 bg-danger-500/10" : "border-warning-500/30 bg-warning-500/10"}`}>
             <div className="flex items-center justify-center gap-3">
               <Clock className={`h-5 w-5 ${isUrgent ? "text-red-500" : "text-amber-600"}`} />
               <div className="text-center">
@@ -368,7 +368,7 @@ export default function AuctionRoomPage() {
                     key={inc}
                     disabled={bidLoading}
                     onClick={() => handlePlaceBid(activeLot.current_bid + inc)}
-                    className="flex-1 rounded-lg border border-blue-200 bg-brand-500/10 py-2.5 text-sm font-semibold text-brand-400 transition hover:bg-blue-100 disabled:opacity-50"
+                    className="flex-1 rounded-lg border border-info-500/30 bg-brand-500/10 py-2.5 text-sm font-semibold text-brand-400 transition hover:bg-info-500/15 disabled:opacity-50"
                   >
                     +{formatCAD(inc)}
                   </button>
@@ -441,22 +441,10 @@ export default function AuctionRoomPage() {
             </div>
           )}
 
-          {/* AI Advisor */}
-          <div className="rounded-xl border border-blue-200 bg-brand-500/10 p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-brand-400 mb-0.5">AI Advisor</p>
-                <p className="text-xs text-brand-400">
-                  Current price is <strong>8% below</strong> the Matex Price Index for HMS #1 Scrap Steel.
-                  Based on recent transactions, consider bidding up to{" "}
-                  <strong className="text-blue-900">{formatCAD(31000)}</strong>.
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* AI Advisor — disabled until wired to pricing.get_recommendation.
+              Demo copy ("8% below the Matex Price Index", $31,000 ceiling) was
+              hardcoded and creates false-advice liability if shipped. Re-enable
+              behind a feature flag with real backend data. */}
         </div>
 
         {/* Right panel */}
@@ -505,10 +493,10 @@ export default function AuctionRoomPage() {
 
 function LotStatusBadge({ status }: { status: LotStatus }) {
   const map: Record<LotStatus, { label: string; className: string }> = {
-    active: { label: "Active", className: "bg-amber-100 text-warning-400" },
-    sold: { label: "Sold", className: "bg-emerald-100 text-success-400" },
+    active: { label: "Active", className: "bg-warning-500/15 text-warning-400" },
+    sold: { label: "Sold", className: "bg-success-500/15 text-success-400" },
     upcoming: { label: "Upcoming", className: "bg-night-800 text-night-300" },
-    unsold: { label: "Unsold", className: "bg-red-100 text-red-600" },
+    unsold: { label: "Unsold", className: "bg-danger-500/15 text-red-600" },
   };
   const { label, className } = map[status];
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}>{label}</span>;
@@ -531,7 +519,7 @@ function LobbyView({
         actions={<Badge variant="info">Scheduled</Badge>}
       />
 
-      <div className="rounded-xl border-2 border-blue-200 bg-brand-500/10 p-8 text-center">
+      <div className="rounded-xl border-2 border-info-500/30 bg-brand-500/10 p-8 text-center">
         <p className="text-sm font-medium text-blue-600 mb-3">Auction Begins In</p>
         <CountdownTimer targetDate={auction.start_time} className="text-5xl font-extrabold text-brand-400 justify-center" />
         <div className="mt-4 flex items-center justify-center gap-4 text-sm text-night-300">
@@ -566,7 +554,7 @@ function LobbyView({
       </div>
 
       {isRegistered ? (
-        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-success-500/10 p-4">
+        <div className="flex items-center gap-3 rounded-xl border border-success-500/30 bg-success-500/10 p-4">
           <CheckCircle className="h-5 w-5 text-emerald-600" />
           <p className="text-sm font-medium text-success-400">You&apos;re registered for this auction.</p>
         </div>

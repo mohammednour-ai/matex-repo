@@ -164,7 +164,7 @@ export function CopilotPanel() {
             <button
               key={chip}
               onClick={() => sendMessage(chip)}
-              className="shrink-0 rounded-full border border-night-700 px-3 py-1 text-xs text-night-200 hover:bg-brand-500/10 hover:border-blue-300 hover:text-brand-400 transition-colors whitespace-nowrap"
+              className="shrink-0 rounded-full border border-night-700 px-3 py-1 text-xs text-night-200 hover:bg-brand-500/10 hover:border-info-500/40 hover:text-brand-400 transition-colors whitespace-nowrap"
             >
               {chip}
             </button>

@@ -93,7 +93,7 @@ function SaleModeBadge({ mode }: { mode: SaleMode }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-        mode === "fixed" && "bg-brand-500/10 text-brand-700 ring-brand-600/20",
+        mode === "fixed" && "bg-brand-500/10 text-brand-400 ring-brand-600/20",
         mode === "bidding" && "bg-warning-500/10 text-warning-400 ring-amber-600/20",
         mode === "auction" && "bg-brand-500/15 text-brand-400 ring-purple-600/20"
       )}
@@ -239,7 +239,7 @@ function ListingCardItem({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/listings/${listing.listing_id}`}
-            className="text-sm font-semibold text-night-100 hover:text-brand-600 transition-colors leading-snug line-clamp-2 flex-1"
+            className="text-sm font-semibold text-night-100 hover:text-brand-400 transition-colors leading-snug line-clamp-2 flex-1"
           >
             {listing.title}
           </Link>
@@ -384,7 +384,7 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
   const stats = [
     { label: "Active", value: active, color: "text-emerald-600" },
     { label: "Drafts", value: draft, color: "text-night-200" },
-    { label: "Sold", value: sold, color: "text-brand-600" },
+    { label: "Sold", value: sold, color: "text-brand-400" },
     { label: "Total views", value: totalViews, color: "text-purple-600" },
   ];
 
@@ -517,7 +517,7 @@ export default function MyListingsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3">
+        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3">
           <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
           <p className="text-sm text-danger-400">{error}</p>
           <button
@@ -538,7 +538,7 @@ export default function MyListingsPage() {
             className={clsx(
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
               activeTab === tab.id
-                ? "border-brand-600 text-brand-600"
+                ? "border-brand-600 text-brand-400"
                 : "border-transparent text-night-300 hover:border-night-600 hover:text-night-100"
             )}
           >
@@ -548,7 +548,7 @@ export default function MyListingsPage() {
                 className={clsx(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold min-w-[18px] text-center",
                   activeTab === tab.id
-                    ? "bg-brand-100 text-brand-700"
+                    ? "bg-brand-500/15 text-brand-400"
                     : "bg-night-800 text-night-200"
                 )}
               >
@@ -581,7 +581,7 @@ export default function MyListingsPage() {
                   onClick={() => setViewMode("cards")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "cards" ? "bg-brand-500/10 text-brand-700" : "text-night-300 hover:text-night-100",
+                    viewMode === "cards" ? "bg-brand-500/10 text-brand-400" : "text-night-300 hover:text-night-100",
                   )}
                 >
                   Cards
@@ -591,7 +591,7 @@ export default function MyListingsPage() {
                   onClick={() => setViewMode("table")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "table" ? "bg-brand-500/10 text-brand-700" : "text-night-300 hover:text-night-100",
+                    viewMode === "table" ? "bg-brand-500/10 text-brand-400" : "text-night-300 hover:text-night-100",
                   )}
                 >
                   Table

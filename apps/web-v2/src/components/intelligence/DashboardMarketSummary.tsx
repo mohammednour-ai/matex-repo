@@ -151,7 +151,7 @@ function MiniSummary({ snapshot }: { snapshot: MarketIntelligenceRow }) {
   return (
     <Link
       href={`/market/${snapshot.material_key}`}
-      className="group rounded-2xl border border-night-700 bg-night-850/90 p-4 transition-colors hover:border-brand-300 hover:bg-night-850"
+      className="group rounded-2xl border border-night-700 bg-night-850/90 p-4 transition-colors hover:border-brand-500/40 hover:bg-night-850"
     >
       <div className="flex items-start justify-between gap-2">
         <div>

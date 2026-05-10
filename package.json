@@ -16,6 +16,7 @@
     "dev:web-v2-stack": "pnpm -r --parallel --filter @matex/mcp-gateway --filter @matex/web-v2 dev",
     "dev:http-adapters": "tsx --env-file=.env.local scripts/start-http-adapters.ts",
     "dev:db-stack": "concurrently -n gateway,web -c magenta,green \"pnpm dev:gateway\" \"pnpm --filter @matex/web-v2 dev\"",
+    "dev:yardops-stack": "concurrently -n gateway,yardops -c magenta,cyan \"pnpm dev:gateway\" \"pnpm --filter @matex/yardops dev\"",
     "dev:db-stack:legacy": "concurrently -n adapters,gateway,web -c blue,magenta,green \"pnpm dev:http-adapters\" \"pnpm dev:gateway\" \"pnpm --filter @matex/web-v2 dev\"",
     "dev:all": "pnpm -r --parallel dev",
     "build": "pnpm -r build",

@@ -106,7 +106,7 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
                 type="button"
                 onClick={() => toggle(alert)}
                 title={alert.status === "active" ? "Pause alert" : "Resume alert"}
-                className="rounded-full border border-night-700 p-1.5 text-night-200 transition-colors hover:border-brand-400 hover:text-brand-700"
+                className="rounded-full border border-night-700 p-1.5 text-night-200 transition-colors hover:border-brand-400 hover:text-brand-400"
               >
                 {alert.status === "active" ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
               </button>

@@ -207,7 +207,7 @@ export default function InspectionsPage() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -391,10 +391,10 @@ function CalendarView({ inspections }: { inspections: Inspection[] }) {
           });
           const isToday = day.toDateString() === today.toDateString();
           return (
-            <div key={day.toISOString()} className={`rounded-lg border p-2 min-h-[100px] ${isToday ? "border-blue-300 bg-brand-500/10" : "border-night-700"}`}>
+            <div key={day.toISOString()} className={`rounded-lg border p-2 min-h-[100px] ${isToday ? "border-info-500/40 bg-brand-500/10" : "border-night-700"}`}>
               <p className={`text-xs font-semibold mb-2 ${isToday ? "text-brand-400" : "text-night-300"}`}>
                 {day.toLocaleDateString("en-CA", { weekday: "short" })}{" "}
-                <span className={isToday ? "text-blue-900" : "text-night-100"}>{day.getDate()}</span>
+                <span className={isToday ? "text-info-400" : "text-night-100"}>{day.getDate()}</span>
               </p>
               <div className="space-y-1">
                 {dayInspections.map((i) => (

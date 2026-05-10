@@ -28,7 +28,7 @@ export function AppPageHeader({
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand-600">{eyebrow}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-brand-400">{eyebrow}</p>
         ) : null}
         <h1 className="app-inpage-title">{title}</h1>
         {description ? <p className="app-inpage-sub max-w-2xl">{description}</p> : null}

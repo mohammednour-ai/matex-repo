@@ -57,6 +57,8 @@ type QuickAction = {
   label: string;
   href: string;
   icon: typeof Plus;
+  /** Canva-generated custom icon; renders in place of the lucide icon when set. */
+  image?: string;
   note: string;
   /** True only for the single primary CTA — gets the brand-tinted chip. */
   primary?: boolean;
@@ -69,6 +71,7 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     label: "Create Listing",
     href: "/listings/create",
     icon: Plus,
+    image: "/grphs/Dashboard/action-create-listing.png",
     primary: true,
     note: "Publish a new industrial offering with pricing and logistics details.",
   },
@@ -76,30 +79,35 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     label: "Search Materials",
     href: "/search",
     icon: Search,
+    image: "/grphs/Dashboard/action-search.png",
     note: "Browse verified inventory, compare offers, and source with confidence.",
   },
   {
     label: "Live Auctions",
     href: "/auctions",
     icon: Gavel,
+    image: "/grphs/Dashboard/action-auctions.png",
     note: "Track active bids and act on time-sensitive market opportunities.",
   },
   {
     label: "Check Escrow",
     href: "/escrow",
     icon: Lock,
+    image: "/grphs/Dashboard/action-escrow.png",
     note: "Review protected funds, milestones, and transaction readiness.",
   },
   {
     label: "Logistics",
     href: "/logistics",
     icon: Truck,
+    image: "/grphs/Dashboard/action-logistics.png",
     note: "Coordinate shipments, delivery progress, and operational follow-through.",
   },
   {
     label: "AI Copilot",
     href: "/chat",
     icon: Bot,
+    image: "/grphs/Dashboard/action-copilot.png",
     note: "Get assistance preparing listings, replies, and platform workflows.",
     copilotNote: true,
   },
@@ -440,10 +448,10 @@ export default function DashboardPage() {
       />
 
       {kycLevel < 2 && (
-        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-night-100">
-          <CircleAlert className="h-4 w-4 shrink-0 text-orange-700" />
+        <div className="dashboard-status-strip text-sm text-night-100">
+          <CircleAlert className="h-4 w-4 shrink-0 text-brand-400" />
           <span>
-            <strong className="text-orange-900">Complete verification</strong> — Higher KYC levels unlock
+            <strong className="text-night-100">Complete verification</strong> — Higher KYC levels unlock
             larger trades and faster payouts.
           </span>
           <Link href="/settings" className="font-semibold text-brand-400 underline-offset-2 hover:underline">
@@ -456,12 +464,12 @@ export default function DashboardPage() {
         <div className="dashboard-status-strip text-sm">
           <span className="font-semibold text-night-100">Open orders</span>
           {ordersPending > 0 && (
-            <span className="rounded-full bg-orange-500/15 px-2.5 py-0.5 text-xs font-semibold text-orange-900 ring-1 ring-orange-400/30">
+            <span className="rounded-full bg-brand-500/10 px-2.5 py-0.5 text-xs font-semibold text-brand-300 ring-1 ring-brand-500/25">
               {ordersPending} need action
             </span>
           )}
           {ordersTransit > 0 && (
-            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-950 ring-1 ring-amber-400/35">
+            <span className="rounded-full bg-night-800 px-2.5 py-0.5 text-xs font-semibold text-night-200 ring-1 ring-night-700">
               {ordersTransit} in transit
             </span>
           )}
@@ -523,7 +531,7 @@ export default function DashboardPage() {
                   <p
                     className={clsx(
                       "mt-1 flex items-center gap-0.5 text-xs font-semibold tabular-nums",
-                      String(card.trend).startsWith("-") ? "text-danger-600" : "text-orange-600",
+                      String(card.trend).startsWith("-") ? "text-danger-600" : "text-brand-400",
                     )}
                   >
                     <TrendingUp className="h-3 w-3" /> {card.trend} vs prior week
@@ -575,12 +583,23 @@ export default function DashboardPage() {
                     action.primary && "dashboard-stat-icon--primary",
                   )}
                 >
-                  <action.icon
-                    className={clsx(
-                      "h-6 w-6",
-                      action.primary ? "text-brand-400" : "text-night-200",
-                    )}
-                  />
+                  {action.image ? (
+                    <Image
+                      src={action.image}
+                      alt=""
+                      width={24}
+                      height={24}
+                      className="h-6 w-6 object-contain"
+                      aria-hidden
+                    />
+                  ) : (
+                    <action.icon
+                      className={clsx(
+                        "h-6 w-6",
+                        action.primary ? "text-brand-400" : "text-night-200",
+                      )}
+                    />
+                  )}
                 </span>
                 <span className="dashboard-action-label">{action.label}</span>
                 <span className="dashboard-action-note">{action.note}</span>
@@ -595,7 +614,7 @@ export default function DashboardPage() {
           action={
             <Link
               href="/notifications"
-              className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-brand-400"
+              className="flex items-center gap-1 text-xs font-semibold text-brand-400 hover:text-brand-300"
             >
               View all <ChevronRight className="h-3 w-3" />
             </Link>
@@ -629,7 +648,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/inspections"
-            className="flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-brand-400"
+            className="flex items-center gap-1 text-xs font-semibold text-brand-400 hover:text-brand-300"
           >
             View inspections <ChevronRight className="h-3 w-3" />
           </Link>
