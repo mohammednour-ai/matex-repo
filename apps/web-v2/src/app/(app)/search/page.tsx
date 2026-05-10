@@ -884,7 +884,7 @@ export default function SearchPage() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-night-200">
                 Showing <span className="font-semibold text-night-100">{results.length}</span> result{results.length !== 1 ? "s" : ""}
-                {query && <> for <span className="font-medium text-brand-700">"{query}"</span></>}
+                {query && <> for <span className="font-medium text-brand-700">&ldquo;{query}&rdquo;</span></>}
               </p>
               {results.length > 0 && (
                 <span className="text-xs text-night-300">

@@ -650,7 +650,7 @@ function InspectionBookingCard({ listingId }: { listingId: string }) {
         <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
         <div>
           <p className="font-semibold text-success-400 text-sm">Inspection Booked</p>
-          <p className="text-xs text-success-400 mt-0.5">You'll receive a confirmation email shortly.</p>
+          <p className="text-xs text-success-400 mt-0.5">You&apos;ll receive a confirmation email shortly.</p>
         </div>
       </div>
     );

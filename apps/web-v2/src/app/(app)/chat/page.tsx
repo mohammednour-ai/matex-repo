@@ -106,7 +106,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         <div className="p-6">
           <p className="text-night-200 text-sm mb-5">
-            I can help you interact with every part of Matex. Here's what I can do:
+            I can help you interact with every part of Matex. Here&apos;s what I can do:
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {ONBOARDING_CATEGORIES.map((cat) => (
