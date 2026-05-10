@@ -105,9 +105,13 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[linear-gradient(165deg,#0e1116_0%,#15191f_42%,#1a1f27_100%)] px-6">
+      <div className="app-shell-canvas relative flex min-h-screen flex-col items-center justify-center gap-4 px-6">
         <div
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(150,165,190,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(150,165,190,0.04)_1px,transparent_1px)] bg-[length:24px_24px]"
+          className="pointer-events-none absolute inset-0 bg-[length:24px_24px]"
+          style={{
+            backgroundImage:
+              "linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)",
+          }}
           aria-hidden
         />
         <div className="relative flex flex-col items-center gap-3">
@@ -470,12 +474,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {isDashboard && (
           <div
             aria-hidden
-            className="dashboard-og-watermark pointer-events-none absolute inset-0 z-0 opacity-[0.07] mix-blend-screen"
+            className="dashboard-og-watermark pointer-events-none absolute inset-0 z-0 bg-industrial-grain opacity-[0.10]"
             style={{
-              backgroundImage: "url('/grphs/Brand/og-social-share-image-b-og-share.jpg')",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
               maskImage:
                 "radial-gradient(ellipse 90% 70% at 50% 40%, rgba(0,0,0,0.85), transparent 78%)",
               WebkitMaskImage:
