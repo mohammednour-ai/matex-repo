@@ -12,7 +12,7 @@ import {
   Circle,
 } from "lucide-react";
 import clsx from "clsx";
-import { callTool } from "@/lib/api";
+import { callTool, getUser } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -75,25 +75,49 @@ function ProfileTab() {
     setUploadingAvatar(true);
     setError("");
     try {
-      const res = await callTool("listing.upload_images", {
-        filename: file.name,
-        content_type: file.type,
-        size_bytes: file.size,
+      // 2 MB cap matches the UI copy below ("JPG, PNG or GIF. Max 2 MB.").
+      const MAX_BYTES = 2 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        setError("Image is over 2 MB. Please choose a smaller file.");
+        return null;
+      }
+
+      const user = getUser();
+      if (!user?.userId) {
+        setError("Sign in before uploading an avatar.");
+        return null;
+      }
+
+      // Bucket + path. We use a dedicated public "avatars" bucket so the
+      // resulting URL is stably loadable by <img> without needing a fresh
+      // signed download URL on every render. Path is namespaced by user_id
+      // so storage RLS can constrain writes to the owner.
+      const bucket = "avatars";
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${user.userId}/${Date.now()}-${safeName}`;
+
+      // Right tool: storage.generate_signed_upload_url. The previous code
+      // called listing.upload_images with the wrong arg shape — the
+      // listing-mcp tool requires { listing_id, actor_id, images } and is
+      // for attaching photos to an existing listing, not for arbitrary
+      // user uploads.
+      const res = await callTool("storage.generate_signed_upload_url", {
+        bucket,
+        path,
       });
       if (!res.success) {
         setError(res.error?.message ?? "Could not get upload URL");
         return null;
       }
       const root = res.data as Record<string, unknown> | undefined;
-      const ur = (root?.upstream_response as Record<string, unknown> | undefined) ?? root;
-      const inner = (ur?.data as Record<string, unknown> | undefined) ?? ur;
+      const ur = (root?.upstream_response as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const inner = ur ?? root;
       const signed =
         (inner?.signed_url as string | undefined) ??
         (inner?.upload_url as string | undefined);
-      const pub =
-        (inner?.public_url as string | undefined) ??
-        (inner?.url as string | undefined);
-      if (!signed || !pub) {
+      if (!signed) {
         setError("Upload service did not return a signed URL");
         return null;
       }
@@ -106,7 +130,15 @@ function ProfileTab() {
         setError(`Upload failed (HTTP ${put.status})`);
         return null;
       }
-      return pub;
+      // Construct the public URL ourselves. The "avatars" bucket must be
+      // public for this to render via <img>; otherwise generate a signed
+      // download URL on demand.
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+      if (!supabaseUrl) {
+        setError("Supabase URL is not configured.");
+        return null;
+      }
+      return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Avatar upload failed");
       return null;
