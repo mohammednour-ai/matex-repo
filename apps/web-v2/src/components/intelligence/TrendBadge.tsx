@@ -14,7 +14,7 @@ const VARIANTS: Record<MarketTrend, { tone: string; icon: typeof ArrowUpRight; l
     label: "Trending down",
   },
   stable: {
-    tone: "bg-steel-100 text-night-200 ring-steel-300/40",
+    tone: "bg-steel-100 text-fg-muted ring-steel-300/40",
     icon: Minus,
     label: "Stable",
   },

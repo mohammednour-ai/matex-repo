@@ -232,9 +232,9 @@ export default function AuctionRoomPage() {
   if (loadError || !auction) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-night-300" />
-        <h2 className="text-lg font-semibold text-night-100">{loadError || "Auction not found"}</h2>
-        <p className="mt-2 text-sm text-night-300">Go back to the auctions list and try another event.</p>
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-fg-subtle" />
+        <h2 className="text-lg font-semibold text-fg">{loadError || "Auction not found"}</h2>
+        <p className="mt-2 text-sm text-fg-subtle">Go back to the auctions list and try another event.</p>
         <Link href="/auctions" className="mt-5 inline-block">
           <Button size="sm" variant="secondary">Back to auctions</Button>
         </Link>
@@ -245,8 +245,8 @@ export default function AuctionRoomPage() {
   if (!activeLot) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
-        <Gavel className="mx-auto mb-3 h-10 w-10 text-night-300" />
-        <h2 className="text-lg font-semibold text-night-100">No lots in this auction yet</h2>
+        <Gavel className="mx-auto mb-3 h-10 w-10 text-fg-subtle" />
+        <h2 className="text-lg font-semibold text-fg">No lots in this auction yet</h2>
         <Link href="/auctions" className="mt-5 inline-block">
           <Button size="sm" variant="secondary">Back to auctions</Button>
         </Link>
@@ -265,16 +265,16 @@ export default function AuctionRoomPage() {
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex shrink-0 items-center justify-between border-b border-night-700 bg-night-850 px-5 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-line bg-surfaceBg px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex h-2 w-2">
             <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-red-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
           </div>
-          <span className="font-semibold text-night-100 text-sm">{auction.title}</span>
+          <span className="font-semibold text-fg text-sm">{auction.title}</span>
           <Badge variant="danger">LIVE</Badge>
         </div>
-        <div className="flex items-center gap-4 text-sm text-night-300">
+        <div className="flex items-center gap-4 text-sm text-fg-subtle">
           <span className="flex items-center gap-1.5">
             <Users className="h-4 w-4" />
             {auction.participant_count} participants
@@ -285,12 +285,12 @@ export default function AuctionRoomPage() {
 
       <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Left panel — full width on mobile, 2/3 desktop */}
-        <div className="flex w-full flex-col gap-4 overflow-y-auto border-b border-night-700 bg-night-850 p-5 lg:w-2/3 lg:border-b-0 lg:border-r">
+        <div className="flex w-full flex-col gap-4 overflow-y-auto border-b border-line bg-surfaceBg p-5 lg:w-2/3 lg:border-b-0 lg:border-r">
           {/* Lot header */}
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-night-200">
+            <h2 className="text-base font-semibold text-fg-muted">
               Lot {activeLot.lot_number} of {auction.lots.length} —{" "}
-              <span className="text-night-100">{activeLot.title}</span>
+              <span className="text-fg">{activeLot.title}</span>
             </h2>
             <Badge variant={isUrgent ? "danger" : "warning"}>Active</Badge>
           </div>
@@ -301,10 +301,10 @@ export default function AuctionRoomPage() {
           </div>
 
           {/* Current bid */}
-          <div className="rounded-xl border border-night-700 bg-night-900 p-5 text-center">
-            <p className="text-sm font-medium text-night-300 mb-1">Current Bid</p>
+          <div className="rounded-xl border border-line bg-canvas p-5 text-center">
+            <p className="text-sm font-medium text-fg-subtle mb-1">Current Bid</p>
             <p className="text-5xl font-extrabold text-blue-600">{formatCAD(activeLot.current_bid)}</p>
-            <p className="mt-1 text-sm text-night-300">{activeLot.bid_count} bids placed</p>
+            <p className="mt-1 text-sm text-fg-subtle">{activeLot.bid_count} bids placed</p>
           </div>
 
           {/* Lot timer + progress */}
@@ -382,7 +382,7 @@ export default function AuctionRoomPage() {
                   placeholder={`Min ${formatCAD(activeLot.current_bid + 100)}`}
                   value={customBid}
                   onChange={(e) => setCustomBid(e.target.value)}
-                  className="flex-1 rounded-lg border border-night-600 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="flex-1 rounded-lg border border-line-strong px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
                 <Button
                   size="lg"
@@ -404,8 +404,8 @@ export default function AuctionRoomPage() {
               {/* Proxy bidding (max bid). Forwarded as `max_proxy_bid` on
                   the next placed bid; the auction MCP keeps re-bidding up to
                   this ceiling when the user is outbid. */}
-              <details className="rounded-lg border border-night-700 bg-night-850 p-2 text-xs">
-                <summary className="cursor-pointer select-none text-night-200 hover:text-night-100">
+              <details className="rounded-lg border border-line bg-surfaceBg p-2 text-xs">
+                <summary className="cursor-pointer select-none text-fg-muted hover:text-fg">
                   <input
                     type="checkbox"
                     checked={proxyEnabled}
@@ -423,18 +423,18 @@ export default function AuctionRoomPage() {
                     value={proxyMax}
                     onChange={(e) => setProxyMax(e.target.value)}
                     disabled={!proxyEnabled}
-                    className="flex-1 rounded-md border border-night-600 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-night-900 disabled:text-night-300"
+                    className="flex-1 rounded-md border border-line-strong px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-canvas disabled:text-fg-subtle"
                   />
-                  <span className="text-[10px] text-night-300">
+                  <span className="text-[10px] text-fg-subtle">
                     Bids automatically up to this ceiling.
                   </span>
                 </div>
               </details>
             </div>
           ) : (
-            <div className="rounded-xl border border-night-700 bg-night-900 p-4 text-center">
-              <AlertCircle className="mx-auto mb-2 h-6 w-6 text-night-300" />
-              <p className="text-sm text-night-300">You are in <strong>watch-only</strong> mode.</p>
+            <div className="rounded-xl border border-line bg-canvas p-4 text-center">
+              <AlertCircle className="mx-auto mb-2 h-6 w-6 text-fg-subtle" />
+              <p className="text-sm text-fg-subtle">You are in <strong>watch-only</strong> mode.</p>
               <Button size="sm" variant="secondary" className="mt-3" onClick={() => setIsRegistered(true)}>
                 Register to Bid
               </Button>
@@ -460,10 +460,10 @@ export default function AuctionRoomPage() {
         </div>
 
         {/* Right panel */}
-        <div className="flex w-full flex-col overflow-hidden bg-night-850 lg:w-1/3">
+        <div className="flex w-full flex-col overflow-hidden bg-surfaceBg lg:w-1/3">
           {/* Bid stream */}
-          <div className="flex-1 overflow-y-auto border-b border-night-700 p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-night-300">
+          <div className="flex-1 overflow-y-auto border-b border-line p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
               Live Bid Stream
             </h3>
             <BidStream bids={bids} currentUserKey={user?.email?.split("@")[0] ?? null} />
@@ -471,7 +471,7 @@ export default function AuctionRoomPage() {
 
           {/* Lot list */}
           <div className="overflow-y-auto p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-night-300">All Lots</h3>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-fg-subtle">All Lots</h3>
             <div className="space-y-1.5">
               {auction.lots.map((lot) => (
                 <button
@@ -480,13 +480,13 @@ export default function AuctionRoomPage() {
                   className={`w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-xs transition ${
                     lot.lot_id === activeLot.lot_id
                       ? "bg-brand-500/10 ring-1 ring-blue-300"
-                      : "hover:bg-night-900"
+                      : "hover:bg-canvas"
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-night-200 w-8">#{lot.lot_number}</span>
-                      <span className="font-medium text-night-100 truncate max-w-[130px]">{lot.title}</span>
+                      <span className="font-semibold text-fg-muted w-8">#{lot.lot_number}</span>
+                      <span className="font-medium text-fg truncate max-w-[130px]">{lot.title}</span>
                     </div>
                     {lot.status === "sold" && lot.winner_label && (
                       <p className="mt-0.5 pl-10 text-[10px] text-emerald-600">Sold to {lot.winner_label}</p>
@@ -507,7 +507,7 @@ function LotStatusBadge({ status }: { status: LotStatus }) {
   const map: Record<LotStatus, { label: string; className: string }> = {
     active: { label: "Active", className: "bg-amber-100 text-warning-400" },
     sold: { label: "Sold", className: "bg-emerald-100 text-success-400" },
-    upcoming: { label: "Upcoming", className: "bg-night-800 text-night-300" },
+    upcoming: { label: "Upcoming", className: "bg-elevated text-fg-subtle" },
     unsold: { label: "Unsold", className: "bg-red-100 text-red-600" },
   };
   const { label, className } = map[status];
@@ -534,22 +534,22 @@ function LobbyView({
       <div className="rounded-xl border-2 border-blue-200 bg-brand-500/10 p-8 text-center">
         <p className="text-sm font-medium text-blue-600 mb-3">Auction Begins In</p>
         <CountdownTimer targetDate={auction.start_time} className="text-5xl font-extrabold text-brand-400 justify-center" />
-        <div className="mt-4 flex items-center justify-center gap-4 text-sm text-night-300">
+        <div className="mt-4 flex items-center justify-center gap-4 text-sm text-fg-subtle">
           <span className="flex items-center gap-1.5"><Users className="h-4 w-4" />{auction.participant_count} registered</span>
           <span className="flex items-center gap-1.5"><Package className="h-4 w-4" />{auction.lots.length} lots</span>
         </div>
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-night-300 mb-3">Lot Preview</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-fg-subtle mb-3">Lot Preview</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {auction.lots.map((lot) => (
             <div key={lot.lot_id} className="marketplace-card p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-night-300 mb-0.5">Lot #{lot.lot_number}</p>
-                  <p className="text-sm font-semibold text-night-100">{lot.title}</p>
-                  <p className="text-xs text-night-300 mt-1">Opening: {formatCAD(lot.opening_bid)}</p>
+                  <p className="text-xs text-fg-subtle mb-0.5">Lot #{lot.lot_number}</p>
+                  <p className="text-sm font-semibold text-fg">{lot.title}</p>
+                  <p className="text-xs text-fg-subtle mt-1">Opening: {formatCAD(lot.opening_bid)}</p>
                 </div>
               </div>
             </div>
@@ -559,8 +559,8 @@ function LobbyView({
 
       <div className="marketplace-card flex items-center justify-between p-5">
         <div className="flex items-center gap-3">
-          <FileText className="h-5 w-5 text-night-300" />
-          <span className="text-sm font-medium text-night-200">Auction Terms & Conditions</span>
+          <FileText className="h-5 w-5 text-fg-subtle" />
+          <span className="text-sm font-medium text-fg-muted">Auction Terms & Conditions</span>
         </div>
         <Button size="sm" variant="secondary">Download PDF</Button>
       </div>
@@ -601,13 +601,13 @@ function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots
       )}
 
       <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-night-300 mb-3">Won Lots</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-fg-subtle mb-3">Won Lots</h2>
         <div className="space-y-2">
           {mockWon.map((lot) => (
-            <div key={lot.lot_id} className="flex items-center justify-between rounded-lg border border-night-700 bg-night-850 p-4">
+            <div key={lot.lot_id} className="flex items-center justify-between rounded-lg border border-line bg-surfaceBg p-4">
               <div>
-                <p className="text-sm font-semibold text-night-100">Lot #{lot.lot_number} — {lot.title}</p>
-                <p className="text-xs text-night-300 mt-0.5">Winning bid</p>
+                <p className="text-sm font-semibold text-fg">Lot #{lot.lot_number} — {lot.title}</p>
+                <p className="text-xs text-fg-subtle mt-0.5">Winning bid</p>
               </div>
               <p className="text-lg font-bold text-blue-600">{formatCAD(lot.current_bid)}</p>
             </div>
@@ -615,8 +615,8 @@ function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots
         </div>
       </div>
 
-      <div className="rounded-xl border border-night-700 bg-night-850 p-5">
-        <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
+      <div className="rounded-xl border border-line bg-surfaceBg p-5">
+        <h3 className="text-sm font-semibold text-fg-muted mb-4">Next Steps</h3>
         <ol className="space-y-3">
           {[
             "Fund escrow within 24 hours",
@@ -628,7 +628,7 @@ function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                 {i + 1}
               </span>
-              <span className="text-sm text-night-200 pt-0.5">{step}</span>
+              <span className="text-sm text-fg-muted pt-0.5">{step}</span>
             </li>
           ))}
         </ol>

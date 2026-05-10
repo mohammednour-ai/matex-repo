@@ -2,13 +2,13 @@ export default function AuctionsLoading(): JSX.Element {
   return (
     <div className="space-y-6">
       <div>
-        <div className="h-8 w-40 rounded-lg bg-night-800/60 animate-pulse" />
-        <div className="mt-2 h-4 w-64 rounded bg-night-800/40 animate-pulse" />
+        <div className="h-8 w-40 rounded-lg bg-elevated/60 animate-pulse" />
+        <div className="mt-2 h-4 w-64 rounded bg-elevated/40 animate-pulse" />
       </div>
 
       <div className="flex flex-wrap gap-2">
         {["Live", "Upcoming", "Completed"].map((label) => (
-          <div key={label} className="h-9 w-24 rounded-full bg-night-800/40 animate-pulse" />
+          <div key={label} className="h-9 w-24 rounded-full bg-elevated/40 animate-pulse" />
         ))}
       </div>
 
@@ -29,7 +29,7 @@ export default function AuctionsLoading(): JSX.Element {
                 </div>
               ))}
             </div>
-            <div className="mt-4 h-10 rounded-xl bg-night-800/40 animate-pulse" />
+            <div className="mt-4 h-10 rounded-xl bg-elevated/40 animate-pulse" />
           </div>
         ))}
       </div>

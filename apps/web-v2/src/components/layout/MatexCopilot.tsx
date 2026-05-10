@@ -211,11 +211,11 @@ function MatexCopilotInner() {
                     MCP
                   </span>
                 </div>
-                <p className="mt-1 text-[10px] font-medium leading-snug text-night-300">
+                <p className="mt-1 text-[10px] font-medium leading-snug text-fg-subtle">
                   Industrial workspace assistant — routes through your live tool gateway.
                 </p>
               </div>
-              <div className="flex shrink-0 gap-1 text-night-300" aria-hidden>
+              <div className="flex shrink-0 gap-1 text-fg-subtle" aria-hidden>
                 <Cpu className="h-3.5 w-3.5" />
                 <Radio className="h-3.5 w-3.5" />
                 <Wrench className="h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ function MatexCopilotInner() {
                   Control channel ready
                 </p>
                 <CopilotScopeGraphic />
-                <p className="mt-3 text-xs leading-relaxed text-night-300">
+                <p className="mt-3 text-xs leading-relaxed text-fg-subtle">
                   Describe an operation in plain language — Copilot maps it to the same MCP tools the platform uses
                   (listings, search, escrow, analytics, and more).
                 </p>
@@ -271,7 +271,7 @@ function MatexCopilotInner() {
             ))}
             {loading && (
               <div className="text-left">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2 text-xs text-night-300">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-zinc-700/60 bg-zinc-900/70 px-3 py-2 text-xs text-fg-subtle">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-400" />
@@ -289,7 +289,7 @@ function MatexCopilotInner() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Describe what to run — listings, search, escrow…"
-              className="flex-1 rounded-xl border border-zinc-600/60 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100 placeholder:text-night-300 focus:border-orange-400/50 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
+              className="flex-1 rounded-xl border border-zinc-600/60 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100 placeholder:text-fg-subtle focus:border-orange-400/50 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
             />
             <button
               type="button"

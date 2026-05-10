@@ -62,14 +62,14 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
 
   if (!material) {
     return (
-      <div className="rounded-2xl border border-dashed border-night-700 bg-night-850/90 p-4 text-xs text-night-300">
+      <div className="rounded-2xl border border-dashed border-line bg-surfaceBg/90 p-4 text-xs text-fg-subtle">
         Select a material to receive an AI-priced starting suggestion.
       </div>
     );
   }
   if (!materialKey) {
     return (
-      <div className="rounded-2xl border border-dashed border-night-700 bg-night-850/90 p-4 text-xs text-night-300">
+      <div className="rounded-2xl border border-dashed border-line bg-surfaceBg/90 p-4 text-xs text-fg-subtle">
         We don&apos;t track market data for &quot;{material}&quot; yet — set your own price.
       </div>
     );
@@ -89,7 +89,7 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
               Matex price intelligence
             </p>
-            <p className="text-sm font-semibold text-night-100">
+            <p className="text-sm font-semibold text-fg">
               {matMeta?.label ?? material}
             </p>
           </div>
@@ -100,7 +100,7 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
               "rounded-full px-2 py-0.5 text-[10px] font-semibold",
               aiSource === "live"
                 ? "bg-success-100 text-success-400"
-                : "bg-steel-100 text-night-200",
+                : "bg-steel-100 text-fg-muted",
             )}
           >
             {aiSource === "live" ? "AI live" : "Heuristic"}
@@ -109,7 +109,7 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
       </div>
 
       {loading && (
-        <p className="mt-3 text-xs text-night-300">Estimating a competitive starting price…</p>
+        <p className="mt-3 text-xs text-fg-subtle">Estimating a competitive starting price…</p>
       )}
       {error && (
         <p className="mt-3 text-xs text-danger-400">{error}</p>
@@ -118,17 +118,17 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
       {recommendation && !loading && (
         <>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-night-100">
+            <span className="text-2xl font-bold text-fg">
               {formatPrice(recommendation.recommended_price, resolvedUnit)}
             </span>
-            <span className="text-xs text-night-300">recommended starting price</span>
+            <span className="text-xs text-fg-subtle">recommended starting price</span>
           </div>
-          <p className="mt-1 text-xs text-night-200">
+          <p className="mt-1 text-xs text-fg-muted">
             Floor {formatPrice(recommendation.floor_price, resolvedUnit)} · Ceiling{" "}
             {formatPrice(recommendation.ceiling_price, resolvedUnit)}
           </p>
           {recommendation.rationale && (
-            <p className="mt-2 text-xs text-night-200">{recommendation.rationale}</p>
+            <p className="mt-2 text-xs text-fg-muted">{recommendation.rationale}</p>
           )}
           {onApply && (
             <Button

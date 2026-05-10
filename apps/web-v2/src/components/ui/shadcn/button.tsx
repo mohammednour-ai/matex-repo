@@ -19,13 +19,13 @@ const buttonVariants = cva(
         primary:
           "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-500 disabled:bg-brand-300 shadow-sm hover:shadow-glow-brand",
         secondary:
-          "bg-night-850 text-night-100 border border-night-700 hover:bg-night-900 hover:border-night-600 focus-visible:ring-zinc-400 disabled:text-night-300",
+          "bg-surfaceBg text-fg border border-line hover:bg-canvas hover:border-line-strong focus-visible:ring-zinc-400 disabled:text-fg-subtle",
         accent:
           "bg-accent-500 text-white hover:bg-accent-600 focus-visible:ring-accent-400 disabled:bg-accent-300 shadow-sm hover:shadow-glow-accent",
         danger:
           "bg-danger-600 text-white hover:bg-danger-700 focus-visible:ring-danger-500 disabled:bg-danger-300",
         ghost:
-          "bg-transparent text-night-200 hover:bg-night-800 focus-visible:ring-zinc-400 disabled:text-night-300",
+          "bg-transparent text-fg-muted hover:bg-elevated focus-visible:ring-zinc-400 disabled:text-fg-subtle",
       },
       size: {
         sm: "h-8 px-3 text-sm gap-1.5",

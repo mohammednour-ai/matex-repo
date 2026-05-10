@@ -64,10 +64,10 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
   }
   if (alerts.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-night-700 bg-night-850/90 p-6 text-center">
-        <Bell className="mx-auto h-6 w-6 text-night-300" />
-        <p className="mt-2 text-sm font-semibold text-night-200">No price alerts yet</p>
-        <p className="mt-1 text-xs text-night-300">
+      <div className="rounded-2xl border border-dashed border-line bg-surfaceBg/90 p-6 text-center">
+        <Bell className="mx-auto h-6 w-6 text-fg-subtle" />
+        <p className="mt-2 text-sm font-semibold text-fg-muted">No price alerts yet</p>
+        <p className="mt-1 text-xs text-fg-subtle">
           Create one to get notified when material prices cross your threshold.
         </p>
       </div>
@@ -75,7 +75,7 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
   }
 
   return (
-    <ul className="divide-y divide-night-700 rounded-2xl border border-night-700 bg-night-850">
+    <ul className="divide-y divide-night-700 rounded-2xl border border-line bg-surfaceBg">
       {alerts.map((alert) => {
         const material = getMaterial(alert.material_key);
         const unit = material?.unit ?? "mt";
@@ -86,10 +86,10 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
             className={clsx("flex items-center justify-between gap-3 px-4 py-3", muted && "opacity-70")}
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-night-100">
+              <p className="truncate text-sm font-semibold text-fg">
                 {alert.material_label ?? material?.label ?? alert.material_key}
               </p>
-              <p className="text-xs text-night-300">
+              <p className="text-xs text-fg-subtle">
                 {TYPE_LABEL[alert.alert_type] ?? alert.alert_type}
                 {alert.threshold !== null
                   ? ` · ${formatPrice(alert.threshold, unit)}`
@@ -99,14 +99,14 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
                   ? ` · last fired ${formatRelativeAgo(alert.last_triggered_at)}`
                   : ` · created ${formatRelativeAgo(alert.created_at)}`}
               </p>
-              {alert.note && <p className="mt-0.5 truncate text-[11px] text-night-300">{alert.note}</p>}
+              {alert.note && <p className="mt-0.5 truncate text-[11px] text-fg-subtle">{alert.note}</p>}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => toggle(alert)}
                 title={alert.status === "active" ? "Pause alert" : "Resume alert"}
-                className="rounded-full border border-night-700 p-1.5 text-night-200 transition-colors hover:border-brand-400 hover:text-brand-700"
+                className="rounded-full border border-line p-1.5 text-fg-muted transition-colors hover:border-brand-400 hover:text-brand-700"
               >
                 {alert.status === "active" ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
               </button>
@@ -114,7 +114,7 @@ export function PriceAlertsList({ refreshKey }: { refreshKey?: number }) {
                 type="button"
                 onClick={() => remove(alert)}
                 title="Delete alert"
-                className="rounded-full border border-night-700 p-1.5 text-night-200 transition-colors hover:border-danger-400 hover:text-danger-400"
+                className="rounded-full border border-line p-1.5 text-fg-muted transition-colors hover:border-danger-400 hover:text-danger-400"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>

@@ -114,11 +114,11 @@ export default function CreateEscrowPage() {
             <p className="mt-1 text-sm text-success-400">
               {formatCAD(order.grand_total)} is now held in escrow.
             </p>
-            <div className="mt-4 flex items-center justify-between rounded-lg border border-emerald-300 bg-night-850 px-4 py-2.5">
-              <span className="text-xs text-night-300">Escrow ID</span>
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-emerald-300 bg-surfaceBg px-4 py-2.5">
+              <span className="text-xs text-fg-subtle">Escrow ID</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-night-100 truncate max-w-[160px]">{escrowId}</span>
-                <button onClick={handleCopy} className="text-night-300 hover:text-night-200">
+                <span className="font-mono text-sm font-semibold text-fg truncate max-w-[160px]">{escrowId}</span>
+                <button onClick={handleCopy} className="text-fg-subtle hover:text-fg-muted">
                   {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
@@ -126,7 +126,7 @@ export default function CreateEscrowPage() {
           </div>
 
           <div className="marketplace-card p-5">
-            <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
+            <h3 className="text-sm font-semibold text-fg-muted mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
                 { label: "Inspection booking", href: "/inspections", cta: "Book Inspection" },
@@ -138,7 +138,7 @@ export default function CreateEscrowPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-night-200">{s.label}</span>
+                    <span className="text-sm text-fg-muted">{s.label}</span>
                   </div>
                   <a href={s.href} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
                     {s.cta} <ArrowRight className="h-3 w-3" />
@@ -165,30 +165,30 @@ export default function CreateEscrowPage() {
 
       {/* Order summary */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Order Summary</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Order Summary</h2>
         <div className="flex items-start gap-4 mb-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
             <Package className="h-6 w-6 text-blue-500" />
           </div>
           <div>
-            <p className="font-semibold text-night-100">{order.title}</p>
-            <p className="text-sm text-night-300">Seller: {order.seller}</p>
-            <p className="text-sm text-night-300">Qty: {order.quantity} @ {formatCAD(order.unit_price)}/MT</p>
+            <p className="font-semibold text-fg">{order.title}</p>
+            <p className="text-sm text-fg-subtle">Seller: {order.seller}</p>
+            <p className="text-sm text-fg-subtle">Qty: {order.quantity} @ {formatCAD(order.unit_price)}/MT</p>
           </div>
         </div>
 
-        <div className="space-y-2 border-t border-night-700/60 pt-4">
+        <div className="space-y-2 border-t border-line/60 pt-4">
           {[
             { label: "Material price", value: formatCAD(order.total_price) },
             { label: "Platform commission (3.5%)", value: formatCAD(order.commission), sub: true },
             { label: "HST (13%)", value: formatCAD(order.tax), sub: true },
           ].map((r) => (
-            <div key={r.label} className={`flex justify-between text-sm ${r.sub ? "text-night-300" : "text-night-200"}`}>
+            <div key={r.label} className={`flex justify-between text-sm ${r.sub ? "text-fg-subtle" : "text-fg-muted"}`}>
               <span>{r.label}</span>
               <span>{r.value}</span>
             </div>
           ))}
-          <div className="flex justify-between border-t border-night-700 pt-2 font-bold text-night-100">
+          <div className="flex justify-between border-t border-line pt-2 font-bold text-fg">
             <span>Total to escrow</span>
             <span className="text-blue-600 text-lg">{formatCAD(order.grand_total)}</span>
           </div>
@@ -203,7 +203,7 @@ export default function CreateEscrowPage() {
 
       {/* Payment method */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Payment Method</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Payment Method</h2>
         <div className="space-y-3">
           <PaymentOption
             id="card"
@@ -214,8 +214,8 @@ export default function CreateEscrowPage() {
             onSelect={() => setPaymentMethod("card")}
           />
           {paymentMethod === "card" && (
-            <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
-              <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
+            <div className="ml-9 rounded-lg border border-line bg-canvas p-4">
+              <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
                 Stripe Elements — Card input (placeholder)
               </div>
             </div>
@@ -249,9 +249,9 @@ export default function CreateEscrowPage() {
             type="checkbox"
             checked={accepted}
             onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-night-600 text-blue-600 focus:ring-blue-500"
+            className="mt-0.5 h-4 w-4 rounded border-line-strong text-blue-600 focus:ring-blue-500"
           />
-          <span className="text-sm text-night-200 leading-relaxed">
+          <span className="text-sm text-fg-muted leading-relaxed">
             I agree to the{" "}
             <a href="#" className="text-blue-600 hover:underline">Matex Escrow Terms</a>,{" "}
             <a href="#" className="text-blue-600 hover:underline">Platform Fee Schedule</a>, and confirm
@@ -278,8 +278,8 @@ export default function CreateEscrowPage() {
 function PartyCard({ role, name }: { role: string; name: string }) {
   return (
     <div className="marketplace-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-1">{role}</p>
-      <p className="font-medium text-night-100 text-sm truncate">{name}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-1">{role}</p>
+      <p className="font-medium text-fg text-sm truncate">{name}</p>
     </div>
   );
 }
@@ -304,7 +304,7 @@ function PaymentOption({
   return (
     <label
       className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
-        selected ? "border-blue-500 bg-brand-500/10" : "border-night-700 hover:border-night-600"
+        selected ? "border-blue-500 bg-brand-500/10" : "border-line hover:border-line-strong"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input
@@ -316,10 +316,10 @@ function PaymentOption({
         disabled={disabled}
         className="sr-only"
       />
-      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
+      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-fg-subtle"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-night-200"}`}>{label}</p>
-        <p className="text-xs text-night-300">{description}</p>
+        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-fg-muted"}`}>{label}</p>
+        <p className="text-xs text-fg-subtle">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}
     </label>

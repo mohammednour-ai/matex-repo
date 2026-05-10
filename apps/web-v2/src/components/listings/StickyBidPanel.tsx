@@ -113,7 +113,7 @@ export function StickyBidPanel({
           {bidCount ?? 0} bid{bidCount === 1 ? "" : "s"} placed
         </p>
         {biddingEndsAt && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-night-850/70 px-3 py-2 ring-1 ring-brand-100">
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-surfaceBg/70 px-3 py-2 ring-1 ring-brand-100">
             <Clock className="h-4 w-4 text-brand-500" />
             <span className="text-xs text-brand-700">Ends in</span>
             <CountdownTimer
@@ -156,7 +156,7 @@ export function StickyBidPanel({
               day: "numeric",
             })}
           </p>
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-night-850/70 px-3 py-2 ring-1 ring-amber-200">
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-surfaceBg/70 px-3 py-2 ring-1 ring-amber-200">
             <Clock className="h-4 w-4 text-amber-500" />
             <span className="text-xs text-warning-400">Starts in</span>
             <CountdownTimer

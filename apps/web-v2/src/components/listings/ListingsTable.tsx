@@ -100,7 +100,7 @@ function exportCsv(rows: ListingsTableRow[]): void {
 }
 
 const columns: ColumnDef<ListingsTableRow>[] = [
-  { accessorKey: "title", header: "Title", cell: (i) => <span className="font-medium text-night-100">{i.getValue() as string}</span> },
+  { accessorKey: "title", header: "Title", cell: (i) => <span className="font-medium text-fg">{i.getValue() as string}</span> },
   { accessorKey: "category", header: "Category", cell: (i) => (i.getValue() as string) ?? "—" },
   {
     accessorKey: "sale_mode",
@@ -145,22 +145,22 @@ export function ListingsTable({ rows }: { rows: ListingsTableRow[] }) {
   });
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-night-700 bg-night-850 shadow-sm">
-      <div className="flex items-center justify-between border-b border-night-700 px-4 py-3">
-        <p className="text-sm text-night-200">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surfaceBg shadow-sm">
+      <div className="flex items-center justify-between border-b border-line px-4 py-3">
+        <p className="text-sm text-fg-muted">
           {rows.length} listing{rows.length === 1 ? "" : "s"}
         </p>
         <button
           type="button"
           onClick={() => exportCsv(rows)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-night-700 bg-night-850 px-3 py-1.5 text-xs font-semibold text-night-100 hover:bg-night-900"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surfaceBg px-3 py-1.5 text-xs font-semibold text-fg hover:bg-canvas"
         >
           <Download className="h-3.5 w-3.5" /> Export CSV
         </button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-night-900 text-left text-xs uppercase tracking-wide text-night-200">
+          <thead className="bg-canvas text-left text-xs uppercase tracking-wide text-fg-muted">
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((h) => (
@@ -184,9 +184,9 @@ export function ListingsTable({ rows }: { rows: ListingsTableRow[] }) {
           </thead>
           <tbody className="divide-y divide-zinc-100">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-night-900">
+              <tr key={row.id} className="hover:bg-canvas">
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3 text-night-100">
+                  <td key={cell.id} className="px-4 py-3 text-fg">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}

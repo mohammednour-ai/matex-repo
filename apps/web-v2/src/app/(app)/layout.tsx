@@ -117,7 +117,7 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
         />
         <div className="relative flex flex-col items-center gap-3">
           <div className="h-11 w-11 rounded-2xl border-2 border-brand-500/30 border-t-brand-500 animate-spin shadow-[0_0_18px_-6px_rgba(232,119,34,0.30)]" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-night-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-fg-subtle">
             Loading Matex
           </p>
         </div>
@@ -273,16 +273,16 @@ function Sidebar({
           <div className={collapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-night-300">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-fg-subtle">
                   Experience
                 </p>
-                <p className="mt-1 text-xs text-night-300">Production-grade workspace</p>
+                <p className="mt-1 text-xs text-fg-subtle">Production-grade workspace</p>
               </div>
             )}
             <button
               onClick={onToggle}
               type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/[0.04] text-night-300 transition-colors hover:text-night-100 hover:bg-night-850/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/[0.04] text-fg-subtle transition-colors hover:text-fg hover:bg-surfaceBg/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -335,7 +335,7 @@ function Sidebar({
                     onClick={onMobileClose}
                     type="button"
                     aria-label="Close navigation"
-                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/[0.04] text-night-300 hover:bg-night-850/[0.08] hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/[0.04] text-fg-subtle hover:bg-surfaceBg/[0.08] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
                     <X size={18} aria-hidden />
                   </button>
@@ -361,7 +361,7 @@ function MobileMenuTrigger({ onOpen }: { onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       aria-label="Open navigation"
-      className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-night-700 bg-night-850/80 text-night-200 backdrop-blur transition-colors hover:border-brand-400/40 hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:hidden"
+      className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/80 text-fg-muted backdrop-blur transition-colors hover:border-brand-400/40 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:hidden"
     >
       <Menu size={20} aria-hidden />
     </button>
@@ -400,16 +400,16 @@ function UserMenu() {
           aria-label="Account menu"
           aria-expanded={avatarOpen}
           aria-haspopup="true"
-          className="flex items-center gap-3 rounded-2xl border border-night-700 bg-night-850/80 px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition-all hover:border-brand-400/40 hover:bg-night-800/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surfaceBg/80 px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition-all hover:border-brand-400/40 hover:bg-elevated/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
         >
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-night-700 to-night-800 text-sm font-black text-white ring-1 ring-brand-500/30 shadow-[0_8px_20px_-10px_rgba(0,0,0,0.65)]">
             {userInitial}
           </span>
           <span className="hidden min-w-0 sm:block">
-            <span className="block truncate text-sm font-semibold text-night-100">
+            <span className="block truncate text-sm font-semibold text-fg">
               {user?.email?.split("@")[0] ?? "Matex user"}
             </span>
-            <span className="text-xs text-night-300">{companyLabel}</span>
+            <span className="text-xs text-fg-subtle">{companyLabel}</span>
           </span>
         </button>
 
@@ -420,15 +420,15 @@ function UserMenu() {
               onClick={() => setAvatarOpen(false)}
               aria-hidden
             />
-            <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-night-700 bg-night-900 py-1 shadow-2xl">
-              <div className="border-b border-night-700/60 px-4 py-3">
-                <p className="truncate text-sm font-semibold text-night-100">
+            <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-line bg-canvas py-1 shadow-2xl">
+              <div className="border-b border-line/60 px-4 py-3">
+                <p className="truncate text-sm font-semibold text-fg">
                   {user?.email?.split("@")[0] ?? "Matex user"}
                 </p>
-                <p className="truncate text-xs text-night-300">{user?.email}</p>
+                <p className="truncate text-xs text-fg-subtle">{user?.email}</p>
               </div>
-              <div className="border-b border-night-700/60 px-4 py-3">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-night-400">
+              <div className="border-b border-line/60 px-4 py-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-fg-disabled">
                   Theme
                 </p>
                 <ThemeToggle />
@@ -440,7 +440,7 @@ function UserMenu() {
                     setAvatarOpen(false);
                     router.push("/settings");
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-night-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-fg-muted transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
                   <Settings size={15} aria-hidden />
                   Settings
@@ -451,7 +451,7 @@ function UserMenu() {
                     setAvatarOpen(false);
                     handleSignOut();
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-danger-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-fg-muted transition-colors hover:bg-elevated hover:text-danger-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
                   <LogOut size={15} aria-hidden />
                   Sign out

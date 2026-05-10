@@ -309,12 +309,12 @@ export default function CheckoutPage() {
               <div className="flex flex-col items-center">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold shrink-0 ${
-                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-night-700 text-night-300"
+                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-night-700 text-fg-subtle"
                   }`}
                 >
                   {done ? "✓" : s}
                 </div>
-                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-brand-400" : done ? "text-emerald-600" : "text-night-300"}`}>
+                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-brand-400" : done ? "text-emerald-600" : "text-fg-subtle"}`}>
                   {label}
                 </p>
               </div>
@@ -328,21 +328,21 @@ export default function CheckoutPage() {
       {step === 1 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Order Details</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Order Details</h2>
             <div className="flex items-start gap-4 mb-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
                 <Image src="/grphs/Icons/cart-i-cart.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" aria-hidden />
               </div>
               <div>
-                <p className="font-semibold text-night-100">{item.title}</p>
-                <p className="text-sm text-night-300">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
+                <p className="font-semibold text-fg">{item.title}</p>
+                <p className="text-sm text-fg-subtle">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
                 <Badge variant="gray" className="mt-1">{item.material_category}</Badge>
               </div>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Price Breakdown</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Price Breakdown</h2>
             {taxLoading ? (
               <div className="flex justify-center py-6">
                 <Spinner className="h-6 w-6 text-blue-500" />
@@ -361,7 +361,7 @@ export default function CheckoutPage() {
                 {effectiveTax.gst > 0 && <TaxLine label="GST (5%)" value={formatCAD(effectiveTax.gst)} sub />}
                 {effectiveTax.pst > 0 && <TaxLine label="PST (7%)" value={formatCAD(effectiveTax.pst)} sub />}
                 <TaxLine label="Est. shipping (Day & Ross)" value={formatCAD(shippingEstimate)} sub />
-                <div className="flex justify-between border-t border-night-700 pt-3 font-bold text-night-100 text-base">
+                <div className="flex justify-between border-t border-line pt-3 font-bold text-fg text-base">
                   <span>Total</span>
                   <span className="text-blue-600">{formatCAD(grandTotal)}</span>
                 </div>
@@ -379,7 +379,7 @@ export default function CheckoutPage() {
       {step === 2 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Select Payment Method</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Select Payment Method</h2>
             <div className="space-y-3">
               <PaymentOption
                 id="card"
@@ -390,16 +390,16 @@ export default function CheckoutPage() {
                 onSelect={() => setPaymentMethod("card")}
               />
               {paymentMethod === "card" && (
-                <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
+                <div className="ml-9 rounded-lg border border-line bg-canvas p-4">
                   <div className="space-y-3">
-                    <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
+                    <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
                       Stripe Elements — Card Number (placeholder)
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
+                      <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
                         Expiry
                       </div>
-                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
+                      <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
                         CVC
                       </div>
                     </div>
@@ -462,26 +462,26 @@ export default function CheckoutPage() {
 
           <div className="marketplace-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-night-300">Invoice Number</span>
+              <span className="text-sm text-fg-subtle">Invoice Number</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-night-100">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
+                <span className="font-mono text-sm font-semibold text-fg">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
                 <button onClick={() => { navigator.clipboard.writeText(invoiceNumber); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-night-300" />}
+                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-fg-subtle" />}
                 </button>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-night-300">Escrow Status</span>
+              <span className="text-sm text-fg-subtle">Escrow Status</span>
               <Badge variant="info">Funds Held</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-night-300">Amount</span>
-              <span className="font-bold text-night-100">{formatCAD(grandTotal)}</span>
+              <span className="text-sm text-fg-subtle">Amount</span>
+              <span className="font-bold text-fg">{formatCAD(grandTotal)}</span>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
+            <h3 className="text-sm font-semibold text-fg-muted mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
                 { label: "Book inspection", href: "/inspections", cta: "Schedule" },
@@ -493,7 +493,7 @@ export default function CheckoutPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-night-200">{s.label}</span>
+                    <span className="text-sm text-fg-muted">{s.label}</span>
                   </div>
                   <a href={s.href} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
                     {s.cta} <ArrowRight className="h-3 w-3" />
@@ -514,7 +514,7 @@ export default function CheckoutPage() {
 
 function TaxLine({ label, value, sub = false }: { label: string; value: string; sub?: boolean }) {
   return (
-    <div className={`flex justify-between text-sm ${sub ? "text-night-300" : "text-night-200 font-medium"}`}>
+    <div className={`flex justify-between text-sm ${sub ? "text-fg-subtle" : "text-fg-muted font-medium"}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -541,14 +541,14 @@ function PaymentOption({
   return (
     <label
       className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
-        selected ? "border-blue-500 bg-brand-500/10" : "border-night-700 hover:border-night-600"
+        selected ? "border-blue-500 bg-brand-500/10" : "border-line hover:border-line-strong"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input type="radio" name="checkout-payment" value={id} checked={selected} onChange={onSelect} disabled={disabled} className="sr-only" />
-      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
+      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-fg-subtle"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-night-200"}`}>{label}</p>
-        <p className="text-xs text-night-300">{description}</p>
+        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-fg-muted"}`}>{label}</p>
+        <p className="text-xs text-fg-subtle">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}
     </label>

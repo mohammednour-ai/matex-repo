@@ -44,7 +44,7 @@ export function CountdownTimer({ targetDate, className }: CountdownTimerProps) {
 
   if (timeLeft.ended) {
     return (
-      <span className={clsx("text-sm font-semibold text-night-300", className)}>
+      <span className={clsx("text-sm font-semibold text-fg-subtle", className)}>
         Ended
       </span>
     );
@@ -59,20 +59,20 @@ export function CountdownTimer({ targetDate, className }: CountdownTimerProps) {
     <div
       className={clsx(
         "inline-flex items-center gap-1 font-mono text-sm font-semibold tabular-nums",
-        isUrgent ? "text-red-600" : isWarning ? "text-amber-600" : "text-night-200",
+        isUrgent ? "text-red-600" : isWarning ? "text-amber-600" : "text-fg-muted",
         className
       )}
     >
       {timeLeft.days > 0 && (
         <>
           <span>{timeLeft.days}d</span>
-          <span className="text-night-300">:</span>
+          <span className="text-fg-subtle">:</span>
         </>
       )}
       <span>{pad(timeLeft.hours)}h</span>
-      <span className="text-night-300">:</span>
+      <span className="text-fg-subtle">:</span>
       <span>{pad(timeLeft.minutes)}m</span>
-      <span className="text-night-300">:</span>
+      <span className="text-fg-subtle">:</span>
       <span>{pad(timeLeft.seconds)}s</span>
     </div>
   );

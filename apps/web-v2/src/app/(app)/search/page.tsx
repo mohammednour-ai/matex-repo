@@ -150,14 +150,14 @@ function ListingCard({
   const gradientIdx = listing.listing_id.charCodeAt(0) % gradientColors.length;
 
   return (
-    <div className="bg-night-850 rounded-xl border border-night-700 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-surfaceBg rounded-xl border border-line overflow-hidden hover:shadow-md transition-shadow flex flex-col">
       {/* Photo */}
       <div className="relative h-44">
         {listing.photo_url ? (
           <img src={listing.photo_url} alt={listing.title} className="w-full h-full object-cover" />
         ) : (
           <div className={clsx("w-full h-full bg-gradient-to-br flex items-center justify-center", gradientColors[gradientIdx])}>
-            <Package size={36} className="text-night-300" />
+            <Package size={36} className="text-fg-subtle" />
           </div>
         )}
         {/* Sale mode badge */}
@@ -167,10 +167,10 @@ function ListingCard({
         {/* Save button */}
         <button
           onClick={() => onSave(listing.listing_id)}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-night-850/80 backdrop-blur-sm flex items-center justify-center hover:bg-night-850 transition-colors shadow-sm"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-surfaceBg/80 backdrop-blur-sm flex items-center justify-center hover:bg-surfaceBg transition-colors shadow-sm"
           aria-label="Save listing"
         >
-          <Heart size={14} className="text-night-300 hover:text-red-500 transition-colors" />
+          <Heart size={14} className="text-fg-subtle hover:text-red-500 transition-colors" />
         </button>
       </div>
 
@@ -178,8 +178,8 @@ function ListingCard({
       <div className="p-4 flex flex-col flex-1 gap-2">
         {/* Title + Province */}
         <div className="flex items-start gap-2">
-          <h3 className="font-semibold text-night-100 text-sm leading-snug flex-1 line-clamp-2">{listing.title}</h3>
-          <span className="text-xs bg-night-800 text-night-200 px-1.5 py-0.5 rounded font-medium flex-shrink-0">
+          <h3 className="font-semibold text-fg text-sm leading-snug flex-1 line-clamp-2">{listing.title}</h3>
+          <span className="text-xs bg-elevated text-fg-muted px-1.5 py-0.5 rounded font-medium flex-shrink-0">
             {listing.seller_province}
           </span>
         </div>
@@ -189,13 +189,13 @@ function ListingCard({
           <span className="text-xl font-bold text-brand-600">
             ${listing.price.toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className="text-xs text-night-300">CAD / {listing.unit}</span>
+          <span className="text-xs text-fg-subtle">CAD / {listing.unit}</span>
         </div>
 
         {/* Specs row */}
-        <div className="flex flex-wrap gap-1.5 text-xs text-night-200">
-          <span className="bg-night-900 border border-night-700 rounded px-1.5 py-0.5">{listing.material_grade}</span>
-          <span className="bg-night-900 border border-night-700 rounded px-1.5 py-0.5">
+        <div className="flex flex-wrap gap-1.5 text-xs text-fg-muted">
+          <span className="bg-canvas border border-line rounded px-1.5 py-0.5">{listing.material_grade}</span>
+          <span className="bg-canvas border border-line rounded px-1.5 py-0.5">
             {listing.quantity.toLocaleString()} {listing.unit}
           </span>
         </div>
@@ -209,14 +209,14 @@ function ListingCard({
         {listing.sale_mode === "bidding" && listing.bidding_ends_at && (
           <div className="flex items-center justify-between text-xs bg-brand-500/10 rounded-lg px-3 py-2">
             <div>
-              <p className="text-night-300">Current Bid</p>
+              <p className="text-fg-subtle">Current Bid</p>
               <p className="font-semibold text-brand-400">
                 ${(listing.current_bid ?? listing.price).toLocaleString("en-CA", { minimumFractionDigits: 2 })} CAD
               </p>
-              <p className="text-night-300 mt-0.5">{listing.bid_count ?? 0} bids</p>
+              <p className="text-fg-subtle mt-0.5">{listing.bid_count ?? 0} bids</p>
             </div>
             <div className="text-right">
-              <p className="text-night-300">Ends in</p>
+              <p className="text-fg-subtle">Ends in</p>
               <CountdownTimer targetDate={listing.bidding_ends_at} />
             </div>
           </div>
@@ -226,7 +226,7 @@ function ListingCard({
         {listing.sale_mode === "auction" && listing.auction_session_date && (
           <div className="flex items-center justify-between text-xs bg-warning-500/10 rounded-lg px-3 py-2">
             <div>
-              <p className="text-night-300">Session</p>
+              <p className="text-fg-subtle">Session</p>
               <p className="font-medium text-warning-400">
                 {new Date(listing.auction_session_date).toLocaleDateString("en-CA", {
                   month: "short", day: "numeric", year: "numeric",
@@ -252,7 +252,7 @@ function ListingCard({
           </Link>
           <button
             onClick={() => onMessageSeller(listing.listing_id, listing.title)}
-            className="flex items-center gap-1 text-xs font-medium text-night-200 bg-night-800 hover:bg-night-700 px-2 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-fg-muted bg-elevated hover:bg-night-700 px-2 py-1.5 rounded-lg transition-colors"
             aria-label="Message seller"
           >
             <MessageSquare size={13} />
@@ -344,21 +344,21 @@ function FilterSidebar({
     <aside className="marketplace-card sticky top-24 h-fit max-h-[calc(100vh-7rem)] w-[260px] flex-shrink-0 space-y-5 overflow-y-auto p-4">
       {/* Search query */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-1.5 uppercase tracking-wide">Search</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-1.5 uppercase tracking-wide">Search</label>
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-night-300" />
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onSearch()}
             placeholder="Materials, grades…"
-            className="w-full pl-8 pr-3 py-2 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400"
+            className="w-full pl-8 pr-3 py-2 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 focus:border-brand-400"
           />
           {query && (
             <button
               onClick={() => { setQuery(""); onSearch(); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-night-300 hover:text-night-200"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg-muted"
             >
               <X size={12} />
             </button>
@@ -368,7 +368,7 @@ function FilterSidebar({
 
       {/* Category */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Category</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Category</label>
         <div className="flex flex-wrap gap-1.5">
           {MATERIAL_CATEGORIES.map((cat) => {
             const active = categories.includes(cat.name);
@@ -380,14 +380,14 @@ function FilterSidebar({
                   "inline-flex items-center gap-1.5 text-xs pl-1.5 pr-2.5 py-1 rounded-full border transition-colors",
                   active
                     ? "bg-brand-600 text-white border-brand-600"
-                    : "bg-night-850 text-night-200 border-night-700 hover:border-brand-400",
+                    : "bg-surfaceBg text-fg-muted border-line hover:border-brand-400",
                 )}
               >
                 {cat.icon ? (
                   <span
                     className={clsx(
                       "flex h-5 w-5 items-center justify-center rounded-full overflow-hidden",
-                      active ? "bg-night-850/20" : "bg-night-900",
+                      active ? "bg-surfaceBg/20" : "bg-canvas",
                     )}
                   >
                     <Image src={cat.icon} alt="" width={20} height={20} className="object-contain" />
@@ -402,7 +402,7 @@ function FilterSidebar({
 
       {/* Material type */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Material Type</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Material Type</label>
         <div className="space-y-1">
           {(["scrap", "surplus", "both"] as MaterialType[]).map((t) => (
             <label key={t} className="flex items-center gap-2 cursor-pointer">
@@ -414,7 +414,7 @@ function FilterSidebar({
                 onChange={() => setMaterialType(t)}
                 className="text-brand-600 focus:ring-brand-400"
               />
-              <span className="text-sm text-night-200 capitalize">{t === "both" ? "Scrap & Surplus" : t}</span>
+              <span className="text-sm text-fg-muted capitalize">{t === "both" ? "Scrap & Surplus" : t}</span>
             </label>
           ))}
         </div>
@@ -422,7 +422,7 @@ function FilterSidebar({
 
       {/* Province */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Province</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Province</label>
         <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
           {CANADIAN_PROVINCES.map((p) => (
             <label key={p.code} className="flex items-center gap-2 cursor-pointer">
@@ -432,7 +432,7 @@ function FilterSidebar({
                 onChange={() => toggleProvince(p.code)}
                 className="rounded text-brand-600 focus:ring-brand-400"
               />
-              <span className="text-xs text-night-200">{p.name}</span>
+              <span className="text-xs text-fg-muted">{p.name}</span>
             </label>
           ))}
         </div>
@@ -440,7 +440,7 @@ function FilterSidebar({
 
       {/* Price range */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Price (CAD)</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Price (CAD)</label>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -448,16 +448,16 @@ function FilterSidebar({
             value={priceMin}
             onChange={(e) => setPriceMin(e.target.value)}
             placeholder="Min"
-            className="w-full px-2 py-1.5 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full px-2 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
-          <span className="text-night-300 text-xs flex-shrink-0">to</span>
+          <span className="text-fg-subtle text-xs flex-shrink-0">to</span>
           <input
             type="number"
             min={0}
             value={priceMax}
             onChange={(e) => setPriceMax(e.target.value)}
             placeholder="Max"
-            className="w-full px-2 py-1.5 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full px-2 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
         </div>
       </div>
@@ -465,11 +465,11 @@ function FilterSidebar({
       {/* Weight range */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-night-200 uppercase tracking-wide">Weight</label>
+          <label className="text-xs font-semibold text-fg-muted uppercase tracking-wide">Weight</label>
           <select
             value={weightUnit}
             onChange={(e) => setWeightUnit(e.target.value)}
-            className="text-xs border border-night-700 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 text-night-200"
+            className="text-xs border border-line rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400 text-fg-muted"
           >
             {["kg", "lb", "tonne", "MT"].map((u) => (
               <option key={u} value={u}>{u}</option>
@@ -483,23 +483,23 @@ function FilterSidebar({
             value={weightMin}
             onChange={(e) => setWeightMin(e.target.value)}
             placeholder="Min"
-            className="w-full px-2 py-1.5 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full px-2 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
-          <span className="text-night-300 text-xs flex-shrink-0">to</span>
+          <span className="text-fg-subtle text-xs flex-shrink-0">to</span>
           <input
             type="number"
             min={0}
             value={weightMax}
             onChange={(e) => setWeightMax(e.target.value)}
             placeholder="Max"
-            className="w-full px-2 py-1.5 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
+            className="w-full px-2 py-1.5 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
           />
         </div>
       </div>
 
       {/* Sale mode */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Sale Mode</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Sale Mode</label>
         <div className="space-y-1">
           {(["fixed", "bidding", "auction"] as SaleMode[]).map((mode) => (
             <label key={mode} className="flex items-center gap-2 cursor-pointer">
@@ -510,7 +510,7 @@ function FilterSidebar({
                 className="rounded text-brand-600 focus:ring-brand-400"
               />
               <span className={clsx("inline-block w-2 h-2 rounded-full flex-shrink-0", SALE_MODE_CONFIG[mode].color)} />
-              <span className="text-sm text-night-200">{SALE_MODE_CONFIG[mode].label}</span>
+              <span className="text-sm text-fg-muted">{SALE_MODE_CONFIG[mode].label}</span>
             </label>
           ))}
         </div>
@@ -519,7 +519,7 @@ function FilterSidebar({
       {/* Inspection required */}
       <div>
         <label className="flex items-center justify-between cursor-pointer">
-          <span className="text-xs font-semibold text-night-200 uppercase tracking-wide">Inspection Required</span>
+          <span className="text-xs font-semibold text-fg-muted uppercase tracking-wide">Inspection Required</span>
           <div
             role="switch"
             aria-checked={inspectionOnly}
@@ -531,7 +531,7 @@ function FilterSidebar({
           >
             <span
               className={clsx(
-                "absolute top-0.5 w-4 h-4 bg-night-850 rounded-full shadow transition-transform",
+                "absolute top-0.5 w-4 h-4 bg-surfaceBg rounded-full shadow transition-transform",
                 inspectionOnly ? "translate-x-5" : "translate-x-0.5"
               )}
             />
@@ -541,11 +541,11 @@ function FilterSidebar({
 
       {/* Sort */}
       <div>
-        <label className="block text-xs font-semibold text-night-200 mb-2 uppercase tracking-wide">Sort By</label>
+        <label className="block text-xs font-semibold text-fg-muted mb-2 uppercase tracking-wide">Sort By</label>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as SortOption)}
-          className="w-full px-3 py-2 text-sm border border-night-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 text-night-200 bg-night-850"
+          className="w-full px-3 py-2 text-sm border border-line rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400 text-fg-muted bg-surfaceBg"
         >
           <option value="newest">Newest First</option>
           <option value="price_asc">Price: Low to High</option>
@@ -555,7 +555,7 @@ function FilterSidebar({
       </div>
 
       {/* Divider */}
-      <hr className="border-night-700/60" />
+      <hr className="border-line/60" />
 
       {/* Actions */}
       <div className="space-y-2">
@@ -595,20 +595,20 @@ function SavedSearchesPanel({
   return (
     <div className="marketplace-card mb-5 overflow-hidden">
       <button
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-night-900 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-canvas transition-colors"
         onClick={() => setExpanded((e) => !e)}
       >
-        <div className="flex items-center gap-2 text-sm font-medium text-night-200">
+        <div className="flex items-center gap-2 text-sm font-medium text-fg-muted">
           <BookmarkPlus size={15} className="text-brand-600" />
           <span>Saved Searches</span>
           <span className="bg-brand-100 text-brand-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
             {searches.length}
           </span>
         </div>
-        {expanded ? <ChevronUp size={16} className="text-night-300" /> : <ChevronDown size={16} className="text-night-300" />}
+        {expanded ? <ChevronUp size={16} className="text-fg-subtle" /> : <ChevronDown size={16} className="text-fg-subtle" />}
       </button>
       {expanded && (
-        <div className="border-t border-night-700/60 divide-y divide-gray-50">
+        <div className="border-t border-line/60 divide-y divide-gray-50">
           {searches.map((s) => (
             <button
               key={s.saved_search_id}
@@ -616,8 +616,8 @@ function SavedSearchesPanel({
               className="w-full text-left px-4 py-2.5 hover:bg-brand-500/10 transition-colors flex items-center justify-between group"
             >
               <div>
-                <p className="text-sm font-medium text-night-100 group-hover:text-brand-700">{s.name || s.query || "Untitled Search"}</p>
-                <p className="text-xs text-night-300 mt-0.5">
+                <p className="text-sm font-medium text-fg group-hover:text-brand-700">{s.name || s.query || "Untitled Search"}</p>
+                <p className="text-xs text-fg-subtle mt-0.5">
                   <Clock size={10} className="inline mr-1" />
                   {new Date(s.created_at).toLocaleDateString("en-CA")}
                 </p>
@@ -658,7 +658,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
       />
       {onSuggest && (
         <div className="mx-auto max-w-lg text-center">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-night-300">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
             Try searching for
           </p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -667,7 +667,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
                 key={s}
                 type="button"
                 onClick={() => onSuggest(s)}
-                className="rounded-full border border-night-700 bg-night-850 px-4 py-1.5 text-sm text-night-200 shadow-sm transition-all hover:border-brand-300 hover:bg-brand-500/10 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="rounded-full border border-line bg-surfaceBg px-4 py-1.5 text-sm text-fg-muted shadow-sm transition-all hover:border-brand-300 hover:bg-brand-500/10 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               >
                 {s}
               </button>
@@ -845,7 +845,7 @@ export default function SearchPage() {
         actions={
           <button
             type="button"
-            className="flex items-center gap-2 rounded-xl border border-night-700/80 bg-night-850/95 px-3 py-2 text-sm font-medium text-night-100 shadow-sm md:hidden"
+            className="flex items-center gap-2 rounded-xl border border-line/80 bg-surfaceBg/95 px-3 py-2 text-sm font-medium text-fg shadow-sm md:hidden"
             onClick={() => setFilterOpen(true)}
           >
             <SlidersHorizontal size={15} />
@@ -882,12 +882,12 @@ export default function SearchPage() {
           {/* Results header */}
           {searched && !loading && (
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-night-200">
-                Showing <span className="font-semibold text-night-100">{results.length}</span> result{results.length !== 1 ? "s" : ""}
+              <p className="text-sm text-fg-muted">
+                Showing <span className="font-semibold text-fg">{results.length}</span> result{results.length !== 1 ? "s" : ""}
                 {query && <> for <span className="font-medium text-brand-700">&ldquo;{query}&rdquo;</span></>}
               </p>
               {results.length > 0 && (
-                <span className="text-xs text-night-300">
+                <span className="text-xs text-fg-subtle">
                   Sorted: {sort === "newest" ? "Newest" : sort === "price_asc" ? "Price ↑" : sort === "price_desc" ? "Price ↓" : "Ending Soon"}
                 </span>
               )}
@@ -898,13 +898,13 @@ export default function SearchPage() {
           {loading && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-night-850 rounded-xl border border-night-700 overflow-hidden animate-pulse">
-                  <div className="h-44 bg-night-800" />
+                <div key={i} className="bg-surfaceBg rounded-xl border border-line overflow-hidden animate-pulse">
+                  <div className="h-44 bg-elevated" />
                   <div className="p-4 space-y-3">
-                    <div className="h-4 bg-night-800 rounded w-3/4" />
-                    <div className="h-6 bg-night-800 rounded w-1/2" />
-                    <div className="h-3 bg-night-800 rounded w-full" />
-                    <div className="h-8 bg-night-800 rounded w-full mt-4" />
+                    <div className="h-4 bg-elevated rounded w-3/4" />
+                    <div className="h-6 bg-elevated rounded w-1/2" />
+                    <div className="h-3 bg-elevated rounded w-full" />
+                    <div className="h-8 bg-elevated rounded w-full mt-4" />
                   </div>
                 </div>
               ))}
@@ -939,7 +939,7 @@ export default function SearchPage() {
               <div className="w-16 h-16 rounded-full bg-brand-500/10 flex items-center justify-center mb-4">
                 <Search size={28} className="text-brand-500" />
               </div>
-              <p className="text-sm text-night-300">Use the filters to find recycled materials</p>
+              <p className="text-sm text-fg-subtle">Use the filters to find recycled materials</p>
             </div>
           )}
         </div>

@@ -19,7 +19,7 @@ export function ThemeToggle(): JSX.Element {
     <div
       role="radiogroup"
       aria-label="Theme"
-      className="inline-flex items-center gap-1 rounded-xl border border-night-700 bg-night-850/80 p-1"
+      className="inline-flex items-center gap-1 rounded-xl border border-line bg-surfaceBg/80 p-1"
     >
       {OPTIONS.map(({ value, label, icon: Icon }) => {
         const active = theme === value;
@@ -35,7 +35,7 @@ export function ThemeToggle(): JSX.Element {
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500",
               active
                 ? "bg-brand-500/15 text-brand-400 ring-1 ring-brand-500/30"
-                : "text-night-300 hover:text-night-100 hover:bg-night-800",
+                : "text-fg-subtle hover:text-fg hover:bg-elevated",
             ].join(" ")}
             title={label}
           >

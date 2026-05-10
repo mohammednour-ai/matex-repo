@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16 text-night-100">
+    <main className="mx-auto max-w-3xl px-6 py-16 text-fg">
       <Link
         href="/"
         className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700 hover:text-brand-900"
       >
         ← Back to Matex
       </Link>
-      <h1 className="mt-6 text-3xl font-extrabold text-night-100">Privacy Policy</h1>
-      <p className="mt-2 text-sm text-night-300">Last updated: April 2026</p>
+      <h1 className="mt-6 text-3xl font-extrabold text-fg">Privacy Policy</h1>
+      <p className="mt-2 text-sm text-fg-subtle">Last updated: April 2026</p>
 
       <section className="mt-8 space-y-6 text-sm leading-relaxed">
         <p>
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           .
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">1. Information we collect</h2>
+        <h2 className="text-lg font-bold text-fg">1. Information we collect</h2>
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong>Account &amp; identity:</strong> name, business details,
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
           </li>
         </ul>
 
-        <h2 className="text-lg font-bold text-night-100">2. How we use it</h2>
+        <h2 className="text-lg font-bold text-fg">2. How we use it</h2>
         <p>
           Data is used to operate the marketplace, verify identity, settle
           escrow, route logistics, prevent fraud, and improve product
@@ -58,14 +58,14 @@ export default function PrivacyPage() {
           improve tooling but are never sold.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">3. Sharing</h2>
+        <h2 className="text-lg font-bold text-fg">3. Sharing</h2>
         <p>
           We share information with payment processors, KYC vendors,
           inspection partners, and logistics carriers strictly as needed to
           execute trades you initiate. We do not sell personal information.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">4. Your rights</h2>
+        <h2 className="text-lg font-bold text-fg">4. Your rights</h2>
         <p>
           You can request access to or deletion of your personal data,
           subject to record-keeping requirements imposed on regulated
@@ -76,7 +76,7 @@ export default function PrivacyPage() {
           to make a request.
         </p>
 
-        <h2 className="text-lg font-bold text-night-100">5. Security</h2>
+        <h2 className="text-lg font-bold text-fg">5. Security</h2>
         <p>
           Funds, KYC documents, and trade artifacts are stored encrypted at
           rest and in transit. Two-factor authentication is strongly

@@ -23,9 +23,9 @@ export function AppSectionCard({
   return (
     <Tag className={clsx("marketplace-card p-4 sm:p-5", className)}>
       {title != null || action != null ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-night-700/80 pb-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-line/80 pb-2">
           {title != null ? (
-            <div className="text-[11px] font-bold uppercase tracking-widest text-night-300">{title}</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-fg-subtle">{title}</div>
           ) : (
             <span className="min-w-0" />
           )}

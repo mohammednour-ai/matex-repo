@@ -301,12 +301,12 @@ export default function MessagesPage() {
         description="Negotiate with buyers and sellers in secure threads."
         className="mb-0 shrink-0 sm:mb-0"
       />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-night-700/80 bg-night-850/95 shadow-card md:h-[min(720px,calc(100vh-12rem))]">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-line/80 bg-surfaceBg/95 shadow-card md:h-[min(720px,calc(100vh-12rem))]">
       {/* ── Left: Thread List ───────────────────────────────────────────── */}
-      <aside className="flex w-80 shrink-0 flex-col border-r border-night-700/80 bg-night-850">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-line/80 bg-surfaceBg">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-night-700/60 px-4 py-3.5">
-          <h2 className="font-semibold text-night-100">Messages</h2>
+        <div className="flex items-center justify-between border-b border-line/60 px-4 py-3.5">
+          <h2 className="font-semibold text-fg">Messages</h2>
           <button
             type="button"
             onClick={() => setShowNewThread(true)}
@@ -339,7 +339,7 @@ export default function MessagesPage() {
                   type="button"
                   onClick={() => setActiveThread(thread)}
                   className={clsx(
-                    "w-full border-b border-zinc-50 px-4 py-3.5 text-left transition-colors hover:bg-night-900",
+                    "w-full border-b border-zinc-50 px-4 py-3.5 text-left transition-colors hover:bg-canvas",
                     isActive && "border-l-2 border-l-brand-500 bg-brand-500/10"
                   )}
                 >
@@ -347,18 +347,18 @@ export default function MessagesPage() {
                     <div className="flex min-w-0 items-center gap-2.5">
                       <UserAvatar name={thread.other_user_name} />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-night-100">
+                        <p className="truncate text-sm font-semibold text-fg">
                           {thread.other_user_name}
                         </p>
                         {thread.listing_title && (
-                          <p className="truncate text-xs text-night-300">
+                          <p className="truncate text-xs text-fg-subtle">
                             {thread.listing_title}
                           </p>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <span className="text-xs text-night-300">
+                      <span className="text-xs text-fg-subtle">
                         {timeAgo(thread.last_message_at)}
                       </span>
                       {thread.unread_count > 0 && (
@@ -368,7 +368,7 @@ export default function MessagesPage() {
                       )}
                     </div>
                   </div>
-                  <p className="ml-11 mt-1.5 truncate text-xs text-night-300">
+                  <p className="ml-11 mt-1.5 truncate text-xs text-fg-subtle">
                     {thread.last_message}
                   </p>
                 </button>
@@ -379,23 +379,23 @@ export default function MessagesPage() {
       </aside>
 
       {/* ── Center: Conversation ────────────────────────────────────────── */}
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-night-900">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
         {!activeThread ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-night-300">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-fg-subtle">
             <MessageSquare className="h-12 w-12 opacity-30" />
             <p className="text-sm">Select a conversation to get started</p>
           </div>
         ) : (
           <>
             {/* Conv header */}
-            <div className="flex items-center gap-3 border-b border-night-700 bg-night-850 px-5 py-3.5 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-line bg-surfaceBg px-5 py-3.5 shadow-sm">
               <UserAvatar name={activeThread.other_user_name} />
               <div>
-                <p className="text-sm font-semibold text-night-100">
+                <p className="text-sm font-semibold text-fg">
                   {activeThread.other_user_name}
                 </p>
                 {activeThread.listing_title && (
-                  <p className="text-xs text-night-300">
+                  <p className="text-xs text-fg-subtle">
                     Re: {activeThread.listing_title}
                   </p>
                 )}
@@ -415,7 +415,7 @@ export default function MessagesPage() {
                   <Spinner className="h-5 w-5 text-brand-500" />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-12 text-night-300">
+                <div className="flex flex-col items-center gap-2 py-12 text-fg-subtle">
                   <MessageSquare className="h-8 w-8 opacity-30" />
                   <p className="text-sm">No messages yet. Start the conversation!</p>
                 </div>
@@ -435,14 +435,14 @@ export default function MessagesPage() {
                           "max-w-xs rounded-2xl px-4 py-2.5 shadow-sm",
                           isMe
                             ? "rounded-br-sm bg-brand-600 text-white"
-                            : "rounded-bl-sm bg-night-850 text-night-100 ring-1 ring-zinc-100"
+                            : "rounded-bl-sm bg-surfaceBg text-fg ring-1 ring-zinc-100"
                         )}
                       >
                         <p className="text-sm leading-relaxed">{msg.content}</p>
                         <p
                           className={clsx(
                             "mt-1 text-right text-[11px]",
-                            isMe ? "text-brand-200" : "text-night-300"
+                            isMe ? "text-brand-200" : "text-fg-subtle"
                           )}
                         >
                           {formatMsgTime(msg.created_at)}
@@ -456,8 +456,8 @@ export default function MessagesPage() {
             </div>
 
             {/* Input */}
-            <div className="border-t border-night-700 bg-night-850 px-4 py-3">
-              <div className="flex items-center gap-2 rounded-xl border border-night-700 bg-night-900 px-3 py-2 focus-within:border-brand-400 focus-within:ring-1 focus-within:ring-brand-400 transition-colors">
+            <div className="border-t border-line bg-surfaceBg px-4 py-3">
+              <div className="flex items-center gap-2 rounded-xl border border-line bg-canvas px-3 py-2 focus-within:border-brand-400 focus-within:ring-1 focus-within:ring-brand-400 transition-colors">
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
@@ -469,7 +469,7 @@ export default function MessagesPage() {
                   }}
                   placeholder="Type a message… (Enter to send, Shift+Enter for newline)"
                   rows={1}
-                  className="flex-1 resize-none bg-transparent text-sm text-night-200 placeholder-zinc-400 focus:outline-none"
+                  className="flex-1 resize-none bg-transparent text-sm text-fg-muted placeholder-zinc-400 focus:outline-none"
                 />
                 <button
                   type="button"
@@ -490,9 +490,9 @@ export default function MessagesPage() {
       </main>
 
       {/* ── Right: Context Panel ─────────────────────────────────────────── */}
-      <aside className="hidden w-64 shrink-0 flex-col border-l border-night-700 bg-night-850 xl:flex">
-        <div className="border-b border-night-700/60 px-4 py-3.5">
-          <h3 className="text-sm font-semibold text-night-200">Context</h3>
+      <aside className="hidden w-64 shrink-0 flex-col border-l border-line bg-surfaceBg xl:flex">
+        <div className="border-b border-line/60 px-4 py-3.5">
+          <h3 className="text-sm font-semibold text-fg-muted">Context</h3>
         </div>
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {ctxLoading ? (
@@ -502,11 +502,11 @@ export default function MessagesPage() {
           ) : listingCtx ? (
             <>
               {/* Listing info */}
-              <div className="space-y-2 rounded-xl border border-night-700 bg-night-900 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-night-300">
+              <div className="space-y-2 rounded-xl border border-line bg-canvas p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                   Linked Listing
                 </p>
-                <p className="text-sm font-medium leading-snug text-night-100">
+                <p className="text-sm font-medium leading-snug text-fg">
                   {listingCtx.title}
                 </p>
                 <Badge
@@ -523,21 +523,21 @@ export default function MessagesPage() {
 
               {/* Quick actions */}
               <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-night-300">
+                <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                   Quick Actions
                 </p>
                 <Link
                   href={`/listings/${listingCtx.listing_id}`}
-                  className="flex items-center gap-2 rounded-lg border border-night-700 px-3 py-2.5 text-sm text-night-200 hover:bg-night-900 transition-colors"
+                  className="flex items-center gap-2 rounded-lg border border-line px-3 py-2.5 text-sm text-fg-muted hover:bg-canvas transition-colors"
                 >
-                  <Eye className="h-4 w-4 shrink-0 text-night-300" />
+                  <Eye className="h-4 w-4 shrink-0 text-fg-subtle" />
                   View Listing
                   <ExternalLink className="ml-auto h-3.5 w-3.5 text-zinc-300" />
                 </Link>
                 {listingCtx.escrow_id && (
                   <Link
                     href={`/escrow/${listingCtx.escrow_id}`}
-                    className="flex items-center gap-2 rounded-lg border border-night-700 px-3 py-2.5 text-sm text-night-200 hover:bg-night-900 transition-colors"
+                    className="flex items-center gap-2 rounded-lg border border-line px-3 py-2.5 text-sm text-fg-muted hover:bg-canvas transition-colors"
                   >
                     <Lock className="h-4 w-4 shrink-0 text-amber-400" />
                     Go to Escrow
@@ -546,7 +546,7 @@ export default function MessagesPage() {
                 )}
                 <Link
                   href={`/booking/new?listing_id=${listingCtx.listing_id}`}
-                  className="flex items-center gap-2 rounded-lg border border-night-700 px-3 py-2.5 text-sm text-night-200 hover:bg-night-900 transition-colors"
+                  className="flex items-center gap-2 rounded-lg border border-line px-3 py-2.5 text-sm text-fg-muted hover:bg-canvas transition-colors"
                 >
                   <Calendar className="h-4 w-4 shrink-0 text-brand-500" />
                   Book Inspection
@@ -575,7 +575,7 @@ export default function MessagesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-night-200">
+            <label className="mb-1.5 block text-sm font-medium text-fg-muted">
               Listing ID
             </label>
             <input
@@ -585,11 +585,11 @@ export default function MessagesPage() {
                 setNewThreadForm((f) => ({ ...f, listing_id: e.target.value }))
               }
               placeholder="Paste the listing ID"
-              className="w-full rounded-lg border border-night-600 px-3 py-2 text-sm text-night-200 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full rounded-lg border border-line-strong px-3 py-2 text-sm text-fg-muted placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-night-200">
+            <label className="mb-1.5 block text-sm font-medium text-fg-muted">
               Message
             </label>
             <textarea
@@ -599,7 +599,7 @@ export default function MessagesPage() {
               }
               placeholder="Hi, I'm interested in your listing…"
               rows={4}
-              className="w-full resize-none rounded-lg border border-night-600 px-3 py-2 text-sm text-night-200 placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full resize-none rounded-lg border border-line-strong px-3 py-2 text-sm text-fg-muted placeholder-zinc-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <div className="flex justify-end gap-2 pt-1">
