@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import {
   TrendingUp,
   DollarSign,
@@ -299,14 +298,12 @@ export default function AnalyticsPage() {
             ) : (
               <div className="flex items-center justify-center rounded-2xl border border-night-700/80 bg-night-850 p-10">
                 <div className="text-center">
-                  <Image
-                    src="/grphs/Platform%20Domains/analytics-d-analytics.png"
-                    alt=""
+                  <div
                     aria-hidden
-                    width={160}
-                    height={100}
-                    className="mx-auto mb-3 h-auto w-auto max-w-[10rem] opacity-70"
-                  />
+                    className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-night-700 bg-night-900 text-night-300"
+                  >
+                    <BarChart3 size={28} />
+                  </div>
                   <p className="text-sm text-night-300">Funnel data unavailable</p>
                 </div>
               </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import {
   User,
   Building2,
@@ -10,6 +9,7 @@ import {
   Upload,
   CheckCircle2,
   Circle,
+  BadgeCheck,
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool } from "@/lib/api";
@@ -131,14 +131,12 @@ function ProfileTab() {
     <div className="space-y-6 max-w-lg">
       {/* Profile illustration banner */}
       <div className="flex items-center gap-4 rounded-2xl bg-[linear-gradient(135deg,rgba(232,119,34,0.12),rgba(232,119,34,0.04)_60%,rgba(20,30,37,0.85))] border border-brand-500/30 px-5 py-4">
-        <Image
-          src="/grphs/Platform%20Domains/profile-d-profile.png"
-          alt=""
+        <div
           aria-hidden
-          width={80}
-          height={80}
-          className="h-20 w-20 flex-shrink-0 object-contain"
-        />
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-brand-500/40 bg-brand-500/15 text-brand-400"
+        >
+          <User size={28} />
+        </div>
         <div>
           <p className="text-sm font-semibold text-brand-300">Your Profile</p>
           <p className="text-xs text-night-200">Manage your identity and contact details.</p>
@@ -525,14 +523,12 @@ function KycTab() {
     <div className="max-w-xl space-y-6">
       {/* KYC illustration banner */}
       <div className="flex items-center gap-4 rounded-2xl bg-[linear-gradient(135deg,rgba(232,119,34,0.12),rgba(232,119,34,0.04)_60%,rgba(20,30,37,0.85))] border border-brand-500/30 px-5 py-4">
-        <Image
-          src="/grphs/Platform%20Domains/kyc-d-kyc.png"
-          alt=""
+        <div
           aria-hidden
-          width={80}
-          height={80}
-          className="h-20 w-20 flex-shrink-0 object-contain"
-        />
+          className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl border border-brand-500/40 bg-brand-500/15 text-brand-400"
+        >
+          <BadgeCheck size={28} />
+        </div>
         <div>
           <p className="text-sm font-semibold text-brand-300">Identity Verification</p>
           <p className="text-xs text-night-200">Complete KYC to unlock higher trading limits and full platform access.</p>

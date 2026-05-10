@@ -450,14 +450,12 @@ export default function CheckoutPage() {
               height={80}
               className="mx-auto -mb-2 h-auto w-auto max-w-full opacity-90"
             />
-            <Image
-              src="/grphs/Platform%20Domains/payments-d-payments.png"
-              alt=""
+            <div
               aria-hidden
-              width={220}
-              height={140}
-              className="mx-auto mb-3 h-auto w-auto max-w-full"
-            />
+              className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-success-500/40 bg-success-500/15 text-success-400"
+            >
+              <Wallet size={32} />
+            </div>
             <h2 className="text-xl font-bold text-success-400">Order Confirmed!</h2>
             <p className="mt-1 text-sm text-success-400">Payment processed. Funds are now in escrow.</p>
           </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Bell, RefreshCw } from "lucide-react";
+import { Bell, RefreshCw, TrendingUp } from "lucide-react";
 import type { MarketIntelligenceRow } from "@/lib/intelligence/types";
 import { fetchAllSnapshots } from "@/lib/intelligence/client";
 import { MarketSummaryCard } from "./MarketSummaryCard";
@@ -93,14 +93,12 @@ export function MarketIntelligenceDashboard() {
         </div>
       ) : snapshots.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-night-700 bg-night-850/90 p-10 text-center">
-          <Image
-            src="/grphs/Platform%20Domains/pricing-d-pricing.png"
-            alt=""
+          <div
             aria-hidden
-            width={200}
-            height={130}
-            className="mx-auto mb-4 h-auto w-auto max-w-[12.5rem] opacity-80"
-          />
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-brand-500/30 bg-brand-500/10 text-brand-400"
+          >
+            <TrendingUp size={32} />
+          </div>
           <p className="text-sm font-semibold text-night-200">No market snapshots yet</p>
           <p className="mt-1 text-xs text-night-300">
             The daily Inngest job will populate this view. Trigger it manually with the run-daily debug
