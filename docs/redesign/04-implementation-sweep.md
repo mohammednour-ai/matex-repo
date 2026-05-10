@@ -104,6 +104,23 @@ The audit identified 6 component-mockup PNGs in `/grphs/Components/` (browser-wi
 
 ### N. Semantic-alias migration (Phase 4 codemod)
 
+**Measured scope (post-Phase-4):** 1,418 occurrences across 63 files in `apps/web-v2/src/`. Breakdown:
+
+| Pattern | Count | Target |
+|---|---|---|
+| `text-night-300` | 327 | `text-fg-subtle` |
+| `border-night-700` | 237 | `border-line` |
+| `text-night-200` | 222 | `text-fg-muted` |
+| `text-night-100` | 202 | `text-fg` |
+| `bg-night-850` | 184 | `bg-surfaceBg` |
+| `bg-night-900` | 82 | `bg-canvas` |
+| `bg-night-800` | 82 | `bg-elevated` |
+| `border-night-600` | 38 | `border-line-strong` |
+| `bg-night-700` (no alias) | 43 | stays |
+| `text-night-400` (no alias) | 1 | stays |
+
+That's 1,374 substitutions in one PR — too large for the "≤ 100 lines per PR" target the user set. Best landed as a single dedicated codemod PR with **only** the rename and zero other changes, so the diff is purely mechanical and the reviewer trusts the rename map without re-reading rendered behavior.
+
 The big one. Migrate component class strings to the semantic aliases declared in `tailwind.config.js`:
 
 | Pattern | Target |
