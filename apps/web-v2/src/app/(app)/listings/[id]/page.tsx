@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Modal } from "@/components/ui/shadcn/modal";
 import {
@@ -1003,6 +1004,19 @@ export default function ListingDetailPage() {
       if (taxRes.success && taxRes.data) {
         setTaxEstimate(taxRes.data as unknown as TaxEstimate);
       }
+
+      // Fetch favorites to seed the saved-state of the heart button. Without
+      // this the toggle would always start as "unsaved" even for listings
+      // the user has already favorited, which made the first click on a
+      // saved listing add a duplicate and the second click do nothing.
+      const favRes = await callTool("listing.list_favorites", { user_id: user.userId });
+      if (favRes.success) {
+        const favUp = (favRes.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+        const favs = (favUp?.favorites ?? (favRes.data as { favorites?: { listing_id?: string }[] } | undefined)?.favorites) as { listing_id?: string }[] | undefined;
+        if (Array.isArray(favs)) {
+          setSaved(favs.some((f) => f?.listing_id === listingId));
+        }
+      }
     }
 
     setLoading(false);
@@ -1025,8 +1039,21 @@ export default function ListingDetailPage() {
   }
 
   async function handleSaveListing() {
-    await callTool("listing.add_favorite", { listing_id: listingId });
-    setSaved((s) => !s);
+    const user = getUser();
+    if (!user) return;
+    // Toggle: branch on current state to call the right tool. The favorites
+    // tools each require both listing_id AND user_id (server validates),
+    // so passing only listing_id here used to make the call fail silently
+    // while the local state flipped — the heart could look saved without
+    // the listing actually being saved.
+    const wasSaved = saved;
+    setSaved(!wasSaved); // optimistic
+    const tool = wasSaved ? "listing.remove_favorite" : "listing.add_favorite";
+    const res = await callTool(tool, { listing_id: listingId, user_id: user.userId });
+    if (!res.success) {
+      setSaved(wasSaved); // rollback
+      showError(res.error, wasSaved ? "Could not remove favorite." : "Could not save listing.");
+    }
   }
 
   if (loading) {
