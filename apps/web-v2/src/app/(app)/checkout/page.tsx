@@ -12,12 +12,15 @@ import {
   Copy,
   Shield,
 } from "lucide-react";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 import Image from "next/image";
 
 type Step = 1 | 2 | 3;
@@ -50,10 +53,6 @@ function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 }
 
-function generateInvoiceNumber(year: number, seq: number): string {
-  return `MTX-${year}-${String(seq).padStart(6, "0")}`;
-}
-
 export default function CheckoutPage() {
   const router = useRouter();
   const user = getUser();
@@ -77,6 +76,16 @@ export default function CheckoutPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [, setEscrowId] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Card-payment state. Allocated in step 2 (and only when paymentMethod is
+  // 'card' so non-card users never round-trip Stripe). Cleared on step-back
+  // so a fresh PI is allocated if the user changes their mind.
+  const [orderId, setOrderId] = useState<string>(orderIdParam);
+  const [clientSecret, setClientSecret] = useState<string>("");
+  const [transactionId, setTransactionId] = useState<string>("");
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [allocError, setAllocError] = useState<string>("");
+  const stripeReady = isStripeConfigured();
 
   // Load listing → order item
   useEffect(() => {
@@ -163,72 +172,126 @@ export default function CheckoutPage() {
   const effectiveTax = tax;
   const grandTotal = effectiveTax ? effectiveTax.grand_total + shippingEstimate : 0;
   const canCheckout = Boolean(effectiveTax) && !taxLoading;
+  // Card flow needs a clientSecret BEFORE mounting the PaymentElement, so
+  // we kick the PI allocation when step 2 opens with paymentMethod='card'.
+  // Wallet/credit/interac stay on the synchronous handleNonCardPayment path.
+  const cardReady = paymentMethod === "card" && Boolean(clientSecret) && !allocLoading;
 
-  async function handleConfirm(): Promise<void> {
-    if (!item || !effectiveTax) return;
-    if (!user?.userId) {
-      setItemError("Sign in to complete checkout.");
-      return;
+  // Create the order if it doesn't exist yet. Returns the order_id or null
+  // (with itemError set) on failure. Idempotent: if state.orderId is already
+  // populated (from the URL or a prior call), returns it without a new
+  // orders.create_order round-trip.
+  async function ensureOrder(): Promise<string | null> {
+    if (orderId) return orderId;
+    if (!item || !user?.userId) return null;
+    const orderRes = await callTool("orders.create_order", {
+      listing_id: item.listing_id,
+      buyer_id: user.userId,
+      seller_id: item.seller_id,
+      quantity: Number(item.quantity),
+      unit: item.unit,
+      original_amount: item.total,
+      payment_method: paymentMethod === "card" ? "card" : paymentMethod === "wallet" ? "wallet" : "credit_terms",
+    });
+    if (!orderRes.success) {
+      setItemError(orderRes.error?.message ?? "Could not create order.");
+      return null;
     }
-    if (!item.seller_id) {
-      setItemError("Listing is missing seller information. Cannot create order.");
-      return;
+    const newId = extractId(orderRes, "order_id") || "";
+    if (!newId) {
+      setItemError("Order created but no order_id returned.");
+      return null;
     }
-    setProcessing(true);
+    setOrderId(newId);
+    return newId;
+  }
 
-    let orderId = orderIdParam;
-    if (!orderId) {
-      const orderRes = await callTool("orders.create_order", {
-        listing_id: item.listing_id,
-        buyer_id: user.userId,
-        seller_id: item.seller_id,
-        quantity: Number(item.quantity),
-        unit: item.unit,
-        original_amount: item.total,
-        payment_method: paymentMethod === "card" ? "card" : paymentMethod === "wallet" ? "wallet" : "credit_terms",
+  // Step 2 entry for the card method: allocate the PaymentIntent so the
+  // PaymentElement has a clientSecret to mount against. Skips when stripe
+  // isn't configured (UI degrades to a fallback message), when we already
+  // have a clientSecret, or when the user is on a non-card method.
+  useEffect(() => {
+    if (step !== 2 || paymentMethod !== "card") return;
+    if (!stripeReady) return;
+    if (!effectiveTax || !item || !user?.userId) return;
+    if (clientSecret || allocLoading) return;
+    let cancelled = false;
+    (async () => {
+      setAllocLoading(true);
+      setAllocError("");
+      const id = await ensureOrder();
+      if (cancelled) return;
+      if (!id) {
+        setAllocLoading(false);
+        return;
+      }
+      const res = await callTool("payments.create_payment_intent", {
+        user_id: user.userId,
+        actor_id: user.userId,
+        order_id: id,
+        amount: grandTotal,
+        currency: "CAD",
       });
-      if (!orderRes.success) {
-        setProcessing(false);
-        setItemError(orderRes.error?.message ?? "Could not create order.");
+      if (cancelled) return;
+      if (!res.success) {
+        setAllocError(res.error?.message ?? "Could not start card payment.");
+        setAllocLoading(false);
         return;
       }
-      orderId = extractId(orderRes, "order_id") || "";
-      if (!orderId) {
-        setProcessing(false);
-        setItemError("Order created but no order_id returned.");
+      const data = res.data as Record<string, unknown> | undefined;
+      const cs = String(data?.client_secret ?? "");
+      const tx = String(data?.transaction_id ?? "");
+      if (!cs || !tx) {
+        setAllocError("Payment service did not return a client secret.");
+        setAllocLoading(false);
         return;
       }
-    }
+      setClientSecret(cs);
+      setTransactionId(tx);
+      setAllocLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, paymentMethod, stripeReady, grandTotal, effectiveTax?.grand_total]);
 
-    const paymentRes = await callTool("payments.process_payment", {
-      user_id: user.userId,
-      actor_id: user.userId,
-      amount: grandTotal,
-      payment_method: paymentMethod,
-      order_id: orderId,
+  // Going back to step 1 invalidates any allocated PI (the user might switch
+  // amounts or methods). We don't actively cancel the PI on Stripe — it
+  // expires in 24h or is reaped by the reconciliation cron in PR 6.
+  useEffect(() => {
+    if (step === 1 && clientSecret) {
+      setClientSecret("");
+      setTransactionId("");
+      setAllocError("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // Post-payment finalisation: invoice + escrow + step 3. Used by every
+  // payment method. The card flow calls this after stripe.confirmPayment
+  // succeeds; wallet/credit/interac call it after process_payment.
+  async function finalizeAfterPayment(orderIdToUse: string): Promise<void> {
+    if (!item || !effectiveTax || !user?.userId) return;
+    const invoiceRes = await callTool("tax.generate_invoice", {
+      order_id: orderIdToUse,
+      seller_id: item.seller_id,
+      buyer_id: user.userId,
+      seller_province: effectiveTax.province_seller,
+      buyer_province: effectiveTax.province_buyer,
+      subtotal: effectiveTax.subtotal,
+      commission_amount: effectiveTax.commission,
     });
-    if (!paymentRes.success) {
-      setProcessing(false);
-      setItemError(paymentRes.error?.message ?? "Payment failed. Please try again.");
+    if (!invoiceRes.success) {
+      setItemError(invoiceRes.error?.message ?? "Could not issue invoice.");
       return;
     }
-
-    const invoiceRes = await callTool("tax.generate_invoice", {
-      order_id: orderId,
-      amount: effectiveTax.subtotal,
-      tax_amount: effectiveTax.total_tax,
-      province_buyer: effectiveTax.province_buyer,
-      province_seller: effectiveTax.province_seller,
-    });
-    const inv =
-      extractId(invoiceRes, "invoice_number") ||
-      generateInvoiceNumber(
-        new Date().getFullYear(),
-        Math.floor(Math.random() * 999) + 1
-      );
+    const inv = extractId(invoiceRes, "invoice_number");
+    if (!inv) {
+      setItemError("Invoice was created but no invoice number was returned.");
+      return;
+    }
 
     const escrowRes = await callTool("escrow.create_escrow", {
-      order_id: orderId,
+      order_id: orderIdToUse,
       buyer_id: user.userId,
       seller_id: item.seller_id,
       amount: grandTotal,
@@ -239,6 +302,43 @@ export default function CheckoutPage() {
     setInvoiceNumber(inv);
     setEscrowId(esc);
     setStep(3);
+  }
+
+  // Non-card path (wallet / credit / interac). Card goes through the
+  // PaymentElement form and calls finalizeAfterPayment in its onSuccess.
+  async function handleNonCardPayment(): Promise<void> {
+    if (!item || !effectiveTax) return;
+    if (!user?.userId) {
+      setItemError("Sign in to complete checkout.");
+      return;
+    }
+    if (!item.seller_id) {
+      setItemError("Listing is missing seller information. Cannot create order.");
+      return;
+    }
+    setProcessing(true);
+    setItemError("");
+
+    const id = await ensureOrder();
+    if (!id) {
+      setProcessing(false);
+      return;
+    }
+
+    const paymentRes = await callTool("payments.process_payment", {
+      user_id: user.userId,
+      actor_id: user.userId,
+      amount: grandTotal,
+      payment_method: paymentMethod,
+      order_id: id,
+    });
+    if (!paymentRes.success) {
+      setProcessing(false);
+      setItemError(paymentRes.error?.message ?? "Payment failed. Please try again.");
+      return;
+    }
+
+    await finalizeAfterPayment(id);
     setProcessing(false);
   }
 
@@ -417,19 +517,45 @@ export default function CheckoutPage() {
               />
               {paymentMethod === "card" && (
                 <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
-                  <div className="space-y-3">
-                    <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
-                      Stripe Elements — Card Number (placeholder)
+                  {!stripeReady ? (
+                    <p className="text-xs text-night-300">
+                      Card payments are not configured for this environment. Set
+                      <code className="mx-1 rounded bg-night-850 px-1.5 py-0.5 font-mono text-[11px] text-brand-400">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>
+                      or pick a different payment method.
+                    </p>
+                  ) : allocLoading ? (
+                    <div className="flex items-center gap-3 py-2 text-sm text-night-300">
+                      <Spinner className="h-4 w-4 text-blue-500" />
+                      Preparing secure card form…
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
-                        Expiry
-                      </div>
-                      <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
-                        CVC
-                      </div>
+                  ) : allocError ? (
+                    <div className="space-y-2 text-sm">
+                      <p className="text-danger-400">{allocError}</p>
+                      <button
+                        type="button"
+                        onClick={() => { setClientSecret(""); setAllocError(""); }}
+                        className="text-xs font-semibold text-brand-400 underline-offset-2 hover:underline"
+                      >
+                        Try again
+                      </button>
                     </div>
-                  </div>
+                  ) : clientSecret ? (
+                    <StripeProvider clientSecret={clientSecret}>
+                      <CardPaymentForm
+                        amount={grandTotal}
+                        disabled={!canCheckout}
+                        onSuccess={async () => {
+                          if (!orderId) return;
+                          setProcessing(true);
+                          setItemError("");
+                          await finalizeAfterPayment(orderId);
+                          setProcessing(false);
+                        }}
+                      />
+                    </StripeProvider>
+                  ) : (
+                    <p className="text-xs text-night-300">Continue to start the card flow.</p>
+                  )}
                 </div>
               )}
               <PaymentOption
@@ -456,16 +582,22 @@ export default function CheckoutPage() {
             <Button size="lg" variant="secondary" className="flex-1" onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button
-              size="lg"
-              className="flex-1"
-              loading={processing}
-              disabled={!canCheckout}
-              onClick={handleConfirm}
-            >
-              <Shield className="h-4 w-4" />
-              Pay {formatCAD(grandTotal)}
-            </Button>
+            {paymentMethod !== "card" && (
+              // Card flow uses CardPaymentForm's submit button (above) which
+              // confirms the PaymentIntent via stripe.confirmPayment before
+              // running finalizeAfterPayment. Wallet / credit / interac use
+              // this synchronous path through process_payment.
+              <Button
+                size="lg"
+                className="flex-1"
+                loading={processing}
+                disabled={!canCheckout}
+                onClick={handleNonCardPayment}
+              >
+                <Shield className="h-4 w-4" />
+                Pay {formatCAD(grandTotal)}
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -543,6 +675,85 @@ export default function CheckoutPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Card-payment form. Mounted under <StripeProvider> so useStripe() and
+ * useElements() resolve. The submit handler calls stripe.confirmPayment
+ * with the clientSecret already on the Elements provider; we don't need
+ * elements.submit() because we're using the immediate-PI pattern (PI was
+ * created server-side before this form mounted).
+ *
+ * `redirect: "if_required"` lets Stripe.js auto-handle 3DS in an iframe
+ * when needed and only return here on terminal status. On `succeeded` we
+ * call onSuccess(); the durable transaction status flips to `completed`
+ * via the Stripe webhook (existing /api/stripe/webhook handler) — the
+ * Stripe.js result is a hint, the webhook is the source of truth.
+ */
+function CardPaymentForm({
+  amount,
+  disabled,
+  onSuccess,
+}: {
+  amount: number;
+  disabled: boolean;
+  onSuccess: () => Promise<void>;
+}): JSX.Element {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        // If Stripe needs to redirect for 3DS the user comes back here.
+        return_url: `${window.location.origin}/checkout?return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    // Defensive: if Stripe returned without an error but the PI isn't
+    // succeeded (e.g. requires_action under non-redirect scenarios), surface
+    // a friendly message and stay on this step.
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    await onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement options={{ layout: "tabs" }} />
+      {error && (
+        <div className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-xs text-danger-400">
+          {error}
+        </div>
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        loading={submitting}
+        disabled={disabled || !stripe || !elements || submitting}
+      >
+        <Shield className="h-4 w-4" />
+        Pay {new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount)}
+      </Button>
+    </form>
   );
 }
 

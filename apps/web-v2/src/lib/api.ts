@@ -132,6 +132,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "orders.cancel_order",
   "orders.ping",
   "payments.process_payment",
+  "payments.create_payment_intent",
   "payments.get_wallet_balance",
   "payments.top_up_wallet",
   "payments.manage_payment_methods",

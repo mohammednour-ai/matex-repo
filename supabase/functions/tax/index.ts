@@ -45,10 +45,6 @@ function calculateProvincialTax(buyerProvince: string, amount: number): TaxBreak
   return { gst, hst, pst, qst, total_tax, tax_type: rates.type };
 }
 
-function generateInvoiceNumber(year: number, seq: number): string {
-  return `MTX-${year}-${String(seq).padStart(6, "0")}`;
-}
-
 async function ping() {
   return okEnvelope({ status: "ok", server: SOURCE, timestamp: now() });
 }
@@ -81,21 +77,17 @@ async function generateInvoice({ args }: ToolRequest) {
     ? calculateProvincialTax(buyerProvince, commissionAmount)
     : { gst: 0, hst: 0, pst: 0, qst: 0, total_tax: 0 };
   const totalAmount = Number((subtotal + taxBreakdown.total_tax).toFixed(2));
-  const currentYear = new Date().getFullYear();
   const issueDate = now();
   const dueDate = new Date(Date.now() + 30 * 86400000).toISOString();
 
-  let nextSeq: number;
-  const seqResult = await supabase.rpc("next_invoice_seq");
-  if (seqResult.error || seqResult.data == null) {
-    const countResult = await supabase.schema("tax_mcp").from("invoices")
-      .select("invoice_number", { count: "exact" })
-      .like("invoice_number", `MTX-${currentYear}-%`);
-    nextSeq = (countResult.count ?? 0) + 1;
-  } else {
-    nextSeq = Number(seqResult.data);
+  // Atomic, year-aware MTX-YYYY-NNNNNN allocation via the new migration.
+  // The previous COUNT(*)-based fallback was racy under concurrent checkouts.
+  // See supabase/migrations/20260510000000_invoice_number_year_atomic.sql.
+  const seqResult = await supabase.rpc("next_invoice_number");
+  if (seqResult.error || typeof seqResult.data !== "string" || !seqResult.data) {
+    return failEnvelope("DB_ERROR", "Could not allocate invoice number.");
   }
-  const invoiceNumber = generateInvoiceNumber(currentYear, nextSeq);
+  const invoiceNumber = seqResult.data;
 
   const lineItems = Array.isArray(args.line_items) && (args.line_items as unknown[]).length > 0
     ? (args.line_items as unknown[])
