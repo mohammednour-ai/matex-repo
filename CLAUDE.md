@@ -14,9 +14,9 @@ Two companion documents must be read alongside this file:
 
 ```
 apps/
-  web/                          legacy Next.js frontend (deprecated; do not extend)
-  web-v2/                       active Next.js 14 frontend (App Router) — port 3002
-  mcp-gateway/                  Node MCP gateway (auth, routing, rate limiting) — port 3001
+  web/                          @matex/web — legacy Next.js frontend; critical fixes only, all new feature work goes in web-v2
+  web-v2/                       @matex/web-v2 — active Next.js 14 frontend (App Router) — port 3002
+  mcp-gateway/                  @matex/mcp-gateway — Node MCP gateway (auth, routing, rate limiting) — port 3001
   mobile/                       React Native + Expo app
   event-relay/                  Redis Streams → Supabase Realtime relay
 packages/
@@ -34,6 +34,7 @@ supabase/                       Supabase project root: edge functions + migratio
   migrations/                   migrations applied to remote Supabase
 docs/                           system-analysis, architecture, milestones, database, design, test-cases
 scripts/                        seed, smoke, parity, env validation, MCP tools manifest
+archive/                        unreferenced legacy assets from the Phase 1.6 image audit — read-only, not active code
 .github/workflows/              ci.yml, db-migrate.yml, functions-deploy.yml, railway-setup.yml
 ```
 
@@ -121,6 +122,26 @@ Redis Streams with consumer groups per server. Event name format: `{server}.{ent
 ### Auction realtime path (special-cased)
 `auction-mcp` is the only server with a hot path: bids hit a Supabase Edge Function + Redis FIFO with server-authoritative microsecond timestamps, processed under optimistic concurrency, broadcast via Supabase Realtime in <200ms. Auction state is replayable from `log_mcp.audit_log` if the live Redis instance dies. Never use client-provided timestamps for bid time.
 
+## Launch state & feature flags
+
+The product ships in phases gated by feature flags defined in `apps/web-v2/src/lib/flags.ts` (env-driven today via `NEXT_PUBLIC_FLAG_*`; PostHog swap-in is the planned next step — see deferred-work item B2).
+
+| Phase | Provinces / states | Flags | Status |
+|---|---|---|---|
+| 1 (current) | ON, AB, BC | `bilingual_ui=false`, `qc_market_open=false` | Live |
+| 2 | Quebec | both flags true; FR-CA UI + QST tax + QC-resident legal review | Gated on Bill 96 readiness |
+| 3 | US NE pilot (NY/NJ/PA/MA) | US KYB + Stripe Connect USD + state-nexus tax tracking | Future |
+
+Hard rule from `docs/launch-order.md`: **never serve a QC user an English-only checkout.** If `bilingual_ui` is on but `qc_market_open` is off, QC users see a "Coming soon — join the waitlist" splash. Don't shortcut this.
+
+Flag registry today: `auctions_v2`, `freight_quote_widget`, `bilingual_ui`, `qc_market_open`, `ai_copilot`, `listings_table_view`, `typesense_search`. Add new flags to the `FlagName` union, not as ad-hoc env reads.
+
+## Work tracking
+
+The live record of in-flight and deferred items is `docs/deferred-work.md` — it maps task IDs (A1, B1, C2, …) from the senior-advisor implementation plan (`matex-senior-wise-shore.md`, referenced in `flags.ts`) to shipped vs deferred status with file pointers. **Check it before picking up a task** so you don't redo work or violate a deferred item's blocking rationale.
+
+Recent waves of edge-function migration are tracked in commit history as "Plan E Wave 1–4" (admin, messaging, kyc, logistics, notifications, esign, bidding, auction, booking, inspection, contracts, dispute, pricing, credit, storage, log, profile, tax, analytics — Plan E is complete). Membership of those tools in `TOOLS_ON_EDGE` is the runtime evidence of which transport they use today.
+
 ## Conventions to follow
 
 These are repo-wide rules. Full context is in `.cursor/rules/`; read the relevant `.mdc` before non-trivial changes in that domain.
@@ -173,6 +194,13 @@ These are repo-wide rules. Full context is in `.cursor/rules/`; read the relevan
 - Pages depending on `isPlatformAdmin` guard at the route level (not nav-only); on guard failure `router.replace("/dashboard")`. Auth gating for `(app)` lives in `apps/web-v2/src/app/(app)/layout.tsx` with a `ready` flag — never render authed UI before client-side validation completes.
 - Reusable presentation primitives → `apps/web-v2/src/components/ui/`. Layout/shell → `components/layout/`. API/data wrappers → `src/lib/`. Hooks → `src/lib/hooks/`. Public assets → `apps/web-v2/public/` only.
 
+### Canadian compliance (`.cursor/rules/matex-canadian-compliance.mdc`)
+- Tax is a province pair, never a flat rate. Always store both `seller_province` and `buyer_province` on `tax_mcp.invoices` and look up the correct rate (HST 13–15% in ON/NB/NS/NL/PE, GST+PST in BC, GST only in AB/SK/MB, GST+QST in QC). Recycled metals and qualifying scrap may be zero-rated — verify the material category before applying tax.
+- Invoice numbers follow `MTX-YYYY-NNNNNN` (year + zero-padded 6-digit sequence reset each year). `invoice_number` has a `UNIQUE` constraint — generate atomically.
+- CRA Business Number format: `^\d{9}(RT\d{4})?$`. Stored at `profile_mcp.companies.business_number` and `gst_hst_number`. Validate (stripping whitespace) before write.
+- Weight authority chain for settlement: `w4_third_party > w3_buyer > w2_carrier > w1_seller`. If `w4_third_party` exists it is the authoritative weight for price adjustment. `scale_certified=true` requires a CAW (Weights and Measures Canada) certificate number — never set without one.
+- PIPEDA: collect only the minimum personal data required for the KYC level being verified.
+
 ### Testing (`.cursor/rules/matex-testing.mdc`)
 - Tests live in `apps/web-v2/e2e/{smoke,api,functional,regression,uiux,compliance,visual}` plus root `e2e/happy-path.spec.ts` (the `legacy` project).
 - Naming: `e2e/<suite>/<domain>.spec.ts`; test ID `"<DOMAIN>-NN: description"` with prefixes from `docs/test-cases/MATEX_TEST_CASES.md` (AUTH-, LIST-, SRCH-, MSG-, PAY-, etc.).
@@ -193,11 +221,3 @@ From `AGENTS.md`:
 - MCP gateway: Railway (`apps/mcp-gateway`, `railway.toml`). See `RAILWAY_DEPLOY.md`.
 - Edge functions: Supabase, deployed via `.github/workflows/functions-deploy.yml`. Migrations via `db-migrate.yml`.
 - Env files: `.env.example` (full reference), `.env.local.example` (dev), `.env.production.example` (prod). `MCP_GATEWAY_URL` / `NEXT_PUBLIC_GATEWAY_URL` point web-v2 at the gateway origin (no trailing slash); the Next route falls back to `http://localhost:3001`.
-
-## When in doubt
-
-1. Check `AGENTS.md` for the rule.
-2. Check the relevant `.cursor/rules/matex-*.mdc` for the domain.
-3. Check `docs/system-analysis/`, `docs/architecture/`, `docs/database/` for spec-level answers.
-4. Run `pnpm test:parity` after any tool change that crosses MCP↔Edge.
-5. Run `pnpm --filter @matex/web-v2 lint` and the relevant Playwright project before declaring done.
