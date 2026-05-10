@@ -2,18 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Industrial dark backgrounds ──────────────────────────────────────────── */
-.industrial-bg {
-  background: linear-gradient(135deg, #0a0a0b 0%, #0f1115 25%, #1a1e25 50%, #0f1115 75%, #0a0a0b 100%);
+/* ────────────────────────────────────────────────────────────────────────────
+ * Phase 1 — Theme tokens.
+ *
+ * `night-*` color variables drive every Tailwind `bg-night-XXX`, `text-night-XXX`
+ * and `border-night-XXX` utility (see tailwind.config.js). The numeric step is a
+ * LOGICAL role:
+ *   100 = primary text     |  850 = surface (cards)
+ *   200 = secondary text   |  800 = surface raised (inputs, hover)
+ *   300 = tertiary / muted |  900 = canvas (page background)
+ *   400 = disabled         |  950 = sunken / extreme
+ *   600 = border strong    |  750 = dropdown / popover
+ *   700 = border default
+ *
+ * Default (`:root`) is LIGHT. `.dark` on <html> flips the values. Brand/accent/
+ * info/success/warning/danger scales are mode-stable (defined in tailwind.config).
+ *
+ * Gradient-based component classes use --bg-* CSS vars defined alongside, so a
+ * single rule serves both modes.
+ *
+ * See docs/redesign/01-tokens.md for the full spec.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Neutral scale (light values — warm off-white canvas, white surfaces, deep text) */
+  --color-night-100: 14 16 20;
+  --color-night-200: 64 71 87;
+  --color-night-300: 107 115 133;
+  --color-night-400: 139 147 164;
+  --color-night-500: 174 180 196;
+  --color-night-600: 205 209 219;
+  --color-night-700: 224 226 232;
+  --color-night-750: 232 234 239;
+  --color-night-800: 240 240 244;
+  --color-night-850: 255 255 255;
+  --color-night-900: 247 247 246;
+  --color-night-950: 250 248 245;
+
+  /* Themed gradients (light) */
+  --bg-body-gradient: linear-gradient(180deg, #f9f8f6 0%, #f5f4f1 55%, #efeeea 100%);
+  --bg-industrial: linear-gradient(135deg, #f9f8f6 0%, #f5f4f1 25%, #efeeea 50%, #f5f4f1 75%, #f9f8f6 100%);
+  --bg-hero: linear-gradient(135deg, #fdfcfa 0%, #f9f8f6 25%, #f5f4f1 50%, #efeeea 75%, #f5f4f1 100%);
+  --bg-app-canvas: radial-gradient(ellipse 120% 80% at 100% -10%, rgba(232,119,34,0.05), transparent 55%),
+                   radial-gradient(ellipse  90% 70% at   0% 100%, rgba(59,130,246,0.04), transparent 50%),
+                   linear-gradient(165deg, #fcfbf9 0%, #f7f6f3 38%, #f1f0ed 72%, #faf9f7 100%);
+  --bg-dashboard-canvas: radial-gradient(900px 520px at   0%  -8%, rgba(232,119,34,0.06), transparent 52%),
+                         radial-gradient(760px 480px at 100%   0%, rgba(59,130,246,0.05), transparent 50%),
+                         linear-gradient(168deg, #fdfcfa 0%, #f9f8f5 34%, #f4f3ef 68%, #fdfcf9 100%);
+  --bg-dashboard-hero: linear-gradient(135deg,#ffffff,#fbfaf8 45%,#f5f4f0 100%);
+  --bg-sidebar: linear-gradient(175deg, #faf9f7 0%, #f6f5f2 42%, #f3f2ef 100%);
+  --bg-dashboard-alert: linear-gradient(135deg, rgba(232,119,34,0.07), rgba(232,119,34,0.02) 55%, rgba(247,247,246,0.85));
+  --bg-action-card: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(252,251,249,0.85));
+  --bg-action-card-hover: linear-gradient(180deg, rgba(252,251,249,0.95), rgba(245,244,240,0.95));
+
+  --grid-line: rgba(20, 25, 35, 0.06);
+  --hatch-base: rgba(20, 25, 35, 0.18);
+
+  --shadow-sidebar: 12px 0 32px -24px rgba(15, 17, 21, 0.18);
+
+  --shadow-card: 0 1px 2px 0 rgba(15,17,21,0.04), 0 4px 12px -2px rgba(15,17,21,0.08);
+  --shadow-card-hover: 0 8px 24px -6px rgba(15,17,21,0.14), 0 0 0 1px rgba(15,17,21,0.04);
+  --shadow-industrial-panel: 0 1px 0 0 rgba(15,17,21,0.04), 0 24px 48px -28px rgba(15,17,21,0.20), inset 0 1px 0 0 rgba(255,255,255,0.6);
+  --shadow-industrial-panel-raised: 0 1px 0 0 rgba(15,17,21,0.04), 0 30px 64px -30px rgba(15,17,21,0.25), inset 0 1px 0 0 rgba(255,255,255,0.7);
+  --shadow-dashboard-hero: 0 30px 80px -48px rgba(15,17,21,0.28), 0 0 0 1px rgba(15,17,21,0.04);
+  --shadow-dashboard-media: 0 30px 80px -48px rgba(15,17,21,0.30), 0 20px 50px -40px rgba(232,119,34,0.20);
+
+  --scrollbar-thumb-from: #d8dadf;
+  --scrollbar-thumb-to: #c8cad0;
+
+  --ease-standard:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --duration-instant: 100ms;
+  --duration-fast:    150ms;
+  --duration-normal:  220ms;
+  --duration-slow:    350ms;
 }
-.hero-bg {
-  background: linear-gradient(135deg, #050507 0%, #0a0a0b 25%, #0f1115 50%, #1a1e25 75%, #0f1115 100%);
+
+.dark {
+  /* Neutral scale — original dark values (preserves the byte-for-byte dark experience) */
+  --color-night-100: 242 244 247;
+  --color-night-200: 184 190 201;
+  --color-night-300: 139 146 160;
+  --color-night-400: 107 114 128;
+  --color-night-500: 75 82 96;
+  --color-night-600: 56 63 75;
+  --color-night-700: 43 49 59;
+  --color-night-750: 35 40 48;
+  --color-night-800: 26 30 37;
+  --color-night-850: 20 23 28;
+  --color-night-900: 15 17 21;
+  --color-night-950: 10 10 11;
+
+  /* Themed gradients (dark — current values) */
+  --bg-body-gradient: linear-gradient(180deg, #0a0a0b 0%, #0f1115 55%, #14171c 100%);
+  --bg-industrial: linear-gradient(135deg, #0a0a0b 0%, #0f1115 25%, #1a1e25 50%, #0f1115 75%, #0a0a0b 100%);
+  --bg-hero: linear-gradient(135deg, #050507 0%, #0a0a0b 25%, #0f1115 50%, #1a1e25 75%, #0f1115 100%);
+  --bg-app-canvas: radial-gradient(ellipse 120% 80% at 100% -10%, rgba(232,119,34,0.06), transparent 55%),
+                   radial-gradient(ellipse  90% 70% at   0% 100%, rgba(59,130,246,0.05), transparent 50%),
+                   linear-gradient(165deg, #0e1116 0%, #14181f 38%, #1a1f27 72%, #0f1218 100%);
+  --bg-dashboard-canvas: radial-gradient(900px 520px at   0%  -8%, rgba(232,119,34,0.07), transparent 52%),
+                         radial-gradient(760px 480px at 100%   0%, rgba(59,130,246,0.06), transparent 50%),
+                         linear-gradient(168deg, #15191f 0%, #1c2129 34%, #20262f 68%, #161b22 100%);
+  --bg-dashboard-hero: linear-gradient(135deg,#1a1f27,#20262f 45%,#15191f 100%);
+  --bg-sidebar: linear-gradient(175deg,#0a0a0b 0%,#0f1115 42%,#14171c 100%);
+  --bg-dashboard-alert: linear-gradient(135deg, rgba(232,119,34,0.07), rgba(232,119,34,0.02) 55%, rgba(32,38,47,0.85));
+  --bg-action-card: linear-gradient(180deg, rgba(20,23,28,0.65), rgba(26,30,37,0.65));
+  --bg-action-card-hover: linear-gradient(180deg, rgba(26,30,37,0.80), rgba(35,40,48,0.80));
+
+  --grid-line: rgba(150, 165, 190, 0.05);
+  --hatch-base: rgba(150, 165, 190, 0.30);
+
+  --shadow-sidebar: 20px 0 50px -32px rgba(0, 0, 0, 0.85);
+
+  --shadow-card: 0 1px 2px 0 rgba(0,0,0,.45), 0 4px 12px -2px rgba(0,0,0,.50);
+  --shadow-card-hover: 0 8px 24px -6px rgba(0,0,0,.65), 0 0 0 1px rgba(150,165,190,0.10);
+  --shadow-industrial-panel: 0 1px 0 0 rgba(0,0,0,0.55), 0 24px 48px -28px rgba(0,0,0,0.85), inset 0 1px 0 0 rgba(255,255,255,0.04);
+  --shadow-industrial-panel-raised: 0 1px 0 0 rgba(0,0,0,0.55), 0 30px 64px -30px rgba(0,0,0,0.92), inset 0 1px 0 0 rgba(255,255,255,0.05);
+  --shadow-dashboard-hero: 0 30px 80px -48px rgba(0,0,0,0.80), 0 0 0 1px rgba(150,165,190,0.06);
+  --shadow-dashboard-media: 0 30px 80px -48px rgba(0,0,0,0.85), 0 20px 50px -40px rgba(232,119,34,0.30);
+
+  --scrollbar-thumb-from: #2b313b;
+  --scrollbar-thumb-to: #1a1e25;
 }
+
+/* ─── Industrial backgrounds (themed) ──────────────────────────────────────── */
+.industrial-bg { background: var(--bg-industrial); }
+.hero-bg       { background: var(--bg-hero); }
 .metal-texture {
   background-image:
     radial-gradient(circle at 25% 25%, rgba(232, 119, 34, 0.10) 2px, transparent 2px),
-    linear-gradient(45deg,  rgba(150, 165, 190, 0.06) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(150, 165, 190, 0.06) 25%, transparent 25%);
+    linear-gradient(45deg,  var(--hatch-base) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--hatch-base) 25%, transparent 25%);
   background-size: 40px 40px, 20px 20px, 20px 20px;
 }
 
@@ -36,14 +156,12 @@
   100% { transform: translateX(-50%); }
 }
 
-/* Page enter — slide up + fade in on each route mount */
 @keyframes page-enter {
   from { transform: translateY(16px); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
 }
-.page-enter { animation: page-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.page-enter { animation: page-enter 0.35s var(--ease-standard) both; }
 
-/* Subtle ambient fade-in for the dashboard OG watermark */
 @keyframes og-watermark-fade {
   from { opacity: 0; }
   to   { opacity: 0.07; }
@@ -62,47 +180,51 @@
 
 .login-reveal-item { opacity: 0; }
 .login-reveal-active .login-reveal-item {
-  animation: login-reveal-in 0.75s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: login-reveal-in 0.75s var(--ease-standard) forwards;
   animation-delay: var(--login-delay, 0ms);
 }
 .login-intro-pulse { animation: login-shimmer 1.2s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-loader-bar-fill      { animation: none !important; transform: scaleX(1) !important; }
-  .login-reveal-item          { opacity: 1 !important; animation: none !important; transform: none !important; filter: none !important; }
-  .login-intro-pulse          { animation: none !important; }
+  .login-loader-bar-fill        { animation: none !important; transform: scaleX(1) !important; }
+  .login-reveal-item            { opacity: 1 !important; animation: none !important; transform: none !important; filter: none !important; }
+  .login-intro-pulse            { animation: none !important; }
   .dashboard-pulse-strip__track { animation: none !important; transform: none !important; }
-  .gear-rotate                { animation: none !important; }
-  .gear-rotate-reverse        { animation: none !important; }
-  .page-enter                 { animation: none !important; transform: none !important; opacity: 1 !important; }
-  .dashboard-og-watermark     { animation: none !important; opacity: 0.07 !important; }
+  .gear-rotate                  { animation: none !important; }
+  .gear-rotate-reverse          { animation: none !important; }
+  .page-enter                   { animation: none !important; transform: none !important; opacity: 1 !important; }
+  .dashboard-og-watermark       { animation: none !important; opacity: 0.07 !important; }
+  /* Tailwind motion utilities (Phase 0 issue #8) */
+  .animate-spin                 { animation: none !important; }
+  .animate-pulse                { animation: none !important; }
+  .animate-bounce               { animation: none !important; }
+  .animate-ping                 { animation: none !important; }
 }
 
 /* ─── Base ──────────────────────────────────────────────────────────────────── */
 @layer base {
   html {
-    font-family: Inter, ui-sans-serif, system-ui;
+    /* Phase 0 issue #1 fix: was 80% which broke user font-size preferences. */
+    font-size: 100%;
+    font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
-    font-size: 80%;
+    text-rendering: optimizeLegibility;
   }
-  /* Cool steel-black — industrial machine shop */
   body {
     @apply text-night-100;
-    background: linear-gradient(180deg, #0a0a0b 0%, #0f1115 55%, #14171c 100%);
+    background: var(--bg-body-gradient);
   }
   ::selection { @apply bg-brand-500/40 text-white; }
 
-  /* ── Scrollbars (Firefox) ───────────────────────────────────────────── */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2b313b transparent;        /* thumb / track */
+    scrollbar-color: var(--scrollbar-thumb-from) transparent;
   }
 
-  /* ── Scrollbars (WebKit / Chromium / Safari / Edge) ─────────────────── */
   ::-webkit-scrollbar         { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track   { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #2b313b 0%, #1a1e25 100%);
+    background: linear-gradient(180deg, var(--scrollbar-thumb-from) 0%, var(--scrollbar-thumb-to) 100%);
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: 999px;
@@ -120,45 +242,47 @@
   ::-webkit-scrollbar-corner  { background: transparent; }
 }
 
+/* ─── Typography utilities ─────────────────────────────────────────────────── */
+@layer utilities {
+  .text-display    { font-size: 2.75rem;   line-height: 1.05; font-weight: 800; letter-spacing: -0.02em;  }
+  .text-title      { font-size: 2rem;      line-height: 1.15; font-weight: 800; letter-spacing: -0.015em; }
+  .text-heading    { font-size: 1.5rem;    line-height: 1.2;  font-weight: 700; letter-spacing: -0.01em;  }
+  .text-subheading { font-size: 1.125rem;  line-height: 1.35; font-weight: 600; letter-spacing: -0.005em; }
+  .text-body       { font-size: 0.9375rem; line-height: 1.55; font-weight: 400; }
+  .text-body-strong{ font-size: 0.9375rem; line-height: 1.55; font-weight: 600; }
+  .text-caption    { font-size: 0.8125rem; line-height: 1.45; font-weight: 500; letter-spacing: 0.005em; }
+  .text-micro      { font-size: 0.6875rem; line-height: 1.4;  font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
+}
+
 /* ─── Components ─────────────────────────────────────────────────────────────── */
 @layer components {
 
-  /* ── App shell canvas — cool steel-black, restrained brand wash ── */
+  /* ── App shell canvas ── */
   .app-shell-canvas {
     @apply relative min-h-full overflow-x-hidden;
-    background:
-      radial-gradient(ellipse 120% 80% at 100% -10%, rgba(232,119,34,0.06), transparent 55%),
-      radial-gradient(ellipse  90% 70% at   0% 100%, rgba(59,130,246,0.05), transparent 50%),
-      linear-gradient(165deg, #0e1116 0%, #14181f 38%, #1a1f27 72%, #0f1218 100%);
+    background: var(--bg-app-canvas);
   }
-
-  /* ── Dashboard canvas — lighter industrial steel; subtle brand presence ── */
   .app-shell-canvas.dashboard-canvas {
     @apply relative min-h-full overflow-x-hidden;
-    background-image:
-      radial-gradient(900px 520px at   0%  -8%, rgba(232,119,34,0.07), transparent 52%),
-      radial-gradient(760px 480px at 100%   0%, rgba(59,130,246,0.06), transparent 50%),
-      linear-gradient(168deg, #15191f 0%, #1c2129 34%, #20262f 68%, #161b22 100%);
+    background: var(--bg-dashboard-canvas);
   }
-  /* Steel-blue blueprint grid (dropped orange tint) */
   .app-shell-canvas.dashboard-canvas::before {
     content: "";
     @apply pointer-events-none absolute inset-0 z-0;
     background-image:
-      linear-gradient(rgba(150, 165, 190, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(150, 165, 190, 0.05) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 44px 44px;
   }
-  /* Hatching overlay — mostly steel, only a hint of brand */
   .app-shell-canvas.dashboard-canvas::after {
     content: "";
     @apply pointer-events-none absolute inset-0 z-0;
     opacity: 0.035;
     background-image:
-      linear-gradient( 45deg, rgba(150,165,190,0.45) 25%, transparent 25%),
-      linear-gradient(-45deg, rgba(150,165,190,0.30) 25%, transparent 25%),
+      linear-gradient( 45deg, var(--hatch-base) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--hatch-base) 25%, transparent 25%),
       linear-gradient( 45deg, transparent 75%, rgba(232,119,34,0.20) 75%),
-      linear-gradient(-45deg, transparent 75%, rgba(150,165,190,0.20) 75%);
+      linear-gradient(-45deg, transparent 75%, var(--hatch-base) 75%);
     background-size: 52px 52px;
     background-position: 0 0, 0 26px, 26px -26px, -26px 0;
   }
@@ -167,7 +291,6 @@
     @apply relative z-10 max-w-[min(112rem,calc(100%-1rem))] px-4 py-7 sm:px-7 sm:py-9 md:px-10 md:py-11;
   }
 
-  /* ── Dashboard-specific classes ── */
   .dashboard-page          { @apply mx-auto w-full max-w-[min(108rem,100%)] space-y-7 sm:space-y-8; }
   .dashboard-identity-bar  { @apply backdrop-blur-md; }
 
@@ -191,44 +314,37 @@
   }
   .dashboard-pulse-strip__legal { @apply mt-1.5 text-center text-[10px] font-medium leading-snug text-night-400; }
 
-  /* Cards inside dashboard canvas — translucent so canvas/grid show through */
   .app-shell-canvas.dashboard-canvas .marketplace-card {
     @apply border-night-700/60 bg-night-850/65 shadow-industrial-panel backdrop-blur-md;
   }
 
-  /* ── Shared canvas texture ── */
   .app-shell-canvas-texture { @apply pointer-events-none absolute inset-0 opacity-[0.04]; }
 
-  /* In-page heading typography (used by AppPageHeader on each route) */
   .app-inpage-title { @apply text-2xl font-black tracking-tight text-night-100 sm:text-3xl; }
   .app-inpage-sub   { @apply mt-1 text-sm font-medium text-night-200; }
 
-  /* ── Marketplace card (main card surface — translucent glass) ── */
+  /* ── Marketplace card ── */
   .marketplace-card {
     @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-industrial-panel
            backdrop-blur-md transition-shadow hover:border-brand-500/40 hover:shadow-card-hover;
   }
-  /* Dense data variant — opaque for tables / lists where readability matters */
   .marketplace-card-dense {
     @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-industrial-panel
            backdrop-blur-sm transition-shadow hover:border-brand-500/40 hover:shadow-card-hover;
   }
 
-  /* ── Sidebar — cool steel-black ── */
+  /* ── Sidebar ── */
   .app-shell-sidebar {
-    @apply relative flex h-full flex-col overflow-hidden
-           border-r border-night-700
-           bg-[linear-gradient(175deg,#0a0a0b_0%,#0f1115_42%,#14171c_100%)]
-           text-white shadow-[20px_0_50px_-32px_rgba(0,0,0,0.85)];
+    @apply relative flex h-full flex-col overflow-hidden border-r border-night-700 text-night-100;
+    background: var(--bg-sidebar);
+    box-shadow: var(--shadow-sidebar);
   }
-  /* Subtle warmth + steel-blue at top of sidebar */
   .app-shell-sidebar::before {
     content: "";
     @apply pointer-events-none absolute inset-x-0 top-0 h-32;
     background: linear-gradient(180deg, rgba(232,119,34,0.08), transparent),
                 linear-gradient(90deg,  rgba(59,130,246,0.05), transparent);
   }
-  /* Steel grain overlay (mostly neutral) */
   .app-shell-sidebar::after {
     content: "";
     @apply pointer-events-none absolute inset-0 opacity-[0.06];
@@ -239,7 +355,6 @@
   }
   .app-shell-sidebar-content { @apply relative z-10 flex h-full flex-col; }
 
-  /* Logo area — sized for the doubled logo */
   .app-sidebar-logo-wrap {
     @apply relative flex min-h-[9rem] items-center justify-center border-b border-night-700/60 px-4;
   }
@@ -251,7 +366,6 @@
   .app-sidebar-logo-badge--collapsed { @apply h-14 w-14 p-1; }
   .app-sidebar-logo-badge--expanded  { @apply h-[3.75rem] max-w-[18.5rem] px-2.5 py-1.5 sm:h-[4.25rem] sm:max-w-[19.5rem]; }
 
-  /* Sidebar meta (user info) */
   .app-sidebar-meta       { @apply mt-3 rounded-xl border border-night-700 bg-night-950/[0.40] px-3 py-3 backdrop-blur-sm; }
   .app-sidebar-meta-label { @apply text-[10px] font-bold uppercase tracking-[0.24em] text-night-400; }
   .app-sidebar-meta-value { @apply mt-1 text-sm font-semibold text-night-100; }
@@ -265,11 +379,10 @@
   .app-nav-link:hover       { @apply border-night-600 bg-night-800/60 text-night-100; }
   .app-nav-link-accent      { @apply text-amber-300/95; }
   .app-nav-link-accent:hover{ @apply border-brand-500/25 bg-brand-500/10 text-amber-100; }
-  /* Active — restrained orange left-bar indicator */
   .app-nav-link-active {
     @apply border-brand-500/25
            bg-[linear-gradient(90deg,rgba(232,119,34,0.12),rgba(15,17,21,0.20))]
-           text-white
+           text-night-100
            shadow-[inset_3px_0_0_0_rgba(232,119,34,0.80)];
   }
   .app-nav-icon-wrap {
@@ -278,29 +391,28 @@
   }
   .app-nav-link:hover .app-nav-icon-wrap,
   .app-nav-link-active  .app-nav-icon-wrap {
-    @apply border-brand-400/40 bg-brand-500/20 text-white;
+    @apply border-brand-400/40 bg-brand-500/20 text-night-100;
   }
   .app-nav-dot {
     @apply ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-400
            shadow-[0_0_0_4px_rgba(232,119,34,0.20)];
   }
 
-  /* Content frame — neutral steel grid on dark (no orange) */
+  /* Content frame */
   .app-content-frame {
     @apply relative mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10;
     background-image:
-      linear-gradient(rgba(150, 165, 190, 0.035) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(150, 165, 190, 0.035) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 24px 24px;
     background-position: 0 0;
   }
 
-  /* ── Dashboard hero card (lighter steel; subtle brand edge) ── */
+  /* ── Dashboard hero card ── */
   .dashboard-hero {
-    @apply relative overflow-hidden rounded-[2rem]
-           border border-night-700
-           bg-[linear-gradient(135deg,#1a1f27,#20262f_45%,#15191f_100%)]
-           shadow-[0_30px_80px_-48px_rgba(0,0,0,0.80),0_0_0_1px_rgba(150,165,190,0.06)];
+    @apply relative overflow-hidden rounded-display border border-night-700;
+    background: var(--bg-dashboard-hero);
+    box-shadow: var(--shadow-dashboard-hero);
   }
   .dashboard-hero::before {
     content: "";
@@ -325,9 +437,8 @@
 
   /* Dashboard media panel */
   .dashboard-hero-media {
-    @apply relative overflow-hidden rounded-[1.75rem]
-           border border-night-700 bg-night-950
-           shadow-[0_30px_80px_-48px_rgba(0,0,0,0.85),0_20px_50px_-40px_rgba(232,119,34,0.30)];
+    @apply relative overflow-hidden rounded-hero border border-night-700 bg-night-950;
+    box-shadow: var(--shadow-dashboard-media);
   }
   .dashboard-hero-media-overlay {
     @apply absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,11,0.20),rgba(5,5,7,0.88))];
@@ -338,23 +449,22 @@
            text-white backdrop-blur;
   }
 
-  /* Status strip — translucent */
+  /* Status strip */
   .dashboard-status-strip {
     @apply flex flex-wrap items-center gap-3 rounded-2xl
            border border-night-700/60 bg-night-850/65
            px-5 py-3.5 text-night-100 shadow-industrial-panel backdrop-blur-md;
   }
 
-  /* Alert banner (subtle brand-tinted on cool dark) */
+  /* Alert banner */
   .dashboard-alert {
-    @apply flex flex-wrap items-center justify-between gap-4 rounded-[1.75rem]
-           border border-brand-500/25
-           bg-[linear-gradient(135deg,rgba(232,119,34,0.07),rgba(232,119,34,0.02)_55%,rgba(32,38,47,0.85))]
-           px-6 py-5 text-night-100
+    @apply flex flex-wrap items-center justify-between gap-4 rounded-hero
+           border border-brand-500/25 px-6 py-5 text-night-100
            shadow-[0_25px_60px_-42px_rgba(232,119,34,0.22)] backdrop-blur-sm;
+    background: var(--bg-dashboard-alert);
   }
 
-  /* Stat cards — compact translucent glass with thin brand left-bar */
+  /* Stat cards */
   .dashboard-stat-card {
     @apply relative overflow-hidden rounded-2xl
            border border-night-700/60 border-l-[3px] border-l-brand-500/70
@@ -369,12 +479,10 @@
   }
   .dashboard-metric-value { font-variant-numeric: tabular-nums; @apply text-xl tracking-tight text-night-100 sm:text-2xl; }
   .dashboard-stat-delta   { @apply mt-0.5 min-h-[1rem] text-[11px] font-semibold tabular-nums; }
-  /* Neutral steel chip — used for every stat / quick-action icon by default */
   .dashboard-stat-icon {
     @apply flex items-center justify-center rounded-xl border border-night-700/60
            bg-night-800/70 p-2 shadow-card transition-colors;
   }
-  /* Primary CTA variant — single brand-tinted chip on the Create Listing action */
   .dashboard-stat-icon--primary {
     @apply border-brand-500/30 bg-brand-500/10;
   }
@@ -384,21 +492,19 @@
   /* Module grid */
   .dashboard-module-grid  { @apply grid grid-cols-1 gap-7 xl:grid-cols-[minmax(22rem,1fr)_minmax(0,1.55fr)]; }
 
-  /* Action cards — translucent glass gradient */
+  /* Action cards */
   .dashboard-action-card {
-    @apply flex flex-col rounded-[1.45rem]
-           border border-night-700/60
-           bg-[linear-gradient(180deg,rgba(20,23,28,0.65),rgba(26,30,37,0.65))]
-           p-5 shadow-industrial-panel backdrop-blur-md
-           transition-all hover:-translate-y-0.5 hover:border-brand-500/45
-           hover:bg-[linear-gradient(180deg,rgba(26,30,37,0.80),rgba(35,40,48,0.80))] hover:shadow-card-hover;
+    @apply flex flex-col rounded-card border border-night-700/60 p-5 shadow-industrial-panel backdrop-blur-md
+           transition-all hover:-translate-y-0.5 hover:border-brand-500/45 hover:shadow-card-hover;
+    background: var(--bg-action-card);
   }
+  .dashboard-action-card:hover { background: var(--bg-action-card-hover); }
   .dashboard-action-label { @apply mt-3 text-base font-semibold text-night-100 transition-colors group-hover:text-night-100; }
   .dashboard-action-note  { @apply mt-1 text-sm leading-relaxed text-night-200; }
 
   /* Empty state */
   .dashboard-empty-state {
-    @apply flex flex-col items-center gap-3 rounded-[1.5rem]
+    @apply flex flex-col items-center gap-3 rounded-hero
            border border-dashed border-night-600 bg-night-850/50
            px-6 py-10 text-center text-night-200 backdrop-blur-sm;
   }
@@ -406,16 +512,16 @@
   /* ────────────────── Global UI primitives ────────────────── */
 
   /* Buttons */
-  .btn           { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-night-950 disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary   { @apply btn bg-brand-500 text-white hover:bg-brand-600 focus:ring-brand-400 shadow-sm hover:shadow-glow-brand; }
-  .btn-secondary { @apply btn bg-night-800 text-night-100 border border-night-700 hover:bg-night-750 hover:border-brand-500/40 focus:ring-brand-400; }
-  .btn-accent    { @apply btn bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-400 shadow-sm hover:shadow-glow-accent; }
-  .btn-danger    { @apply btn bg-danger-500 text-white hover:bg-danger-700 focus:ring-danger-500; }
-  .btn-ghost     { @apply btn text-night-200 hover:bg-night-800 focus:ring-brand-400; }
+  .btn           { @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-night-950 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary   { @apply btn bg-brand-500 text-white hover:bg-brand-600 shadow-sm hover:shadow-glow-brand; }
+  .btn-secondary { @apply btn bg-night-800 text-night-100 border border-night-700 hover:bg-night-750 hover:border-brand-500/40; }
+  .btn-accent    { @apply btn bg-accent-500 text-white hover:bg-accent-600 shadow-sm hover:shadow-glow-accent; }
+  .btn-danger    { @apply btn bg-danger-500 text-white hover:bg-danger-700; }
+  .btn-ghost     { @apply btn text-night-200 hover:bg-night-800; }
   .btn-sm        { @apply text-xs px-3 py-1.5; }
   .btn-lg        { @apply text-base px-6 py-3; }
 
-  /* Cards — translucent by default; use .card-dense for tables/lists */
+  /* Cards */
   .card        { @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-card backdrop-blur-md transition-shadow hover:shadow-card-hover; }
   .card-dense  { @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-card backdrop-blur-sm transition-shadow hover:shadow-card-hover; }
   .card-header { @apply px-6 py-4 border-b border-night-700/60; }
@@ -424,18 +530,16 @@
 
   /* Form controls */
   .input       { @apply w-full px-3 py-2 rounded-lg border border-night-700 text-sm bg-night-800 text-night-100 placeholder-night-300 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all; }
-  /* Chrome/Edge autofill forces a light background + its own text color, which
-     produces white-on-white against our dark theme. Pin both to the night
-     palette so autofilled values remain readable. */
+  /* Autofill — pin to night palette so values stay readable in either mode */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   textarea:-webkit-autofill,
   select:-webkit-autofill {
-    -webkit-text-fill-color: theme('colors.night.100');
-    caret-color: theme('colors.night.100');
-    -webkit-box-shadow: 0 0 0 1000px theme('colors.night.800') inset;
-    box-shadow: 0 0 0 1000px theme('colors.night.800') inset;
+    -webkit-text-fill-color: rgb(var(--color-night-100));
+    caret-color: rgb(var(--color-night-100));
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-night-800)) inset;
+    box-shadow: 0 0 0 1000px rgb(var(--color-night-800)) inset;
     transition: background-color 9999s ease-in-out 0s;
   }
   .input-error { @apply border-danger-500 focus:ring-danger-500/40; }
@@ -443,7 +547,7 @@
   .hint        { @apply mt-1 text-xs text-night-300; }
   .error-msg   { @apply mt-1 text-xs text-danger-400; }
 
-  /* Badges (dark inversion: transparent tint + ring + lighter text) */
+  /* Badges */
   .badge        { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide; }
   .badge-green  { @apply badge bg-success-500/15 text-success-400 ring-1 ring-success-500/30; }
   .badge-amber  { @apply badge bg-warning-500/15 text-warning-400 ring-1 ring-warning-500/30; }
@@ -452,7 +556,7 @@
   .badge-gray   { @apply badge bg-night-700      text-night-200   ring-1 ring-night-600/60; }
   .badge-accent { @apply badge bg-accent-500/15  text-accent-400  ring-1 ring-accent-500/30; }
 
-  /* Typography helpers (headings bumped) */
+  /* Typography helpers */
   .section-title { @apply text-lg font-black tracking-tight text-night-100; }
   .page-title    { @apply text-2xl font-black tracking-tight text-night-100 sm:text-3xl; }
   .page-sub      { @apply mt-1 text-sm font-medium text-night-200; }
@@ -478,11 +582,10 @@
   /* Misc */
   .countdown { @apply font-mono font-bold tabular-nums; }
 
-  /* ── Section card (used across app pages — translucent) ── */
+  /* ── Section card ── */
   .app-section-card {
     @apply rounded-2xl border border-night-700/60 bg-night-850/65 shadow-industrial-panel backdrop-blur-md;
   }
-  /* Dense variant for data tables / dense lists */
   .app-section-card-dense {
     @apply rounded-2xl border border-night-700 bg-night-850/90 shadow-industrial-panel backdrop-blur-sm;
   }

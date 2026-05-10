@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/system/ToastProvider";
 import { PostHogProvider } from "@/components/system/PostHogProvider";
+import { ThemeProvider, themeBootstrapScript } from "@/components/system/ThemeProvider";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 // The app is entirely auth-gated / data-driven; skip static prerender so that
 // Next doesn't evaluate client-only code paths at build time (which was
@@ -53,11 +62,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        {children}
-        <ToastProvider />
-        <PostHogProvider />
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+        />
+      </head>
+      <body className="font-sans">
+        <ThemeProvider>
+          {children}
+          <ToastProvider />
+          <PostHogProvider />
+        </ThemeProvider>
       </body>
     </html>
   );

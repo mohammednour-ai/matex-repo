@@ -1,6 +1,21 @@
 /** @type {import('tailwindcss').Config} */
+//
+// Phase 1 — semantic-token wiring.
+//
+// `night-*` is now driven by CSS variables defined in globals.css under
+// `:root` (light) and `.dark` (dark). The numeric step indicates a logical
+// role (100 = primary fg, 850 = surface, 900 = canvas) — actual color flips
+// with theme. Brand/accent/info/success/warning/danger scales remain literal.
+// New semantic aliases (canvas, surface, elevated, fg, fg-muted, line, …) are
+// added on top — Phase 4 migrates components onto them.
+//
+// See docs/redesign/01-tokens.md for the full spec.
+
+const cssVarRgb = (name) => `rgb(var(--color-${name}) / <alpha-value>)`;
+
 module.exports = {
   content: ["./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
@@ -32,7 +47,7 @@ module.exports = {
           900: "#78350f",
           950: "#451a03",
         },
-        /* ── Steel — industrial neutral scale ── */
+        /* ── Steel — industrial neutral scale (literal, mode-stable) ── */
         steel: {
           50:  "#f6f7f8",
           100: "#edeef1",
@@ -53,20 +68,33 @@ module.exports = {
           200: "#e6dfd4",
           300: "#d4c9b8",
         },
-        /* ── Night — cool steel-black scale (industrial machine shop) ── */
+        /*
+         * ── Night — semantic neutral scale, themed via CSS variables.
+         *
+         * Numeric step = logical role:
+         *   100 = primary text          850 = surface (cards)
+         *   200 = secondary text        900 = canvas (page)
+         *   300 = tertiary / muted      950 = sunken (extreme)
+         *   600 = border strong         800 = surface raised (hover, inputs)
+         *   700 = border default        750 = dropdowns / popovers
+         *
+         * Light values: warm off-white canvas, white surfaces, deep steel-black text.
+         * Dark values: cool steel-black canvas, dark steel surfaces, near-white text.
+         * Definitions in globals.css.
+         */
         night: {
-          950: "#0a0a0b",   /* body base, true near-black */
-          900: "#0f1115",   /* page canvas */
-          850: "#14171c",   /* surface 1 — cards, panels */
-          800: "#1a1e25",   /* surface 2 — inputs, hover */
-          750: "#232830",   /* surface 3 — dropdowns, modals */
-          700: "#2b313b",   /* border default (cool steel) */
-          600: "#383f4b",   /* border strong / hover */
-          500: "#4b5260",   /* muted icon stroke */
-          400: "#6b7280",   /* secondary muted */
-          300: "#8b92a0",   /* hint / caption text */
-          200: "#b8bec9",   /* secondary text (cool grey) */
-          100: "#f2f4f7",   /* primary body text (cool white) */
+          100: cssVarRgb("night-100"),
+          200: cssVarRgb("night-200"),
+          300: cssVarRgb("night-300"),
+          400: cssVarRgb("night-400"),
+          500: cssVarRgb("night-500"),
+          600: cssVarRgb("night-600"),
+          700: cssVarRgb("night-700"),
+          750: cssVarRgb("night-750"),
+          800: cssVarRgb("night-800"),
+          850: cssVarRgb("night-850"),
+          900: cssVarRgb("night-900"),
+          950: cssVarRgb("night-950"),
         },
         /* ── Info — small dose of blue accent (links, hints, info badges) ── */
         info: {
@@ -107,29 +135,51 @@ module.exports = {
           600: "#dc2626",
           700: "#b91c1c",
         },
+        /* ── Semantic aliases (Phase 4 will migrate components onto these) ── */
+        canvas:        cssVarRgb("night-900"),
+        surfaceBg:     cssVarRgb("night-850"),
+        elevated:      cssVarRgb("night-800"),
+        sunken:        cssVarRgb("night-950"),
+        fg:            cssVarRgb("night-100"),
+        "fg-muted":    cssVarRgb("night-200"),
+        "fg-subtle":   cssVarRgb("night-300"),
+        "fg-disabled": cssVarRgb("night-400"),
+        line:          cssVarRgb("night-700"),
+        "line-strong": cssVarRgb("night-600"),
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui"],
+        sans: ["var(--font-inter)", "Inter", "ui-sans-serif", "system-ui"],
+      },
+      borderRadius: {
+        card:    "1.25rem",
+        hero:    "1.75rem",
+        display: "2rem",
+      },
+      transitionTimingFunction: {
+        standard:   "cubic-bezier(0.22, 1, 0.36, 1)",
+        decelerate: "cubic-bezier(0, 0, 0.2, 1)",
+        accelerate: "cubic-bezier(0.4, 0, 1, 1)",
+      },
+      transitionDuration: {
+        instant: "100ms",
+        fast:    "150ms",
+        normal:  "220ms",
+        slow:    "350ms",
       },
       backgroundImage: {
         /* Subtle industrial cross-hatch grain */
         "industrial-grain": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23B45309' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
       },
       boxShadow: {
-        /* Card shadows — deep but not loud */
-        "card":               "0 1px 2px 0 rgba(0,0,0,.45), 0 4px 12px -2px rgba(0,0,0,.50)",
-        "card-hover":         "0 8px 24px -6px rgba(0,0,0,.65), 0 0 0 1px rgba(150,165,190,0.10)",
-        /* Restrained orange glow / focus ring (was 0.55 / 0.32) */
-        "glow-brand":         "0 0 24px -6px rgba(232,119,34,0.28)",
-        "glow-accent":        "0 0 20px -6px rgba(245,158,11,0.22)",
-        /* Industrial panel — neutral inset highlight; only a whisper of brand */
-        "industrial-panel":
-          "0 1px 0 0 rgba(0,0,0,0.55), 0 24px 48px -28px rgba(0,0,0,0.85), inset 0 1px 0 0 rgba(255,255,255,0.04)",
-        "industrial-panel-raised":
-          "0 1px 0 0 rgba(0,0,0,0.55), 0 30px 64px -30px rgba(0,0,0,0.92), inset 0 1px 0 0 rgba(255,255,255,0.05)",
-        /* Focus ring — softer */
-        "brand-ring":
-          "0 0 0 3px rgba(232,119,34,0.20)",
+        /* Card shadows — themed via CSS vars (light + dark variants in globals.css) */
+        "card":                    "var(--shadow-card)",
+        "card-hover":              "var(--shadow-card-hover)",
+        "industrial-panel":        "var(--shadow-industrial-panel)",
+        "industrial-panel-raised": "var(--shadow-industrial-panel-raised)",
+        /* Brand glow / focus ring — same in both modes */
+        "glow-brand":  "0 0 24px -6px rgba(232,119,34,0.28)",
+        "glow-accent": "0 0 20px -6px rgba(245,158,11,0.22)",
+        "brand-ring":  "0 0 0 3px rgba(232,119,34,0.20)",
       },
     },
   },
