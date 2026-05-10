@@ -33,6 +33,12 @@ type OrderSummary = {
   grand_total: number;
 };
 
+// TODO(redesign-followup): replace with callTool fetch keyed on `order_id` query
+// param plus the standard loading | error | empty | data state machine. Tool
+// name + payload shape need verification against the listing/payments MCPs
+// before swap. Tracked in docs/redesign/04-implementation-sweep.md §G.
+// AGENTS.md "no mock arrays" rule applies — this stays only until that fetch
+// lands.
 const MOCK_ORDER: OrderSummary = {
   order_id: "ord-001",
   title: "HMS #1 Scrap Steel — Lot 3",
