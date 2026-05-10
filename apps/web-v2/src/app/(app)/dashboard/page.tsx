@@ -447,6 +447,36 @@ export default function DashboardPage() {
         kycLevel={kycLevel}
       />
 
+      {Object.keys(sectionErrors).length > 0 && (
+        // Surface the per-section load failures collected in `load()`. The
+        // page used to swallow these (silent retries only) which left users
+        // staring at "—" placeholders with no way to know what went wrong
+        // or to manually retry. Successful retries clear `sectionErrors`
+        // and this strip disappears on its own.
+        <div
+          className="dashboard-status-strip text-sm text-night-100"
+          role="status"
+          aria-live="polite"
+        >
+          <CircleAlert className="h-4 w-4 shrink-0 text-warning-400" />
+          <span>
+            <strong className="text-night-100">Some sections didn't load</strong>
+            {" — "}
+            {Object.keys(sectionErrors).join(", ")}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              retriedRef.current = false;
+              void load(true);
+            }}
+            className="font-semibold text-brand-400 underline-offset-2 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {kycLevel < 2 && (
         <div className="dashboard-status-strip text-sm text-night-100">
           <CircleAlert className="h-4 w-4 shrink-0 text-brand-400" />
