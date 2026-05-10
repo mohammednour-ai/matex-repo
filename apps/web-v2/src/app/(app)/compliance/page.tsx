@@ -18,6 +18,7 @@ import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 
 const LCTR_THRESHOLD = 10_000; // CAD — PCMLTFA s.9
@@ -85,22 +86,36 @@ export default function CompliancePage() {
   const [strSubmitting, setStrSubmitting] = useState(false);
   const [strSuccess, setStrSuccess] = useState(false);
   const [strError, setStrError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"monitor" | "lctr" | "str" | "retention">("monitor");
 
   useEffect(() => {
     async function load() {
       setLoadingTx(true);
+      setLoadError(null);
       try {
         const res = await callTool("payments.get_transaction_history", {
           user_id: user?.userId,
           limit: 50,
         });
-        const raw = (
-          (res.data as Record<string, unknown>)?.transactions ??
-          (res.data as Record<string, unknown>)?.upstream_response as unknown ??
-          []
-        ) as Record<string, unknown>[];
+        if (!res.success) {
+          setTransactions([]);
+          setLoadError(res.error?.message ?? "Could not load transaction history.");
+          return;
+        }
+        // Edge transport returns { transactions: [...] }; the legacy gateway
+        // path nests it under upstream_response.data.transactions. Try the
+        // nested shape first, then the flat one. Never fall back to mock
+        // data — this is a regulator-facing surface (FINTRAC/PCMLTFA).
+        const data = res.data as Record<string, unknown> | undefined;
+        const upData = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+          | Record<string, unknown>
+          | undefined;
+        const raw =
+          (upData?.transactions as Record<string, unknown>[] | undefined) ??
+          (data?.transactions as Record<string, unknown>[] | undefined) ??
+          [];
 
         const normalized: Transaction[] = Array.isArray(raw)
           ? raw.map((t, i) => ({
@@ -114,15 +129,10 @@ export default function CompliancePage() {
               reported: Boolean(t.lctr_reported ?? false),
             }))
           : [];
-
-        // Always show demo data so the compliance UI is visible
-        if (normalized.length === 0) {
-          setTransactions(DEMO_TRANSACTIONS);
-        } else {
-          setTransactions(normalized);
-        }
+        setTransactions(normalized);
       } catch {
-        setTransactions(DEMO_TRANSACTIONS);
+        setTransactions([]);
+        setLoadError("Could not load transaction history.");
       } finally {
         setLoadingTx(false);
       }
@@ -233,10 +243,23 @@ export default function CompliancePage() {
             ))}
           </div>
 
+          {loadError && (
+            <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {loadError}
+            </div>
+          )}
+
           {loadingTx ? (
             <div className="flex justify-center py-10">
               <Spinner className="h-6 w-6 text-brand-500" />
             </div>
+          ) : transactions.length === 0 ? (
+            <EmptyState
+              image="/grphs/Platform%20Domains/payments-d-payments.png"
+              title="No transactions yet"
+              description="When this account starts trading, real transactions will appear here for LCTR review and 5-year retention. This panel never displays sample data."
+              size="md"
+            />
           ) : (
             <div className="marketplace-card overflow-hidden">
               <div className="px-5 py-4 border-b border-night-700">
@@ -546,14 +569,6 @@ export default function CompliancePage() {
 }
 
 // ── Static data ───────────────────────────────────────────────────────────────
-
-const DEMO_TRANSACTIONS: Transaction[] = [
-  { id: "tx-001", date: new Date(Date.now() - 2 * 86400000).toISOString(), counterparty: "Allied Metals Corp.", amount: 14500, method: "bank_transfer", type: "payment", flagged: true, reported: false },
-  { id: "tx-002", date: new Date(Date.now() - 5 * 86400000).toISOString(), counterparty: "Ontario Copper Recycling", amount: 8750, method: "interac", type: "payment", flagged: false, reported: false },
-  { id: "tx-003", date: new Date(Date.now() - 7 * 86400000).toISOString(), counterparty: "Steel Works Hamilton", amount: 32000, method: "wire", type: "payment", flagged: true, reported: true },
-  { id: "tx-004", date: new Date(Date.now() - 9 * 86400000).toISOString(), counterparty: "GTA Demolition Inc.", amount: 4200, method: "stripe", type: "payment", flagged: false, reported: false },
-  { id: "tx-005", date: new Date(Date.now() - 12 * 86400000).toISOString(), counterparty: "ABC Recycling Brampton", amount: 11200, method: "interac", type: "payment", flagged: true, reported: false },
-];
 
 const RETENTION_CHECKS = [
   {
