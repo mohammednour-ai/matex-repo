@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import {
   Sheet,
@@ -140,10 +141,12 @@ function ListingCard({
   listing,
   onMessageSeller,
   onSave,
+  saved,
 }: {
   listing: ListingResult;
   onMessageSeller: (listingId: string, title: string) => void;
   onSave: (listingId: string) => void;
+  saved: boolean;
 }) {
   const saleConfig = SALE_MODE_CONFIG[listing.sale_mode];
   const gradientColors = [
@@ -173,9 +176,16 @@ function ListingCard({
         <button
           onClick={() => onSave(listing.listing_id)}
           className="absolute top-2 right-2 w-7 h-7 rounded-full bg-night-850/80 backdrop-blur-sm flex items-center justify-center hover:bg-night-850 transition-colors shadow-sm"
-          aria-label="Save listing"
+          aria-label={saved ? "Remove from favorites" : "Save listing"}
+          aria-pressed={saved}
         >
-          <Heart size={14} className="text-night-300 hover:text-red-500 transition-colors" />
+          <Heart
+            size={14}
+            className={clsx(
+              "transition-colors",
+              saved ? "text-red-500 fill-red-500" : "text-night-300 hover:text-red-500",
+            )}
+          />
         </button>
       </div>
 
@@ -763,6 +773,10 @@ export default function SearchPage() {
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savingSearch, setSavingSearch] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  // The set of listing_ids the current user has favorited. Used to render
+  // each result card's heart in the correct state and to branch the toggle
+  // between add_favorite and remove_favorite.
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
 
   const debouncedQuery = useDebounce(query, 500);
   const hasTriggeredInitial = useRef(false);
@@ -780,6 +794,22 @@ export default function SearchPage() {
       }
     }
     loadSavedSearches();
+  }, []);
+
+  // Load favorited listing IDs on mount so the heart on each card can render
+  // in the correct state and the toggle can branch between add and remove.
+  useEffect(() => {
+    async function loadFavorites() {
+      const user = getUser();
+      if (!user) return;
+      const res = await callTool("listing.list_favorites", { user_id: user.userId });
+      if (!res.success) return;
+      const inner = extractForwardedData(res);
+      const list = (inner?.favorites ?? (res.data as { favorites?: { listing_id?: string }[] } | undefined)?.favorites) as { listing_id?: string }[] | undefined;
+      if (!Array.isArray(list)) return;
+      setFavoriteIds(new Set(list.map((f) => String(f?.listing_id ?? "")).filter(Boolean)));
+    }
+    loadFavorites();
   }, []);
 
   const runSearch = useCallback(async (overrideQuery?: string) => {
@@ -840,7 +870,30 @@ export default function SearchPage() {
   }
 
   async function handleSaveListing(listingId: string) {
-    await callTool("listing.add_favorite", { listing_id: listingId });
+    const user = getUser();
+    if (!user) return;
+    // Toggle: branch on current set membership and call add or remove with
+    // both required args (user_id was previously omitted, so the call would
+    // fail server-side validation while leaving the UI silent).
+    const wasSaved = favoriteIds.has(listingId);
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (wasSaved) next.delete(listingId);
+      else next.add(listingId);
+      return next;
+    });
+    const tool = wasSaved ? "listing.remove_favorite" : "listing.add_favorite";
+    const res = await callTool(tool, { listing_id: listingId, user_id: user.userId });
+    if (!res.success) {
+      // Roll back the optimistic mutation.
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (wasSaved) next.add(listingId);
+        else next.delete(listingId);
+        return next;
+      });
+      showError(res.error, wasSaved ? "Could not remove favorite." : "Could not save listing.");
+    }
   }
 
   async function handleSaveSearch() {
@@ -976,6 +1029,7 @@ export default function SearchPage() {
                   listing={listing}
                   onMessageSeller={handleMessageSeller}
                   onSave={handleSaveListing}
+                  saved={favoriteIds.has(listing.listing_id)}
                 />
               ))}
             </div>
