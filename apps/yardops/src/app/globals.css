@@ -2,7 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+html { font-size: 80%; }
+
+/* ========================================
+   DESIGN TOKENS — semantic colour layer
+   :root = light mode  |  .dark = dark mode (default for yard workers)
+======================================== */
+:root {
+  --clr-bg:              #f0f1f3;
+  --clr-surface:         #ffffff;
+  --clr-surface-2:       #edeef1;
+  --clr-surface-3:       #f6f7f8;
+  --clr-border:          #d0d4db;
+  --clr-border-strong:   #b4b9c4;
+  --clr-text-1:          #0f1115;
+  --clr-text-2:          #3b404c;
+  --clr-text-3:          #6b7380;
+  --clr-text-muted:      #8b93a4;
+  --clr-nav-bg:          #ffffff;
+  --clr-nav-active-bg:   rgba(232, 119, 34, 0.10);
+  --clr-nav-hover-bg:    #f6f7f8;
+}
+
+.dark {
+  --clr-bg:              #0a0a0b;
+  --clr-surface:         #14171c;
+  --clr-surface-2:       #1a1e25;
+  --clr-surface-3:       #232830;
+  --clr-border:          #2b313b;
+  --clr-border-strong:   #383f4b;
+  --clr-text-1:          #f2f4f7;
+  --clr-text-2:          #b8bec9;
+  --clr-text-3:          #8b92a0;
+  --clr-text-muted:      #6b7280;
+  --clr-nav-bg:          #0f1115;
+  --clr-nav-active-bg:   rgba(232, 119, 34, 0.10);
+  --clr-nav-hover-bg:    #1a1e25;
+}
+
+/* ========================================
+   BACKGROUNDS
+======================================== */
 .industrial-bg {
+  background: linear-gradient(135deg, #e4e6ea 0%, #f0f1f3 50%, #e8eaed 100%);
+}
+.dark .industrial-bg {
   background: linear-gradient(135deg, #0a0a0b 0%, #0f1115 25%, #1a1e25 50%, #0f1115 75%, #0a0a0b 100%);
 }
 
@@ -14,6 +58,9 @@
   background-size: 40px 40px, 20px 20px, 20px 20px;
 }
 
+/* ========================================
+   ANIMATIONS
+======================================== */
 @keyframes page-enter {
   from { transform: translateY(16px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
@@ -26,19 +73,60 @@
 .spin-brand { animation: spin-brand 0.8s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .page-enter { animation: none !important; }
-  .spin-brand { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-/* Yard-specific utility classes */
+/* ========================================
+   ACCESSIBILITY
+======================================== */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 9999;
+}
+.skip-to-content:focus {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  width: auto;
+  height: auto;
+  padding: 0.75rem 1.5rem;
+  background: #e87722;
+  color: white;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  outline: 2px solid rgba(232, 119, 34, 0.5);
+}
+
+/* ========================================
+   THEME-AWARE UTILITY CLASSES
+======================================== */
 .yard-card {
-  @apply rounded-2xl border border-night-700 bg-night-850 p-6 shadow-card;
+  @apply rounded-2xl p-6 shadow-card;
+  background-color: var(--clr-surface);
+  border: 1px solid var(--clr-border);
 }
 
 .yard-input {
-  @apply w-full rounded-xl border border-night-700 bg-night-800 px-4 py-3 text-night-100
-         placeholder:text-night-400 focus:border-brand-500 focus:outline-none focus:ring-2
-         focus:ring-brand-500/20 transition-colors;
+  @apply w-full rounded-xl px-4 py-3 transition-colors;
+  background-color: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  color: var(--clr-text-1);
+}
+.yard-input::placeholder { color: var(--clr-text-muted); }
+.yard-input:focus {
+  outline: none;
+  border-color: #e87722;
+  box-shadow: 0 0 0 2px rgba(232, 119, 34, 0.20);
 }
 
 .yard-btn-primary {
@@ -49,9 +137,15 @@
 }
 
 .yard-btn-secondary {
-  @apply rounded-xl border border-night-700 bg-night-800 px-5 py-3 font-semibold text-night-100
-         hover:bg-night-750 hover:border-night-600 focus-visible:outline-none focus-visible:ring-2
-         focus-visible:ring-brand-500/30 transition-colors;
+  @apply rounded-xl px-5 py-3 font-semibold transition-colors
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30;
+  background-color: var(--clr-surface-2);
+  border: 1px solid var(--clr-border);
+  color: var(--clr-text-1);
+}
+.yard-btn-secondary:hover {
+  background-color: var(--clr-surface-3);
+  border-color: var(--clr-border-strong);
 }
 
 .yard-btn-danger {
@@ -69,17 +163,28 @@
 
 /* Nav */
 .yard-nav-link {
-  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-night-300
-         transition-colors hover:bg-night-800 hover:text-night-100;
+  @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors;
+  color: var(--clr-text-3);
+}
+.yard-nav-link:hover {
+  background-color: var(--clr-nav-hover-bg);
+  color: var(--clr-text-1);
 }
 .yard-nav-link-active {
-  @apply bg-brand-500/10 text-brand-400 hover:bg-brand-500/15 hover:text-brand-300;
+  background-color: var(--clr-nav-active-bg) !important;
+  color: #f58d1a !important;
+}
+.yard-nav-link-active:hover {
+  background-color: rgba(232, 119, 34, 0.15) !important;
+  color: #ffa83c !important;
 }
 
 /* Scale display — big, sun-readable */
 .scale-display {
-  @apply text-6xl font-black tabular-nums text-night-100 leading-none tracking-tight;
+  @apply text-6xl font-black tabular-nums leading-none tracking-tight;
+  color: var(--clr-text-1);
 }
 .scale-label {
-  @apply text-xs font-bold uppercase tracking-widest text-night-400;
+  @apply text-xs font-bold uppercase tracking-widest;
+  color: var(--clr-text-muted);
 }
