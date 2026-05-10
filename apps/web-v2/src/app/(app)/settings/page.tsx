@@ -155,7 +155,7 @@ function ProfileTab() {
               />
             ) : (
               <img
-                src="/grphs/Brand/avatar-placeholder-b-avatar.png"
+                src="/avatar-placeholder.svg"
                 alt=""
                 aria-hidden
                 className="h-full w-full object-cover"

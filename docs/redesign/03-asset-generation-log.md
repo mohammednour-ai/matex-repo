@@ -159,4 +159,40 @@ Replace `/grphs/Brand/avatar-placeholder-b-avatar.png` (40 KB) with an inline 96
 
 Phase 4 sweep handles K (Lucide migration) and the remaining within-`grphs/` cleanup as part of normal codework.
 
-Items D, E, F, G, H, I, J, L need a follow-up session with image-processing tools (`sharp`, `ImageMagick`, `ffmpeg`, `svgo`) installed, and Canva MCP credentials wired for the SVG generation. Each recipe in this doc is self-contained.
+---
+
+## Addendum — Phase F follow-up (executed)
+
+A second pass installed `sharp@^0.33` + `svgo@^3.3` as `web-v2` devDeps and ran the build pipeline at `apps/web-v2/scripts/build-assets.mjs`. ffmpeg-dependent items (login videos) and Canva-driven items (full empty-state illustrations) remain deferred. What did land:
+
+| Item | Before | After |
+|---|---|---|
+| `avatar-placeholder.svg` | 40 KB PNG (`/grphs/Brand/avatar-placeholder-b-avatar.png`) | **276 B SVG** — hand-written silhouette, brand-orange |
+| `logo-mark.svg` | did not exist (used `LogoOrangeTrns.png` 198 KB everywhere) | **291 B SVG** — simplified "M" mark on rounded brand-orange square |
+| `logo-wordmark.svg` | did not exist | **813 B SVG** — mark + "MATEX" + tagline using Inter (loaded via `next/font`) |
+| Favicon set | single 974 KB `favicon-512.png` referenced at 4 sizes (3.9 MB transfer waste) | **6 PNG files, 17.6 KB total** (16/32/48/180/192/512) |
+| `og-image.jpg` | 1.1 MB JPG (`og-social-share-image-b-og-share.jpg`) | **61 KB JPG** — sharp + mozjpeg @ q82, 1200×630 |
+| `twitter-image.jpg` | reused the 1.1 MB OG | **60 KB JPG** — separate twitter-card crop, 1200×600 |
+
+**Net wire-saving across SEO/install discovery payload:** ~3.3 MB.
+
+Code changes wiring the new assets:
+
+- `apps/web-v2/src/app/layout.tsx` — `metadata.icons` lists 6 PNGs at their actual sizes plus the SVG mark for browsers that prefer vector. `metadata.openGraph.images[0].url` → `/og-image.jpg`. `metadata.twitter.images[0]` → `/twitter-image.jpg`.
+- `apps/web-v2/src/app/(app)/settings/page.tsx` — avatar fallback `<img src>` → `/avatar-placeholder.svg`.
+
+Newly-orphaned files moved to `archive/web-v2-public-2026-05-10/`:
+
+- `apps/web-v2/public/favicon-512.png` (974 KB) — superseded by the 6-PNG set.
+- `apps/web-v2/public/grphs/Brand/avatar-placeholder-b-avatar.png` (40 KB) — superseded by the SVG.
+
+The pipeline script (`apps/web-v2/scripts/build-assets.mjs`) is committed and idempotent — re-run it after editing any source SVG to refresh the generated set.
+
+### Still deferred from F
+
+- **Logo wordmark fidelity** — the hand-written SVG is a clean simplified version (M-mark + "MATEX" + tagline). The original `LogoOrangeTrns.png` had a more ornate composition (gear + I-beam + node network + decorative wordmark). The sidebar continues to load `LogoOrangeTrns.png` so visual brand-fidelity is preserved until a designer reviews the simplified SVG and either approves or replaces it.
+- **24 empty-state SVGs** — production-quality empty-state illustrations are an iterative design job. Recipe at §H queues this for a focused Canva-MCP-driven session.
+- **11 status SVGs** — same.
+- **18 material thumbnail re-exports** — sharp can do this now (the dep is installed). One follow-up sweep can knock these out per the §J recipe.
+- **Login video re-encode** — still blocked on ffmpeg. No system access in this sandbox.
+- **Avatar placeholder uses `currentColor`-friendly fixed brand orange** — for true theme reactivity (light + dark) the inline-svg-component pattern is needed. Acceptable for now since brand orange reads on both modes.
