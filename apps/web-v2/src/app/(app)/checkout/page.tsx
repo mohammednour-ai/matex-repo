@@ -46,23 +46,6 @@ type OrderItem = {
   material_category: string;
 };
 
-function fallbackTax(subtotal: number, commission: number, provinceBuyer: string, provinceSeller: string): TaxBreakdown {
-  const hst = provinceBuyer === "ON" ? Math.round(subtotal * 0.13 * 100) / 100 : 0;
-  const gst = provinceBuyer !== "ON" ? Math.round(subtotal * 0.05 * 100) / 100 : 0;
-  const total_tax = Math.round((hst + gst) * 100) / 100;
-  return {
-    subtotal,
-    commission,
-    gst,
-    hst,
-    pst: 0,
-    total_tax,
-    grand_total: Math.round((subtotal + commission + total_tax) * 100) / 100,
-    province_buyer: provinceBuyer,
-    province_seller: provinceSeller,
-  };
-}
-
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 }
@@ -85,6 +68,8 @@ export default function CheckoutPage() {
   const [itemError, setItemError] = useState("");
   const [tax, setTax] = useState<TaxBreakdown | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
+  const [taxError, setTaxError] = useState<string>("");
+  const [taxRetryKey, setTaxRetryKey] = useState(0);
   const [shippingEstimate] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [walletBalance, setWalletBalance] = useState(0);
@@ -141,12 +126,18 @@ export default function CheckoutPage() {
     })();
   }, [user?.userId]);
 
-  // Load tax once item is known
+  // Load tax once item is known. We never substitute flat-rate guesses
+  // when the call fails — Canadian sales tax is a (buyer_province,
+  // seller_province, material_category) lookup, and producing the wrong
+  // number on a checkout page is worse than refusing to compute one
+  // (tax_mcp owns recycled-metal zero-rating, QC QST, BC PST, etc.).
+  // Per .cursor/rules/matex-canadian-compliance.mdc.
   useEffect(() => {
     if (!item) return;
     let cancelled = false;
     (async () => {
       setTaxLoading(true);
+      setTaxError("");
       const provinceBuyer = (user as { province?: string } | null)?.province ?? "ON";
       const provinceSeller = "ON";
       const res = await callTool("tax.calculate_tax", {
@@ -159,18 +150,19 @@ export default function CheckoutPage() {
       if (res.success) {
         setTax(res.data as unknown as TaxBreakdown);
       } else {
-        const commission = Math.round(item.total * 0.035 * 100) / 100;
-        setTax(fallbackTax(item.total, commission, provinceBuyer, provinceSeller));
+        setTax(null);
+        setTaxError(res.error?.message ?? "Could not calculate tax. Please try again.");
       }
       setTaxLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [item, user]);
+  }, [item, user, taxRetryKey]);
 
-  const effectiveTax = tax ?? (item ? fallbackTax(item.total, 0, "ON", "ON") : null);
-  const grandTotal = (effectiveTax?.grand_total ?? 0) + shippingEstimate;
+  const effectiveTax = tax;
+  const grandTotal = effectiveTax ? effectiveTax.grand_total + shippingEstimate : 0;
+  const canCheckout = Boolean(effectiveTax) && !taxLoading;
 
   async function handleConfirm(): Promise<void> {
     if (!item || !effectiveTax) return;
@@ -347,6 +339,17 @@ export default function CheckoutPage() {
               <div className="flex justify-center py-6">
                 <Spinner className="h-6 w-6 text-blue-500" />
               </div>
+            ) : !effectiveTax ? (
+              <div className="space-y-3 rounded-xl border border-danger-500/30 bg-danger-500/10 p-4 text-sm text-danger-400">
+                <p>{taxError || "Could not calculate tax for this order."}</p>
+                <button
+                  type="button"
+                  onClick={() => setTaxRetryKey((k) => k + 1)}
+                  className="font-semibold text-brand-400 underline-offset-2 hover:underline"
+                >
+                  Retry tax calculation
+                </button>
+              </div>
             ) : (
               <div className="space-y-2">
                 <TaxLine label="Material price" value={formatCAD(effectiveTax.subtotal)} />
@@ -369,7 +372,12 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          <Button size="lg" className="w-full" onClick={() => setStep(2)}>
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => setStep(2)}
+            disabled={!canCheckout}
+          >
             Continue to Payment <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -448,7 +456,13 @@ export default function CheckoutPage() {
             <Button size="lg" variant="secondary" className="flex-1" onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button size="lg" className="flex-1" loading={processing} onClick={handleConfirm}>
+            <Button
+              size="lg"
+              className="flex-1"
+              loading={processing}
+              disabled={!canCheckout}
+              onClick={handleConfirm}
+            >
               <Shield className="h-4 w-4" />
               Pay {formatCAD(grandTotal)}
             </Button>
