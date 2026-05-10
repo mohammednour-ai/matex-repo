@@ -647,7 +647,7 @@ function SearchEmptyState({ query, onSuggest }: { query: string; onSuggest?: (q:
   return (
     <div className="space-y-6">
       <EmptyIllustration
-        image="/grphs/Platform%20Domains/search-d-search.png"
+        icon={Search}
         title="No listings found"
         description={
           query

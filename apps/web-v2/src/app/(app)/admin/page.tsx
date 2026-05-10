@@ -13,6 +13,7 @@ import {
   CreditCard,
   Settings2,
   ScrollText,
+  UserCog,
 } from "lucide-react";
 import { callTool, getUser, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
@@ -241,7 +242,8 @@ export default function AdminPage() {
     return (
       <div className="max-w-2xl mx-auto">
         <EmptyState
-          image="/grphs/Platform%20Domains/admin-d-admin.png"
+          icon={UserCog}
+          iconTone="warning"
           title="Platform admin only"
           description="Your account is not marked as a platform operator. With Postgres, add your user UUID to public.matex_admin_operators, then sign in again. In local dev, set MATEX_DEV_ADMIN_EMAILS on the MCP gateway."
           cta={{ label: "Back to dashboard", href: "/dashboard" }}

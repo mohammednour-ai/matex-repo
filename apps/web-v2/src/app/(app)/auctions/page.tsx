@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Search, Package, TrendingUp, Clock } from "lucide-react";
+import { Search, Package, TrendingUp, Clock, Gavel } from "lucide-react";
 import { callTool } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -183,7 +182,7 @@ export default function AuctionsPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          image="/grphs/Brand/empty-auctions-empty-auctions.png"
+          icon={Gavel}
           title={`No ${tab} auctions`}
           description={
             tab === "live"
@@ -220,8 +219,8 @@ function AuctionCard({ auction }: { auction: Auction }) {
       )}
 
       <div className="flex items-start gap-3 mb-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10">
-          <Image src="/grphs/Icons/bid-gavel-i-bid.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" aria-hidden />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-400">
+          <Gavel size={20} aria-hidden />
         </div>
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-fg text-sm leading-snug pr-12">{auction.title}</h3>

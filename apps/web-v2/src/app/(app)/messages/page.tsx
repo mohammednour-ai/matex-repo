@@ -325,7 +325,7 @@ export default function MessagesPage() {
             </div>
           ) : threads.length === 0 ? (
             <EmptyState
-              image="/grphs/Platform%20Domains/messaging-d-messaging.png"
+              icon={MessageSquare}
               title="No messages yet"
               description="Start a conversation from a listing or use New to begin a thread."
               size="sm"
@@ -556,7 +556,7 @@ export default function MessagesPage() {
             </>
           ) : (
             <EmptyState
-              image="/grphs/Platform%20Domains/messaging-d-messaging.png"
+              icon={MessageSquare}
               title="No linked listing"
               description="This thread isn't tied to a listing."
               size="sm"

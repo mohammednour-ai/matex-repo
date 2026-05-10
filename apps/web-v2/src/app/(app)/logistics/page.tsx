@@ -269,7 +269,7 @@ export default function LogisticsPage() {
           <div className="px-5 py-4 text-sm text-danger-400">{shipmentsError}</div>
         ) : shipments.length === 0 ? (
           <EmptyState
-            image="/grphs/Platform%20Domains/logistics-d-logistics.png"
+            icon={Truck}
             title="No shipments yet"
             description="Book your first load below to start tracking pickup, ETA, and proof of delivery."
             size="md"

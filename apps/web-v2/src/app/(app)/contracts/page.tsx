@@ -279,7 +279,7 @@ export default function ContractsPage() {
         </div>
       ) : contracts.length === 0 ? (
         <EmptyState
-          image="/grphs/Platform%20Domains/contracts-d-contracts.png"
+          icon={FileText}
           title="No supply contracts yet"
           description="Create a standing order, volume commitment, or index-linked agreement to lock in supply."
           cta={{ label: "New contract", onClick: () => router.push("/contracts/create") }}

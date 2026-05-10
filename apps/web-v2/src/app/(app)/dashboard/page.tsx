@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Package,
   Wallet,
@@ -349,8 +348,6 @@ export default function DashboardPage() {
       value: string | number;
       subValue?: string | null;
       icon: typeof Package;
-      /** Optional grphs PNG override; renders in place of the lucide icon when set. */
-      image?: string;
       trend?: string | null;
       footnote?: string | null;
     };
@@ -359,7 +356,6 @@ export default function DashboardPage() {
         label: "Active Listings",
         value: stats?.active_listings ?? "—",
         icon: Package,
-        image: "/grphs/Platform%20Domains/listing-d-listing.png",
         trend: listingsTrend,
         footnote: null,
       },
@@ -368,14 +364,12 @@ export default function DashboardPage() {
         value:
           wallet && !Number.isNaN(wallet.balance) ? formatCAD(wallet.balance) : "—",
         icon: Wallet,
-        image: "/grphs/Icons/wallet-i-wallet.png",
         footnote: "Live balance",
       },
       {
         label: "Unread Messages",
         value: sectionErrors.unread ? "—" : unreadCount,
         icon: MessageSquare,
-        image: "/grphs/Platform%20Domains/messaging-d-messaging.png",
         footnote: "Across threads",
       },
       {
@@ -386,7 +380,6 @@ export default function DashboardPage() {
             ? `${formatCAD(stats.escrow_held ?? 0)} in escrow`
             : null,
         icon: ShieldCheck,
-        image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
         footnote: null,
       },
     ];
@@ -397,7 +390,6 @@ export default function DashboardPage() {
               label: "Active Bids",
               value: stats?.active_bids ?? "—",
               icon: Target,
-              image: "/grphs/Icons/bid-gavel-i-bid.png",
               footnote: "Open bids on listings",
             },
           ]
@@ -471,8 +463,8 @@ export default function DashboardPage() {
       {(stats?.active_auctions ?? 0) > 0 && (
         <div className="dashboard-alert">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-brand-500/30 bg-elevated/70">
-              <Image src="/grphs/Icons/bid-gavel-i-bid.png" alt="" width={22} height={22} className="h-5 w-5 object-contain" aria-hidden />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-brand-500/30 bg-elevated/70 text-brand-400">
+              <Gavel size={20} aria-hidden />
             </div>
             <div>
               <span className="font-bold text-fg">
@@ -537,18 +529,7 @@ export default function DashboardPage() {
                 )}
               </div>
               <span className="dashboard-stat-icon">
-                {card.image ? (
-                  <Image
-                    src={card.image}
-                    alt=""
-                    width={20}
-                    height={20}
-                    className="h-5 w-5 object-contain"
-                    aria-hidden
-                  />
-                ) : (
-                  <card.icon className="h-4 w-4 text-fg-muted" />
-                )}
+                <card.icon className="h-4 w-4 text-fg-muted" aria-hidden />
               </span>
             </div>
           </div>
@@ -603,7 +584,8 @@ export default function DashboardPage() {
         >
           {notifications.length === 0 && bookings.length === 0 ? (
             <EmptyState
-              image="/grphs/Brand/empty-activity-feed-b-empty-activity.png"
+              icon={CircleAlert}
+              iconTone="neutral"
               title="No recent activity"
               description="Notifications and scheduled visits will appear here as you trade."
               size="sm"
@@ -637,7 +619,7 @@ export default function DashboardPage() {
       >
         {bookings.length === 0 ? (
           <EmptyState
-            image="/grphs/Platform%20Domains/booking-d-booking.png"
+            icon={Calendar}
             title="No visits or inspections scheduled"
             description="Book on-site visits and inspections from your listings and orders."
             cta={{ label: "Go to inspections", href: "/inspections" }}

@@ -220,7 +220,7 @@ export default function InspectionsPage() {
         <CalendarView inspections={inspections} />
       ) : inspections.length === 0 ? (
         <EmptyState
-          image="/grphs/Brand/empty-inspections-b-empty-inspections.png"
+          icon={Calendar}
           title="No inspections yet"
           description="Scheduled CAW weight checks and grading visits will appear here."
           size="lg"

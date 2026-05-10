@@ -497,7 +497,7 @@ export default function ChatPage() {
         >
           {messages.length === 0 && (
             <EmptyState
-              image="/grphs/Brand/ai-copilot-illustration-b-copilot.png"
+              icon={Bot}
               title="How can I help you today?"
               description="Use the quick actions above or type your question below to get started."
               size="md"

@@ -124,24 +124,20 @@ function normalizeEscrow(raw: RawEscrow): EscrowRecord {
   };
 }
 
-const EMPTY_BY_TAB: Record<Tab, { image: string; title: string; description: string }> = {
+const EMPTY_BY_TAB: Record<Tab, { title: string; description: string }> = {
   active: {
-    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No active escrows",
     description: "New escrows appear here when funds are held against an order.",
   },
   pending_release: {
-    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "Nothing pending release",
     description: "When all release conditions are met, orders show here ready to release.",
   },
   released: {
-    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No released escrows yet",
     description: "Completed escrow disbursements will appear here.",
   },
   frozen: {
-    image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
     title: "No frozen escrows",
     description: "Frozen or disputed escrows appear here until resolved.",
   },
@@ -392,7 +388,7 @@ export default function EscrowPage() {
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
-            image={EMPTY_BY_TAB[tab].image}
+            icon={Shield}
             title={EMPTY_BY_TAB[tab].title}
             description={EMPTY_BY_TAB[tab].description}
             cta={tab === "active" ? { label: "Create escrow", href: "/escrow/create" } : undefined}

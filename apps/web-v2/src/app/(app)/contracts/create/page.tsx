@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { Button } from "@/components/ui/shadcn/button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,7 +20,7 @@ export default function CreateContractPage() {
         }
       />
       <EmptyState
-        image="/grphs/Platform%20Domains/contracts-d-contracts.png"
+        icon={FileText}
         title="Contract builder — coming soon"
         description="Use the AI Contract Assistant in an existing contract to draft clauses, or contact Matex support to set up your first supply agreement."
         cta={{ label: "Back to contracts", onClick: () => router.push("/contracts") }}

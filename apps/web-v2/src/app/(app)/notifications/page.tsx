@@ -228,7 +228,7 @@ function EmptyState({ tab }: { tab: Tab }) {
   };
   return (
     <EmptyIllustration
-      image="/grphs/Platform%20Domains/notifications-d-notifications.png"
+      icon={Bell}
       title={titles[tab]}
       description={
         tab === "unread"

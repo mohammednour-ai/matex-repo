@@ -320,34 +320,29 @@ function ListingCardItem({
 
 const EMPTY_BY_TAB: Record<
   Tab,
-  { image: string; title: string; description: string; showCreate: boolean }
+  { title: string; description: string; showCreate: boolean }
 > = {
   all: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No listings yet",
     description: "Create your first listing to start selling recycled materials on Matex.",
     showCreate: true,
   },
   active: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No active listings",
     description: "Publish a draft listing or create a new one to start receiving offers.",
     showCreate: true,
   },
   draft: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No drafts",
     description: "Save a listing as draft to continue editing it later.",
     showCreate: true,
   },
   sold: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No sold listings",
     description: "Listings you've completed will appear here.",
     showCreate: false,
   },
   ended: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No ended listings",
     description: "Expired or closed listings will appear here.",
     showCreate: false,
@@ -364,7 +359,7 @@ function ListingsEmptyState({
   const config = EMPTY_BY_TAB[tab];
   return (
     <EmptyIllustration
-      image={config.image}
+      icon={Package}
       title={config.title}
       description={config.description}
       cta={config.showCreate ? { label: "Create listing", onClick: onCreate } : undefined}
