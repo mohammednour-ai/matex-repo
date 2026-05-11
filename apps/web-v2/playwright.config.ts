@@ -81,5 +81,13 @@ export default defineConfig({
         reducedMotion: "reduce",
       },
     },
+    {
+      name: "a11y",
+      testDir: "./e2e/a11y",
+      timeout: 60_000,
+      use: {
+        reducedMotion: "reduce",
+      },
+    },
   ],
 });

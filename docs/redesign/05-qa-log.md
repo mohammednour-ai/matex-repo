@@ -121,43 +121,39 @@ pnpm --filter @matex/web-v2 test:smoke
 pnpm --filter @matex/web-v2 test:e2e
 ```
 
-### axe via Playwright
+### axe via Playwright — ✅ scaffolded
+
+Now wired. Single command:
 
 ```bash
-# 1. Install
-pnpm --filter @matex/web-v2 add -D @axe-core/playwright
-
-# 2. Add a project to playwright.config.ts:
-#    { name: "a11y", testMatch: "**/a11y.spec.ts", use: devices["Desktop Chrome"] }
-
-# 3. Add e2e/a11y/dashboard.spec.ts (per route):
-#    import { test, expect } from "@playwright/test";
-#    import AxeBuilder from "@axe-core/playwright";
-#    test("dashboard has no detectable a11y violations", async ({ page }) => {
-#      await page.addInitScript(() => localStorage.setItem("matex_token", "axe"));
-#      await page.goto("/dashboard");
-#      const r = await new AxeBuilder({ page }).analyze();
-#      expect(r.violations).toEqual([]);
-#    });
-
-# 4. Repeat per route for the 16 (app) pages plus /login.
+pnpm --filter @matex/web-v2 test:a11y
 ```
 
-### Lighthouse
+What's in place:
+- `@axe-core/playwright` is a `web-v2` devDep.
+- `playwright.config.ts` declares an `a11y` project rooted at `./e2e/a11y/`.
+- `e2e/a11y/dashboard-and-app.spec.ts` sweeps 13 routes (login + 12 authed) with WCAG 2.0/2.1 A+AA tags plus `best-practice`. Color-contrast is disabled because it's theme-dependent (manual eyeball check in 05 §Light-mode visual regression).
+- Each route is its own test → failures are isolated and the HTML reporter shows per-route violation tables.
+
+Run requirements: web-v2 dev server on :3002 (config starts one automatically unless `PLAYWRIGHT_SKIP_WEBSERVER=1`). The a11y scan tolerates an offline gateway because pages render their loading / error / empty shells — the DOM is still scannable.
+
+### Lighthouse CI — ✅ scaffolded
+
+Now wired. Single command:
 
 ```bash
-# 1. Bring up the stack (as above).
-# 2. Run Lighthouse against the relevant routes:
-npx lighthouse http://localhost:3002/dashboard --preset=desktop --output=json \
-  --output-path=./.lighthouse/dashboard.json \
-  --chrome-flags="--headless --no-sandbox"
-
-# Target scores (after Phase 1-4):
-# - Performance: ≥ 90 (was lower due to 1.1 MB OG watermark + 974 KB favicon at 4 sizes)
-# - Accessibility: ≥ 95 (was likely ~80 due to skip-link absence + hit targets)
-# - Best Practices: ≥ 95
-# - SEO: ≥ 90
+pnpm --filter @matex/web-v2 test:lighthouse
 ```
+
+What's in place:
+- `@lhci/cli` is a `web-v2` devDep.
+- `apps/web-v2/.lighthouserc.json` declares 5 audit URLs (login, dashboard, listings, search, auctions), starts a production `next start` server on :3002, runs each URL once, and asserts performance / a11y / best-practices / SEO budgets.
+- Budgets (set per docs/redesign/05 expectations):
+  - Performance ≥ 0.85 (warn)
+  - Accessibility ≥ 0.92 (error — gates CI)
+  - Best Practices ≥ 0.90 (warn)
+  - SEO ≥ 0.85 (warn)
+- Output: `apps/web-v2/.lighthouseci/` (HTML + JSON per URL). Bundle-analyzer reports (`ANALYZE=true pnpm --filter @matex/web-v2 build` → `.next/analyze/*.html`) pair with this for diagnosing perf regressions.
 
 ### Light-mode visual regression
 

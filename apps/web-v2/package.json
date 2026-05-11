@@ -16,6 +16,8 @@
     "test:uiux": "playwright test --project=uiux",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:a11y": "playwright test --project=a11y",
+    "test:lighthouse": "lhci autorun --config=./.lighthouserc.json",
     "test:compliance": "playwright test --project=compliance",
     "test:legacy": "playwright test --project=legacy",
     "test:report": "tsx e2e/report/generate-report.ts",
@@ -48,6 +50,8 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@lhci/cli": "^0.15.1",
     "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.55.0",
     "@types/react": "^18.2.0",
