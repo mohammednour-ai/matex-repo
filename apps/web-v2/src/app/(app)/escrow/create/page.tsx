@@ -12,11 +12,14 @@ import {
   Copy,
   Package,
 } from "lucide-react";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 
 type PaymentMethod = "card" | "wallet" | "credit";
 
@@ -86,6 +89,19 @@ export default function CreateEscrowPage() {
   const [step, setStep] = useState<"form" | "success">("form");
   const [escrowId, setEscrowId] = useState<string>("");
   const [copied, setCopied] = useState(false);
+
+  // Card-payment state. Allocated when paymentMethod === "card" and the
+  // form is fully ready (order + tax loaded, terms accepted). Mirror of
+  // the /checkout flow but with escrow_id pre-allocated up front so the
+  // PaymentIntent's metadata carries it directly — the webhook (PR 4)
+  // can then UPDATE escrow.status='funds_held' without falling back to
+  // the order_id lookup.
+  const [allocatedEscrowId, setAllocatedEscrowId] = useState<string>("");
+  const [clientSecret, setClientSecret] = useState<string>("");
+  const [, setTransactionId] = useState<string>("");
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [allocError, setAllocError] = useState<string>("");
+  const stripeReady = isStripeConfigured();
 
   // Stage 1: load order + wallet in parallel as soon as the page mounts.
   // Stage 2 (separate effect): once order is known, fetch listing (for
@@ -271,6 +287,104 @@ export default function CreateEscrowPage() {
     setEscrowId(newEscrowId);
     setStep("success");
     setFunding(false);
+  }
+
+  // Card flow: allocate escrow first (we need escrow_id for the PI metadata),
+  // then create the PaymentIntent. Triggered when the buyer has accepted the
+  // terms and selected card. Only runs when stripe is configured.
+  useEffect(() => {
+    if (paymentMethod !== "card") return;
+    if (!stripeReady || !accepted) return;
+    if (!order || grandTotal <= 0 || !userId) return;
+    if (clientSecret || allocLoading) return;
+    if (userId !== order.buyer_id) return;
+    let cancelled = false;
+    (async () => {
+      setAllocLoading(true);
+      setAllocError("");
+
+      // 1. Create the escrow up front so the PI carries escrow_id in its
+      //    metadata; the webhook then resolves directly to this escrow.
+      let escId = allocatedEscrowId;
+      if (!escId) {
+        const escrowRes = await callTool("escrow.create_escrow", {
+          order_id: order.order_id,
+          buyer_id: order.buyer_id,
+          seller_id: order.seller_id,
+          amount: grandTotal,
+          performed_by: userId,
+        });
+        if (cancelled) return;
+        if (!escrowRes.success) {
+          setAllocError(escrowRes.error?.message ?? "Could not create escrow.");
+          setAllocLoading(false);
+          return;
+        }
+        const newEscId = extractId(escrowRes, "escrow_id");
+        if (!newEscId) {
+          setAllocError("Escrow created but no ID returned.");
+          setAllocLoading(false);
+          return;
+        }
+        escId = newEscId;
+        setAllocatedEscrowId(newEscId);
+      }
+
+      // 2. Allocate the PaymentIntent referencing both order_id and escrow_id.
+      const piRes = await callTool("payments.create_payment_intent", {
+        user_id: userId,
+        actor_id: userId,
+        order_id: order.order_id,
+        escrow_id: escId,
+        amount: grandTotal,
+        currency: "CAD",
+      });
+      if (cancelled) return;
+      if (!piRes.success) {
+        setAllocError(piRes.error?.message ?? "Could not start card payment.");
+        setAllocLoading(false);
+        return;
+      }
+      const data = piRes.data as Record<string, unknown> | undefined;
+      const cs = String(data?.client_secret ?? "");
+      const tx = String(data?.transaction_id ?? "");
+      if (!cs || !tx) {
+        setAllocError("Payment service did not return a client secret.");
+        setAllocLoading(false);
+        return;
+      }
+      setClientSecret(cs);
+      setTransactionId(tx);
+      setAllocLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, stripeReady, accepted, order?.order_id, grandTotal, userId]);
+
+  // If the buyer un-accepts terms or switches away from card, drop the
+  // client_secret so a fresh allocation happens when they come back.
+  // The escrow stays allocated (admin can clean up unfunded escrows; the
+  // race fix in escrow.create_escrow auto-funds it if a confirmed PI for
+  // this order exists, so re-running the effect is safe).
+  useEffect(() => {
+    if (paymentMethod !== "card" || !accepted) {
+      if (clientSecret) {
+        setClientSecret("");
+        setTransactionId("");
+        setAllocError("");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, accepted]);
+
+  // Called by CardPaymentForm after stripe.confirmPayment succeeds. The
+  // webhook will mark transactions.completed and transition the escrow
+  // to funds_held; we just advance the UI optimistically and trust the
+  // server-side state machine for the durable record.
+  async function handleCardSuccess(): Promise<void> {
+    if (!allocatedEscrowId) return;
+    setEscrowId(allocatedEscrowId);
+    setStep("success");
   }
 
   function handleCopy(): void {
@@ -466,9 +580,41 @@ export default function CreateEscrowPage() {
           />
           {paymentMethod === "card" && (
             <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
-              <div className="h-10 rounded border-2 border-dashed border-night-600 bg-night-850 flex items-center justify-center text-xs text-night-300">
-                Stripe Elements — Card input (placeholder)
-              </div>
+              {!stripeReady ? (
+                <p className="text-xs text-night-300">
+                  Card payments are not configured for this environment. Set
+                  <code className="mx-1 rounded bg-night-850 px-1.5 py-0.5 font-mono text-[11px] text-brand-400">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>
+                  or pick a different payment method.
+                </p>
+              ) : !accepted ? (
+                <p className="text-xs text-night-300">
+                  Accept the terms below to load the card form.
+                </p>
+              ) : allocLoading ? (
+                <div className="flex items-center gap-3 py-2 text-sm text-night-300">
+                  <Spinner className="h-4 w-4 text-blue-500" />
+                  Preparing secure card form…
+                </div>
+              ) : allocError ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-danger-400">{allocError}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setClientSecret(""); setAllocError(""); }}
+                    className="text-xs font-semibold text-brand-400 underline-offset-2 hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : clientSecret ? (
+                <StripeProvider clientSecret={clientSecret}>
+                  <CardPaymentForm
+                    amount={grandTotal}
+                    disabled={!accepted}
+                    onSuccess={handleCardSuccess}
+                  />
+                </StripeProvider>
+              ) : null}
             </div>
           )}
 
@@ -512,6 +658,11 @@ export default function CreateEscrowPage() {
         </label>
       </div>
 
+      {paymentMethod !== "card" && (
+      // Card flow lives inside CardPaymentForm above (its own submit
+      // button confirms the PaymentIntent via stripe.confirmPayment).
+      // Wallet / credit go through this synchronous escrow.create_escrow
+      // → hold_funds → process_payment path.
       <Button
         size="lg"
         className="w-full"
@@ -522,7 +673,76 @@ export default function CreateEscrowPage() {
         <Shield className="h-4 w-4" />
         Fund Escrow — {formatCAD(grandTotal)}
       </Button>
+      )}
     </div>
+  );
+}
+
+/**
+ * Card-payment form. Same shape as the version in /checkout — kept inline
+ * here rather than exported as a shared component because the success
+ * callback (handleCardSuccess) closes over per-page state. The duplication
+ * is small (~50 lines) and keeps each page's flow readable in one file.
+ */
+function CardPaymentForm({
+  amount,
+  disabled,
+  onSuccess,
+}: {
+  amount: number;
+  disabled: boolean;
+  onSuccess: () => Promise<void>;
+}): JSX.Element {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}/escrow/create?return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    await onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <PaymentElement options={{ layout: "tabs" }} />
+      {error && (
+        <div className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-xs text-danger-400">
+          {error}
+        </div>
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        loading={submitting}
+        disabled={disabled || !stripe || !elements || submitting}
+      >
+        <Shield className="h-4 w-4" />
+        Fund Escrow — {new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount)}
+      </Button>
+    </form>
   );
 }
 
