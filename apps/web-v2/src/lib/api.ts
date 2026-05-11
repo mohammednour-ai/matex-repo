@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 export type MCPResponse<T = Record<string, unknown>> = {
   success: boolean;
   data?: T & { upstream_response?: { data?: Record<string, unknown> } };
@@ -308,6 +310,42 @@ const TOOLS_ON_EDGE = new Set<string>([
 const SUPABASE_FN_BASE =
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "") + "/functions/v1";
 
+/**
+ * Emit a Sentry breadcrumb for an MCP tool call so that when an exception
+ * is captured later in the user's session, the breadcrumb trail shows
+ * which tools ran (and which failed) leading up to it.
+ *
+ * Categorised as `mcp.<domain>` so Sentry's UI can filter by domain
+ * (payments, escrow, listing, etc.). Defensive try/catch so the page
+ * doesn't break when Sentry isn't initialised (no DSN configured).
+ *
+ * Refs: docs/audit/2026-05-10/p1-p2-plan.md (P1-14).
+ */
+function emitToolBreadcrumb(
+  tool: string,
+  transport: "edge" | "gateway" | "public" | "skipped",
+  result: { success: boolean; code?: string },
+): void {
+  const domain = tool.split(".")[0] || "unknown";
+  try {
+    Sentry.addBreadcrumb({
+      category: `mcp.${domain}`,
+      message: `${tool} ${result.success ? "ok" : (result.code ?? "fail")}`,
+      level: result.success ? "info" : "warning",
+      data: {
+        tool,
+        transport,
+        success: result.success,
+        ...(result.code ? { error_code: result.code } : {}),
+      },
+    });
+  } catch {
+    /* Sentry not loaded — no-op. Should not happen at runtime since
+       sentry.client.config.ts runs at startup, but keep the helper
+       resilient so this never blocks a tool call. */
+  }
+}
+
 async function callViaEdge<T>(
   tool: string,
   args: Record<string, unknown>,
@@ -355,11 +393,15 @@ export async function callTool<T = Record<string, unknown>>(
 
   // Don't make authenticated calls without a token
   if (!isPublic && !token) {
-    return { success: false, error: { code: "UNAUTHENTICATED", message: "Not logged in." } };
+    const out: MCPResponse<T> = { success: false, error: { code: "UNAUTHENTICATED", message: "Not logged in." } };
+    emitToolBreadcrumb(tool, "skipped", { success: false, code: out.error?.code });
+    return out;
   }
 
   if (TOOLS_ON_EDGE.has(tool) && token) {
-    return callViaEdge<T>(tool, args, token);
+    const out = await callViaEdge<T>(tool, args, token);
+    emitToolBreadcrumb(tool, "edge", { success: out.success, code: out.error?.code });
+    return out;
   }
 
   const res = await fetch("/api/mcp", {
@@ -372,11 +414,16 @@ export async function callTool<T = Record<string, unknown>>(
   try {
     parsed = JSON.parse(text) as MCPResponse<T>;
   } catch {
-    return { success: false, error: { code: "PARSE_ERROR", message: GENERIC_ERROR_MESSAGE } };
+    const out: MCPResponse<T> = { success: false, error: { code: "PARSE_ERROR", message: GENERIC_ERROR_MESSAGE } };
+    emitToolBreadcrumb(tool, isPublic ? "public" : "gateway", { success: false, code: out.error?.code });
+    return out;
   }
   if (!parsed.success) {
-    return { success: false, error: normalizeError(parsed.error) };
+    const out: MCPResponse<T> = { success: false, error: normalizeError(parsed.error) };
+    emitToolBreadcrumb(tool, isPublic ? "public" : "gateway", { success: false, code: out.error?.code });
+    return out;
   }
+  emitToolBreadcrumb(tool, isPublic ? "public" : "gateway", { success: true });
   return parsed;
 }
 
