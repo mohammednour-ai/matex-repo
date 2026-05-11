@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { callServer, generateId, MatexEventBus, now, sha256 , initSentry} from "@matex/utils";
+import { callServer, generateId, MatexEventBus, now, initSentry } from "@matex/utils";
 import { startDomainHttpAdapter } from "../../../shared/mcp-http-adapter/src";
 
 const SERVER_NAME = "contracts-mcp";
@@ -39,7 +39,7 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    { name: "create_contract", description: "Create a new supply contract", inputSchema: { type: "object", properties: { buyer_id: { type: "string" }, seller_id: { type: "string" }, contract_type: { type: "string" }, material_category: { type: "string" }, quantity_kg: { type: "number" }, price_per_kg: { type: "number" }, currency: { type: "string" }, delivery_frequency: { type: "string" }, start_date: { type: "string" }, end_date: { type: "string" }, terms: { type: "object" } }, required: ["buyer_id", "seller_id", "contract_type", "material_category", "quantity_kg", "price_per_kg"] } },
+    { name: "create_contract", description: "Create a new draft supply contract (matches contracts_mcp.contracts schema). v1 form ships standing-only; tool accepts the full contract_type enum.", inputSchema: { type: "object", properties: { buyer_id: { type: "string" }, seller_id: { type: "string" }, contract_type: { type: "string", enum: ["standing", "volume", "hybrid", "index_linked", "rfq_framework", "consignment"] }, material_category_id: { type: "string" }, total_volume: { type: "number" }, unit: { type: "string", enum: ["mt", "kg", "g", "troy_oz", "units", "lots", "cubic_yards"] }, base_price: { type: "number", description: "Per-unit price; folded into pricing_model when caller does not supply one" }, currency: { type: "string" }, pricing_model: { type: "object", description: "Override the fixed-price default; carries index_source/premium/floor/ceiling for index_linked contracts" }, quality_specs: { type: "object" }, breach_penalties: { type: "object" }, frequency: { type: "string", enum: ["weekly", "biweekly", "monthly", "quarterly", "on_demand"] }, start_date: { type: "string" }, end_date: { type: "string" }, auto_renew: { type: "boolean" }, renewal_notice_days: { type: "number" } }, required: ["buyer_id", "seller_id", "material_category_id", "total_volume", "unit", "base_price", "start_date", "end_date"] } },
     { name: "activate_contract", description: "Activate a draft contract after eSign completion", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, esign_document_id: { type: "string" } }, required: ["contract_id"] } },
     { name: "generate_order", description: "Auto-generate an order from an active contract", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, quantity_kg: { type: "number" }, delivery_date: { type: "string" } }, required: ["contract_id"] } },
     { name: "negotiate_terms", description: "Propose changes to contract terms", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, proposed_by: { type: "string" }, proposed_changes: { type: "object" }, message: { type: "string" } }, required: ["contract_id", "proposed_by", "proposed_changes"] } },
@@ -62,43 +62,91 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for contracts-mcp.");
 
   if (tool === "create_contract") {
+    // Schema-aligned input. The previous tool wrote
+    // material_category/quantity_kg/price_per_kg/total_value/terms/terms_hash,
+    // none of which exist on contracts_mcp.contracts (real columns are
+    // material_category_id UUID, total_volume + unit enum, pricing_model
+    // JSONB, quality_specs JSONB, breach_penalties JSONB). Every prior
+    // create has been silently 422'ing against the real schema.
+    //
+    // v1 of /contracts/create only exposes contract_type='standing' from
+    // the UI; this tool stays permissive and accepts the full enum so
+    // chat/API callers can issue index_linked / volume / etc.
     const buyerId = String(args.buyer_id ?? "");
     const sellerId = String(args.seller_id ?? "");
-    const contractType = String(args.contract_type ?? "");
-    const materialCategory = String(args.material_category ?? "");
-    const quantityKg = Number(args.quantity_kg ?? 0);
-    const pricePerKg = Number(args.price_per_kg ?? 0);
-    if (!buyerId || !sellerId || !contractType || !materialCategory || quantityKg <= 0 || pricePerKg <= 0) {
-      return fail("VALIDATION_ERROR", "buyer_id, seller_id, contract_type, material_category, quantity_kg>0, price_per_kg>0 are required.");
+    const contractType = String(args.contract_type ?? "standing");
+    const materialCategoryId = String(args.material_category_id ?? "");
+    const totalVolume = Number(args.total_volume ?? 0);
+    const unit = String(args.unit ?? "");
+    const basePrice = Number(args.base_price ?? 0);
+    const startDate = String(args.start_date ?? "");
+    const endDate = String(args.end_date ?? "");
+
+    if (!buyerId || !sellerId) return fail("VALIDATION_ERROR", "buyer_id and seller_id are required.");
+    if (buyerId === sellerId) return fail("VALIDATION_ERROR", "buyer_id and seller_id must differ.");
+    if (!materialCategoryId) return fail("VALIDATION_ERROR", "material_category_id is required.");
+    if (!(totalVolume > 0)) return fail("VALIDATION_ERROR", "total_volume must be > 0.");
+    if (!unit) return fail("VALIDATION_ERROR", "unit is required (e.g. 'mt', 'kg').");
+    if (!(basePrice > 0)) return fail("VALIDATION_ERROR", "base_price must be > 0.");
+    if (!startDate || !endDate) return fail("VALIDATION_ERROR", "start_date and end_date are required.");
+    if (new Date(endDate).getTime() <= new Date(startDate).getTime()) {
+      return fail("VALIDATION_ERROR", "end_date must be after start_date.");
     }
 
+    // pricing_model JSONB defaults to a fixed-price model derived from
+    // base_price. Callers (chat / API) building an index_linked contract
+    // can supply pricing_model directly with type/index_source/premium/
+    // floor/ceiling — schema-shaped and additive without a tool change.
+    const pricingModel =
+      (args.pricing_model as Record<string, unknown> | undefined) ??
+      { type: "fixed", base_price: basePrice, currency: String(args.currency ?? "CAD") };
+
+    const qualitySpecs = (args.quality_specs as Record<string, unknown> | undefined) ?? {};
+    const breachPenalties = (args.breach_penalties as Record<string, unknown> | undefined) ?? {};
+
+    const frequency = args.frequency ? String(args.frequency) : null;
+    const autoRenew = Boolean(args.auto_renew ?? false);
+    const renewalNoticeDays = Number(args.renewal_notice_days ?? 30);
+
     const contractId = generateId();
-    const totalValue = Number((quantityKg * pricePerKg).toFixed(2));
-    const termsPayload = (args.terms ?? {}) as Record<string, unknown>;
-    const termsHash = sha256(JSON.stringify(termsPayload));
     const insertResult = await supabase.schema("contracts_mcp").from("contracts").insert({
       contract_id: contractId,
       buyer_id: buyerId,
       seller_id: sellerId,
       contract_type: contractType,
-      material_category: materialCategory,
-      quantity_kg: quantityKg,
-      price_per_kg: pricePerKg,
-      total_value: totalValue,
-      currency: String(args.currency ?? "CAD"),
-      delivery_frequency: args.delivery_frequency ? String(args.delivery_frequency) : null,
-      start_date: args.start_date ? String(args.start_date) : null,
-      end_date: args.end_date ? String(args.end_date) : null,
-      terms: termsPayload,
-      terms_hash: termsHash,
+      material_category_id: materialCategoryId,
+      quality_specs: qualitySpecs,
+      pricing_model: pricingModel,
+      total_volume: totalVolume,
+      unit,
+      frequency,
+      start_date: startDate,
+      end_date: endDate,
+      auto_renew: autoRenew,
+      renewal_notice_days: renewalNoticeDays,
+      breach_penalties: breachPenalties,
       status: "draft",
       created_at: now(),
       updated_at: now(),
     });
     if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
 
-    await emitEvent("contracts.contract.created", { contract_id: contractId, buyer_id: buyerId, seller_id: sellerId, contract_type: contractType });
-    return { content: [{ type: "text", text: ok({ contract_id: contractId, status: "draft", total_value: totalValue }) }] };
+    await emitEvent("contracts.contract.created", {
+      contract_id: contractId,
+      buyer_id: buyerId,
+      seller_id: sellerId,
+      contract_type: contractType,
+      total_volume: totalVolume,
+      unit,
+    });
+    return { content: [{ type: "text", text: ok({
+      contract_id: contractId,
+      status: "draft",
+      contract_type: contractType,
+      total_volume: totalVolume,
+      unit,
+      pricing_model: pricingModel,
+    }) }] };
   }
 
   if (tool === "activate_contract") {

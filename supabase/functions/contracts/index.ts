@@ -8,48 +8,83 @@ import { serveDomain, type ToolRequest } from "../_shared/handler.ts";
 
 const SOURCE = "contracts-edge";
 
-async function sha256Hex(input: string): Promise<string> {
-  const buf = new TextEncoder().encode(input);
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", buf);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 async function ping() {
   return okEnvelope({ status: "ok", server: SOURCE, timestamp: now() });
 }
 
 async function createContract({ args }: ToolRequest) {
+  // Schema-aligned. See packages/mcp-servers/contracts-mcp/src/index.ts
+  // for the long comment on the columns this replaces.
   const supabase = serviceClient();
   const buyerId = String(args.buyer_id ?? "");
   const sellerId = String(args.seller_id ?? "");
-  const contractType = String(args.contract_type ?? "");
-  const materialCategory = String(args.material_category ?? "");
-  const quantityKg = Number(args.quantity_kg ?? 0);
-  const pricePerKg = Number(args.price_per_kg ?? 0);
-  if (!buyerId || !sellerId || !contractType || !materialCategory || quantityKg <= 0 || pricePerKg <= 0) {
-    return failEnvelope("VALIDATION_ERROR", "buyer_id, seller_id, contract_type, material_category, quantity_kg>0, price_per_kg>0 are required.");
+  const contractType = String(args.contract_type ?? "standing");
+  const materialCategoryId = String(args.material_category_id ?? "");
+  const totalVolume = Number(args.total_volume ?? 0);
+  const unit = String(args.unit ?? "");
+  const basePrice = Number(args.base_price ?? 0);
+  const startDate = String(args.start_date ?? "");
+  const endDate = String(args.end_date ?? "");
+
+  if (!buyerId || !sellerId) return failEnvelope("VALIDATION_ERROR", "buyer_id and seller_id are required.");
+  if (buyerId === sellerId) return failEnvelope("VALIDATION_ERROR", "buyer_id and seller_id must differ.");
+  if (!materialCategoryId) return failEnvelope("VALIDATION_ERROR", "material_category_id is required.");
+  if (!(totalVolume > 0)) return failEnvelope("VALIDATION_ERROR", "total_volume must be > 0.");
+  if (!unit) return failEnvelope("VALIDATION_ERROR", "unit is required (e.g. 'mt', 'kg').");
+  if (!(basePrice > 0)) return failEnvelope("VALIDATION_ERROR", "base_price must be > 0.");
+  if (!startDate || !endDate) return failEnvelope("VALIDATION_ERROR", "start_date and end_date are required.");
+  if (new Date(endDate).getTime() <= new Date(startDate).getTime()) {
+    return failEnvelope("VALIDATION_ERROR", "end_date must be after start_date.");
   }
+
+  const pricingModel =
+    (args.pricing_model as Record<string, unknown> | undefined) ??
+    { type: "fixed", base_price: basePrice, currency: String(args.currency ?? "CAD") };
+  const qualitySpecs = (args.quality_specs as Record<string, unknown> | undefined) ?? {};
+  const breachPenalties = (args.breach_penalties as Record<string, unknown> | undefined) ?? {};
+  const frequency = args.frequency ? String(args.frequency) : null;
+  const autoRenew = Boolean(args.auto_renew ?? false);
+  const renewalNoticeDays = Number(args.renewal_notice_days ?? 30);
+
   const contractId = generateId();
-  const totalValue = Number((quantityKg * pricePerKg).toFixed(2));
-  const termsPayload = (args.terms ?? {}) as Record<string, unknown>;
-  const termsHash = await sha256Hex(JSON.stringify(termsPayload));
   const ts = now();
   const { error } = await supabase.schema("contracts_mcp").from("contracts").insert({
-    contract_id: contractId, buyer_id: buyerId, seller_id: sellerId,
-    contract_type: contractType, material_category: materialCategory,
-    quantity_kg: quantityKg, price_per_kg: pricePerKg, total_value: totalValue,
-    currency: String(args.currency ?? "CAD"),
-    delivery_frequency: args.delivery_frequency ? String(args.delivery_frequency) : null,
-    start_date: args.start_date ? String(args.start_date) : null,
-    end_date: args.end_date ? String(args.end_date) : null,
-    terms: termsPayload, terms_hash: termsHash,
-    status: "draft", created_at: ts, updated_at: ts,
+    contract_id: contractId,
+    buyer_id: buyerId,
+    seller_id: sellerId,
+    contract_type: contractType,
+    material_category_id: materialCategoryId,
+    quality_specs: qualitySpecs,
+    pricing_model: pricingModel,
+    total_volume: totalVolume,
+    unit,
+    frequency,
+    start_date: startDate,
+    end_date: endDate,
+    auto_renew: autoRenew,
+    renewal_notice_days: renewalNoticeDays,
+    breach_penalties: breachPenalties,
+    status: "draft",
+    created_at: ts,
+    updated_at: ts,
   });
   if (error) return failEnvelope("DB_ERROR", "Database operation failed");
   await emitEvent(supabase, SOURCE, "contracts.contract.created", {
-    contract_id: contractId, buyer_id: buyerId, seller_id: sellerId, contract_type: contractType,
+    contract_id: contractId,
+    buyer_id: buyerId,
+    seller_id: sellerId,
+    contract_type: contractType,
+    total_volume: totalVolume,
+    unit,
   });
-  return okEnvelope({ contract_id: contractId, status: "draft", total_value: totalValue });
+  return okEnvelope({
+    contract_id: contractId,
+    status: "draft",
+    contract_type: contractType,
+    total_volume: totalVolume,
+    unit,
+    pricing_model: pricingModel,
+  });
 }
 
 async function activateContract({ args }: ToolRequest) {
