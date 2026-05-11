@@ -105,6 +105,106 @@ async function verifyIntegrity() {
   return okEnvelope({ success: true, valid: true, broken_at: null });
 }
 
+async function getRetentionStatus({ args }: ToolRequest) {
+  // Edge counterpart of log-mcp's get_retention_status. Replaces the
+  // hardcoded RETENTION_CHECKS in apps/web-v2's /compliance page. Five of
+  // six checks are live DB counts; catalytic-converter serial coverage
+  // stays as a static "see Listings > Create" prompt because cross-tenant
+  // resolution through yardops_mcp.cat_converters is a separate task.
+  const userId = String(args.user_id ?? "");
+  if (!userId) return failEnvelope("VALIDATION_ERROR", "user_id is required.");
+  const supabase = serviceClient();
+
+  const [txs, kycDocs, companies, lctrEligible, strs] = await Promise.all([
+    supabase
+      .schema("payments_mcp")
+      .from("transactions")
+      .select("transaction_id", { count: "exact", head: true })
+      .eq("payer_id", userId),
+    supabase
+      .schema("kyc_mcp")
+      .from("documents")
+      .select("document_id", { count: "exact", head: true })
+      .eq("user_id", userId),
+    supabase
+      .schema("profile_mcp")
+      .from("companies")
+      .select("company_id", { count: "exact", head: true })
+      .eq("user_id", userId),
+    supabase
+      .schema("payments_mcp")
+      .from("transactions")
+      .select("transaction_id", { count: "exact", head: true })
+      .eq("payer_id", userId)
+      .gte("amount", 10000),
+    supabase
+      .schema("log_mcp")
+      .from("audit_log")
+      .select("log_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .or("action.eq.compliance.str_filed,event_name.eq.compliance.str_filed"),
+  ]);
+
+  const txCount = txs.count ?? 0;
+  const kycCount = kycDocs.count ?? 0;
+  const companyCount = companies.count ?? 0;
+  const lctrCount = lctrEligible.count ?? 0;
+  const strCount = strs.count ?? 0;
+
+  const checks = [
+    {
+      id: "transaction_records",
+      label: "Transaction records (5 years)",
+      description: "All payment and order records are stored in the Matex audit log with tamper-evident hashing.",
+      count: txCount,
+      ok: true,
+      action: txCount === 0 ? "No transactions yet — records will accrue as you trade." : "",
+    },
+    {
+      id: "client_identification",
+      label: "Client identification records",
+      description: "KYC Level 1 documents (government-issued ID) retained for 5 years from end of relationship.",
+      count: kycCount,
+      ok: kycCount > 0,
+      action: kycCount === 0 ? "Upload your government-issued ID via Settings → KYC & Verification." : "",
+    },
+    {
+      id: "beneficial_ownership",
+      label: "Beneficial ownership (corporate accounts)",
+      description: "Articles of incorporation and corporate structure for KYC Level 3 corporate accounts.",
+      count: companyCount,
+      ok: companyCount === 0,
+      action: companyCount > 0 ? "Required for corporate accounts — collect via KYC Level 3 verification in Settings." : "",
+    },
+    {
+      id: "catalytic_serials",
+      label: "Catalytic converter serial records",
+      description: "Serial number, VIN, and photo documentation for all catalytic converter transactions.",
+      count: 0,
+      ok: false,
+      action: "Catalytic converter compliance fields are required on listings — see Listings > Create.",
+    },
+    {
+      id: "str_filings",
+      label: "Suspicious transaction logs",
+      description: "STR filings are retained in the compliance audit trail for 5 years.",
+      count: strCount,
+      ok: true,
+      action: "",
+    },
+    {
+      id: "lctr_reports",
+      label: "FINTRAC reports (LCTRs)",
+      description: "Filed Large Cash Transaction Reports archived in the compliance record.",
+      count: lctrCount,
+      ok: true,
+      action: lctrCount > 0 ? "Confirm all CAD $10,000+ transactions are filed with FINTRAC within 15 days." : "",
+    },
+  ];
+
+  return okEnvelope({ checks });
+}
+
 Deno.serve(serveDomain({
   ping,
   log_tool_call: logToolCall,
@@ -112,4 +212,5 @@ Deno.serve(serveDomain({
   log_external_api: logExternalApi,
   search_logs: searchLogs,
   verify_integrity: verifyIntegrity,
+  get_retention_status: getRetentionStatus,
 }));

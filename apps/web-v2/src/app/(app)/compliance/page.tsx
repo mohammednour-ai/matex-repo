@@ -88,7 +88,49 @@ export default function CompliancePage() {
   const [strError, setStrError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Retention tab: server-computed checklist replacing the hardcoded
+  // RETENTION_CHECKS const. See log.get_retention_status (P1-5 / PR ref).
+  type RetentionCheck = {
+    id: string;
+    label: string;
+    description: string;
+    count: number;
+    ok: boolean;
+    action: string;
+  };
+  const [retention, setRetention] = useState<RetentionCheck[] | null>(null);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<"monitor" | "lctr" | "str" | "retention">("monitor");
+
+  // Load retention checklist the first time the retention tab is opened.
+  // Lazy because the queries hit five tables; no need to run them when the
+  // user is on monitor / LCTR / STR tabs.
+  useEffect(() => {
+    if (activeTab !== "retention" || retention !== null || retentionLoading) return;
+    if (!user?.userId) return;
+    let cancelled = false;
+    (async () => {
+      setRetentionLoading(true);
+      setRetentionError(null);
+      const res = await callTool("log.get_retention_status", { user_id: user.userId });
+      if (cancelled) return;
+      if (!res.success) {
+        setRetentionError(res.error?.message ?? "Could not load retention checklist.");
+        setRetentionLoading(false);
+        return;
+      }
+      const data = res.data as Record<string, unknown> | undefined;
+      const up = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const checks = (up?.checks ?? data?.checks) as RetentionCheck[] | undefined;
+      setRetention(Array.isArray(checks) ? checks : []);
+      setRetentionLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, retention, retentionLoading, user?.userId]);
 
   useEffect(() => {
     async function load() {
@@ -524,9 +566,20 @@ export default function CompliancePage() {
             relationship.
           </InfoBox>
 
+          {retentionLoading && (
+            <div className="flex items-center justify-center py-10">
+              <Spinner className="h-5 w-5 text-brand-500" />
+            </div>
+          )}
+          {retentionError && (
+            <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {retentionError}
+            </div>
+          )}
+          {!retentionLoading && !retentionError && retention && (
           <div className="grid gap-4 sm:grid-cols-2">
-            {RETENTION_CHECKS.map((check) => (
-              <div key={check.label} className="marketplace-card p-5 flex gap-4">
+            {retention.map((check) => (
+              <div key={check.id} className="marketplace-card p-5 flex gap-4">
                 <div
                   className={clsx(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
@@ -536,15 +589,23 @@ export default function CompliancePage() {
                   {check.ok ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-night-100">{check.label}</p>
+                  <p className="text-sm font-semibold text-night-100">
+                    {check.label}
+                    {check.count > 0 && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-night-800 px-2 py-0.5 text-[10px] font-mono text-night-300">
+                        {check.count}
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-night-300 mt-0.5">{check.description}</p>
-                  {!check.ok && (
+                  {check.action && (
                     <p className="text-xs text-red-400 mt-1 font-medium">{check.action}</p>
                   )}
                 </div>
               </div>
             ))}
           </div>
+          )}
 
           <div className="marketplace-card p-5 space-y-3">
             <p className="text-sm font-semibold text-night-100">Alberta RAPID reporting</p>
@@ -568,43 +629,5 @@ export default function CompliancePage() {
   );
 }
 
-// ── Static data ───────────────────────────────────────────────────────────────
-
-const RETENTION_CHECKS = [
-  {
-    label: "Transaction records (5 years)",
-    description: "All payment and order records are stored in the Matex audit log with tamper-evident hashing.",
-    ok: true,
-    action: "",
-  },
-  {
-    label: "Client identification records",
-    description: "KYC Level 1 documents (government-issued ID) retained for 5 years from end of relationship.",
-    ok: true,
-    action: "",
-  },
-  {
-    label: "Beneficial ownership (corporate accounts)",
-    description: "Articles of incorporation and corporate structure for KYC Level 3 corporate accounts.",
-    ok: false,
-    action: "Required for corporate accounts — collect via KYC Level 3 verification in Settings.",
-  },
-  {
-    label: "Catalytic converter serial records",
-    description: "Serial number, VIN, and photo documentation for all catalytic converter transactions.",
-    ok: false,
-    action: "Catalytic converter compliance fields are required on listings — see Listings > Create.",
-  },
-  {
-    label: "Suspicious transaction logs",
-    description: "STR filings are retained in the compliance audit trail for 5 years.",
-    ok: true,
-    action: "",
-  },
-  {
-    label: "FINTRAC reports (LCTRs)",
-    description: "Filed Large Cash Transaction Reports archived in the compliance record.",
-    ok: true,
-    action: "",
-  },
-];
+// Retention checks were previously a hardcoded const here. They now come
+// from the log.get_retention_status tool — see useEffect above.

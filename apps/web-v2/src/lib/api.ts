@@ -168,6 +168,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "log.log_external_api",
   "log.search_logs",
   "log.verify_integrity",
+  "log.get_retention_status",
   "log.ping",
   "profile.get_profile",
   "profile.update_profile",
