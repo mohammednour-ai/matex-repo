@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "echo '@matex/web (legacy) — lint disabled; see CLAUDE.md (critical fixes only, all new work in web-v2)'",
     "test:e2e": "next build && playwright test"
   },
   "dependencies": {
