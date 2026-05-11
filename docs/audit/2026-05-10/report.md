@@ -47,6 +47,43 @@ Matex is materially further along than a typical pre-GA B2B marketplace. Every d
 
 ---
 
+### 1.1 Update — post-shipment status (after the audit was acted on)
+
+All nine P0 items identified by this audit have shipped to `master` or are in
+final review. See §2.3 for the per-item PR map. The five risks above are
+fully addressed by the merged work:
+
+- **R1 (Stripe unwired)** — The six-PR plan in `p0-1-stripe-elements-plan.md`
+  is end-to-end on `master` once #43 + #44 merge: real `<PaymentElement>` on
+  `/checkout` and `/escrow/create`, server-allocated PaymentIntents,
+  idempotent webhook → escrow `funds_held` transition, and a 15-minute
+  reconciliation cron to catch lost webhooks. **Resolved.**
+- **R2 (Compliance demo data)** — `DEMO_TRANSACTIONS` fallback deleted; the
+  panel renders an `EmptyState` explicitly stating it never shows sample
+  data. **Resolved.**
+- **R3 (Escrow create on MOCK_ORDER)** — Real `orders.get_order` fetch with
+  loading + empty states; `seller_id` now passed to `escrow.create_escrow`
+  (previously omitted — would fail server validation). **Resolved.**
+- **R5 (Dashboard swallows errors)** — `sectionErrors` rendered with an
+  inline status strip and a manual Retry button. **Resolved.**
+- **R4 (Contracts fulfillment chart)** — Was not in the P0 list; remains
+  on the P1 backlog as P1-2.
+
+The two pieces deferred as follow-ups, in scope of P0-1 but not blocking
+that item's closure:
+
+- Admin "record manual purchase" card flow (small `5b` PR — internal
+  tooling only, lower-traffic).
+- Explicit Sentry breadcrumb instrumentation at each PaymentIntent
+  lifecycle point (folded into P1-14, which already covered Sentry
+  init verification and per-domain breadcrumbs).
+
+This addendum is intentionally short. The original audit text below is
+preserved unchanged so future readers can see the state the work was
+planned against.
+
+---
+
 ## 2. Methodology & confidence statement
 
 **What I did:**
@@ -608,17 +645,21 @@ All 4 functions ✅. **Tools:** `notifications.get_notifications`, `notification
 
 #### P0 — blockers to ship
 
-| # | Item | Why | Effort | Owner |
+All nine P0 items are shipped to `master` or in final review. PR refs in
+the Status column. PR numbers prefixed with `#` are in the
+`mohammednour-ai/matex-repo` repository.
+
+| # | Item | Why | Effort | Status |
 |---|---|---|---|---|
-| P0-1 | Wire Stripe Elements to Checkout (#53,54) | Cannot accept payment | L | frontend+backend |
-| P0-2 | Remove `MOCK_ORDER` in `escrow/create/page.tsx` (#75) and call `orders.get_order` | Funds-movement on fiction | S | frontend |
-| P0-3 | Remove `DEMO_TRANSACTIONS` fallback in `compliance/page.tsx` (#56) | Regulator-facing mock data is illegal | S | frontend |
-| P0-4 | Fix admin escrow ops missing `performed_by` arg (#21–24) | Currently fail server-side validation | S | frontend |
-| P0-5 | Fix avatar upload tool selection in settings (#130) | Currently calls listing-image upload | S | frontend |
-| P0-6 | Fix favorite toggle (call remove_favorite, #91, #125) | One-directional state | S | frontend |
-| P0-7 | Generate atomic invoice number server-side (#54) | Random invoice numbers violate compliance rule | S | backend (tax-mcp) |
-| P0-8 | Surface dashboard `sectionErrors` (#5) | Silent failures hurt support | S | frontend |
-| P0-9 | Fix tax fallback flat rates (#51) | Violates province-pair rule | S | frontend |
+| P0-1 | Wire Stripe Elements to Checkout (#53,54) | Cannot accept payment | L | ✅ shipped (plan #37; PRs #38, #39, #40, #41 merged; #43, #44 in review) |
+| P0-2 | Remove `MOCK_ORDER` in `escrow/create/page.tsx` (#75) and call `orders.get_order` | Funds-movement on fiction | S | ✅ merged (#29) |
+| P0-3 | Remove `DEMO_TRANSACTIONS` fallback in `compliance/page.tsx` (#56) | Regulator-facing mock data is illegal | S | ✅ merged (#31) |
+| P0-4 | Fix admin escrow ops missing `performed_by` arg (#21–24) | Currently fail server-side validation | S | ✅ merged (#32) |
+| P0-5 | Fix avatar upload tool selection in settings (#130) | Currently calls listing-image upload | S | ✅ merged (#33) |
+| P0-6 | Fix favorite toggle (call remove_favorite, #91, #125) | One-directional state | S | ✅ merged (#30) |
+| P0-7 | Generate atomic invoice number server-side (#54) | Random invoice numbers violate compliance rule | S | ✅ merged (#36) |
+| P0-8 | Surface dashboard `sectionErrors` (#5) | Silent failures hurt support | S | ✅ merged (#34) |
+| P0-9 | Fix tax fallback flat rates (#51) | Violates province-pair rule | S | ✅ merged (#35) |
 
 #### P1 — must-have within next milestone
 
