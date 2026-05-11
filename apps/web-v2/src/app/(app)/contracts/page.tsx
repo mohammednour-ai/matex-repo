@@ -12,6 +12,9 @@ import {
   BarChart3,
   RefreshCw,
   PenLine,
+  PauseCircle,
+  CalendarOff,
+  AlertOctagon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { callTool, callCopilot, extractId } from "@/lib/api";
@@ -103,15 +106,24 @@ const TYPE_COLORS: Record<ContractType, string> = {
 };
 
 function statusBadge(s: ContractStatus) {
-  const map: Record<ContractStatus, { label: string; variant: "success" | "warning" | "danger" | "info" | "gray" }> = {
-    draft: { label: "Draft", variant: "gray" },
-    pending_signature: { label: "Pending Signature", variant: "warning" },
-    active: { label: "Active", variant: "success" },
-    suspended: { label: "Suspended", variant: "warning" },
-    expired: { label: "Expired", variant: "gray" },
-    breached: { label: "Breached", variant: "danger" },
+  type Variant = "success" | "warning" | "danger" | "info" | "gray";
+  const ICON_CLASS = "mr-1 h-3 w-3";
+  const map: Record<ContractStatus, { label: string; variant: Variant; icon: typeof FileText }> = {
+    draft: { label: "Draft", variant: "gray", icon: FileText },
+    pending_signature: { label: "Pending Signature", variant: "warning", icon: PenLine },
+    active: { label: "Active", variant: "success", icon: CheckCircle },
+    suspended: { label: "Suspended", variant: "warning", icon: PauseCircle },
+    expired: { label: "Expired", variant: "gray", icon: CalendarOff },
+    breached: { label: "Breached", variant: "danger", icon: AlertOctagon },
   };
-  return <Badge variant={map[s].variant}>{map[s].label}</Badge>;
+  const m = map[s];
+  const Icon = m.icon;
+  return (
+    <Badge variant={m.variant}>
+      <Icon className={ICON_CLASS} aria-hidden />
+      {m.label}
+    </Badge>
+  );
 }
 
 function formatCAD(n: number): string {

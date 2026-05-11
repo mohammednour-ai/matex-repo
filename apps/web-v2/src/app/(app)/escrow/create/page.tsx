@@ -30,6 +30,9 @@ type OrderSummary = {
   total_price: number;
   commission: number;
   tax: number;
+  /** True when tax couldn't be computed via tax.calculate_tax and the HST 13% flat fallback was used. */
+  tax_is_estimate?: boolean;
+  tax_provinces?: { seller: string; buyer: string };
   grand_total: number;
 };
 
@@ -114,8 +117,42 @@ export default function CreateEscrowPage() {
       const commission = Number(orderRow.commission_amount ?? 0);
       const quantity = Number(orderRow.quantity ?? 0);
       const unit = String(orderRow.unit ?? "MT");
-      const taxEstimate = +(subtotal * 0.13).toFixed(2);
-      const grand = +(subtotal + commission + taxEstimate).toFixed(2);
+
+      // Province-aware tax via tax.calculate_tax. seller_province comes from
+      // the listing's pickup address; buyer_province defaults to "ON" (the
+      // most common Canadian buyer) because profile.get_profile doesn't
+      // expose the buyer's incorporation_province today — wire that in once
+      // a profile.get_company tool exists.
+      const pickup =
+        (listingRow?.pickup_address as Record<string, unknown> | undefined) ??
+        undefined;
+      const paymentMeta =
+        (listingRow?.payment_meta as Record<string, unknown> | undefined) ??
+        undefined;
+      const sellerProvince = String(
+        paymentMeta?.seller_province ?? pickup?.province ?? "ON",
+      );
+      const buyerProvince = "ON";
+
+      let taxTotal = +(subtotal * 0.13).toFixed(2);
+      let taxIsEstimate = true;
+      if (subtotal > 0) {
+        const taxRes = await callTool("tax.calculate_tax", {
+          amount: subtotal,
+          seller_province: sellerProvince,
+          buyer_province: buyerProvince,
+        });
+        if (cancelled) return;
+        if (taxRes.success) {
+          const taxBody = taxRes.data as Record<string, unknown> | undefined;
+          const totalTax = Number(taxBody?.total_tax ?? NaN);
+          if (Number.isFinite(totalTax)) {
+            taxTotal = +totalTax.toFixed(2);
+            taxIsEstimate = false;
+          }
+        }
+      }
+      const grand = +(subtotal + commission + taxTotal).toFixed(2);
 
       setState({
         kind: "data",
@@ -131,7 +168,9 @@ export default function CreateEscrowPage() {
           unit_price: quantity > 0 ? +(subtotal / quantity).toFixed(2) : 0,
           total_price: subtotal,
           commission,
-          tax: taxEstimate,
+          tax: taxTotal,
+          tax_is_estimate: taxIsEstimate,
+          tax_provinces: { seller: sellerProvince, buyer: buyerProvince },
           grand_total: grand,
         },
       });
@@ -303,7 +342,13 @@ export default function CreateEscrowPage() {
           {[
             { label: "Material price", value: formatCAD(order.total_price) },
             { label: "Platform commission (3.5%)", value: formatCAD(order.commission), sub: true },
-            { label: "HST (13%)", value: formatCAD(order.tax), sub: true },
+            {
+              label: order.tax_provinces
+                ? `Tax (${order.tax_provinces.seller} → ${order.tax_provinces.buyer}${order.tax_is_estimate ? " · estimate" : ""})`
+                : "HST (13% estimate)",
+              value: formatCAD(order.tax),
+              sub: true,
+            },
           ].map((r) => (
             <div key={r.label} className={`flex justify-between text-sm ${r.sub ? "text-fg-subtle" : "text-fg-muted"}`}>
               <span>{r.label}</span>

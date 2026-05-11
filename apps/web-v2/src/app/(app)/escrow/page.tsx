@@ -13,6 +13,9 @@ import {
   RefreshCcw,
   MessageSquareWarning,
   DollarSign,
+  Clock,
+  AlertOctagon,
+  Undo2,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -62,16 +65,24 @@ function formatCAD(n: number): string {
 }
 
 function statusBadge(status: EscrowStatus) {
-  const map: Record<EscrowStatus, { label: string; variant: "success" | "warning" | "danger" | "info" | "gray" }> = {
-    created: { label: "Created", variant: "gray" },
-    funds_held: { label: "Funds Held", variant: "info" },
-    released: { label: "Released", variant: "success" },
-    frozen: { label: "Frozen", variant: "danger" },
-    refunded: { label: "Refunded", variant: "warning" },
-    disputed: { label: "Disputed", variant: "danger" },
+  type Variant = "success" | "warning" | "danger" | "info" | "gray";
+  const ICON_CLASS = "mr-1 h-3 w-3";
+  const map: Record<EscrowStatus, { label: string; variant: Variant; icon: typeof Shield }> = {
+    created: { label: "Created", variant: "gray", icon: Clock },
+    funds_held: { label: "Funds Held", variant: "info", icon: Shield },
+    released: { label: "Released", variant: "success", icon: CheckCircle },
+    frozen: { label: "Frozen", variant: "danger", icon: Snowflake },
+    refunded: { label: "Refunded", variant: "warning", icon: Undo2 },
+    disputed: { label: "Disputed", variant: "danger", icon: AlertOctagon },
   };
   const m = map[status];
-  return <Badge variant={m.variant}>{m.label}</Badge>;
+  const Icon = m.icon;
+  return (
+    <Badge variant={m.variant}>
+      <Icon className={ICON_CLASS} aria-hidden />
+      {m.label}
+    </Badge>
+  );
 }
 
 const TIMELINE_STEPS = [

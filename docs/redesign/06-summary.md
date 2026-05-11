@@ -90,6 +90,9 @@ Each deferred item has a verbatim run recipe in the relevant doc. Listed for fol
 | 20 | Lighthouse pass | ❌ blocked on running stack | `05` |
 | 21 | Light-mode visual regression | ❌ blocked — needs human eyeballing in a browser, sandbox can't render UI | `05` |
 | 22 | Pre-existing CI lint warnings (9) | ✅ shipped — 5× `<img>` migrated to `<Image>` or annotated with rationale; useEffect deps + CountdownTimer useMemo fixed; lint exits 0 with zero warnings | – |
+| 23 | Tax via `tax.calculate_tax` in escrow/create | ✅ shipped — seller_province pulled from `listing.pickup_address.province` / `payment_meta.seller_province`; buyer_province defaults to "ON" until a `profile.get_company` MCP tool surfaces `incorporation_province`. Falls back to 13% HST estimate if the call fails. Tax-row label now shows the province pair plus an `· estimate` suffix when the fallback fires. | `04 §G` |
+| 24 | Status badges adopt the Lucide-icon-in-badge pattern | ✅ shipped — `inspections/page.tsx`, `escrow/page.tsx`, `contracts/page.tsx` `statusBadge` helpers all now embed a status-appropriate Lucide glyph (CheckCircle / XCircle / AlertTriangle / Loader2-spin / Calendar / Ban / Clock / Shield / Snowflake / Undo2 / AlertOctagon / PauseCircle / CalendarOff / PenLine / FileText) at `mr-1 h-3 w-3`. Visual scanability win across 19 status variants. | – |
+| 25 | Bundle hygiene | ✅ partial — `@tremor/react` removed (dead dep, only consumer was the archived `KPICardV2`); `@next/bundle-analyzer` wired in `next.config.mjs` behind `ANALYZE=true` env var so future audits run `ANALYZE=true pnpm --filter @matex/web-v2 build` and read `.next/analyze/*.html`. | – |
 
 ---
 

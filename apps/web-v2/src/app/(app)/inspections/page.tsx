@@ -12,6 +12,9 @@ import {
   ChevronUp,
   Clock,
   User,
+  XCircle,
+  Ban,
+  Loader2,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -52,12 +55,19 @@ const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
 };
 
 function statusBadge(status: InspectionStatus, result?: string) {
-  if (status === "completed" && result === "pass") return <Badge variant="success">Passed</Badge>;
-  if (status === "completed" && result === "conditional") return <Badge variant="warning">Conditional</Badge>;
-  if (status === "failed") return <Badge variant="danger">Failed</Badge>;
-  if (status === "in_progress") return <Badge variant="warning">In Progress</Badge>;
-  if (status === "scheduled") return <Badge variant="info">Scheduled</Badge>;
-  if (status === "cancelled") return <Badge variant="gray">Cancelled</Badge>;
+  const ICON_CLASS = "mr-1 h-3 w-3";
+  if (status === "completed" && result === "pass")
+    return <Badge variant="success"><CheckCircle className={ICON_CLASS} aria-hidden />Passed</Badge>;
+  if (status === "completed" && result === "conditional")
+    return <Badge variant="warning"><AlertTriangle className={ICON_CLASS} aria-hidden />Conditional</Badge>;
+  if (status === "failed")
+    return <Badge variant="danger"><XCircle className={ICON_CLASS} aria-hidden />Failed</Badge>;
+  if (status === "in_progress")
+    return <Badge variant="warning"><Loader2 className={`${ICON_CLASS} animate-spin`} aria-hidden />In Progress</Badge>;
+  if (status === "scheduled")
+    return <Badge variant="info"><Calendar className={ICON_CLASS} aria-hidden />Scheduled</Badge>;
+  if (status === "cancelled")
+    return <Badge variant="gray"><Ban className={ICON_CLASS} aria-hidden />Cancelled</Badge>;
   return <Badge variant="gray">{status}</Badge>;
 }
 
