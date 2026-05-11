@@ -82,11 +82,11 @@ const ONBOARDING_CATEGORIES = [
 function OnboardingModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-night-850 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+      <div className="bg-surfaceBg rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-brand-600 to-brand-500 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-night-850/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-surfaceBg/20 flex items-center justify-center">
                 <Bot size={22} />
               </div>
               <div>
@@ -96,7 +96,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-night-850/20 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-surfaceBg/20 transition-colors"
               aria-label="Close"
             >
               <X size={18} />
@@ -105,22 +105,22 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6">
-          <p className="text-night-200 text-sm mb-5">
-            I can help you interact with every part of Matex. Here's what I can do:
+          <p className="text-fg-muted text-sm mb-5">
+            I can help you interact with every part of Matex. Here&apos;s what I can do:
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {ONBOARDING_CATEGORIES.map((cat) => (
               <div
                 key={cat.label}
-                className="border border-night-700/60 rounded-xl p-3 hover:border-brand-500/30 hover:bg-brand-500/10 transition-colors"
+                className="border border-line/60 rounded-xl p-3 hover:border-brand-200 hover:bg-brand-500/10 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-2 text-brand-400">
                   {cat.icon}
-                  <span className="font-semibold text-sm text-night-100">{cat.label}</span>
+                  <span className="font-semibold text-sm text-fg">{cat.label}</span>
                 </div>
                 <ul className="space-y-1">
                   {cat.examples.map((ex) => (
-                    <li key={ex} className="text-xs text-night-300 truncate">
+                    <li key={ex} className="text-xs text-fg-subtle truncate">
                       • {ex}
                     </li>
                   ))}
@@ -145,15 +145,15 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
 // ---------------------------------------------------------------------------
 function ContextBar({ context }: { context: Context }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-night-900 border-b border-night-700 text-xs text-night-300 flex-wrap">
-      <span className="font-medium text-night-300 uppercase tracking-wider">Context:</span>
+    <div className="flex items-center gap-3 px-4 py-2 bg-canvas border-b border-line text-xs text-fg-subtle flex-wrap">
+      <span className="font-medium text-fg-subtle uppercase tracking-wider">Context:</span>
       {context.userId ? (
         <span className="inline-flex items-center gap-1 bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full font-mono">
           <span className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
           {context.userId}
         </span>
       ) : (
-        <span className="text-night-300 italic">user not linked</span>
+        <span className="text-fg-subtle italic">user not linked</span>
       )}
       {context.listingId && (
         <span className="inline-flex items-center gap-1 bg-warning-500/10 text-warning-400 px-2 py-0.5 rounded-full font-mono">
@@ -181,14 +181,14 @@ const QUICK_ACTIONS = [
 
 function QuickActions({ onSelect }: { onSelect: (q: string) => void }) {
   return (
-    <div className="px-4 py-3 border-b border-night-700/60 space-y-2">
+    <div className="px-4 py-3 border-b border-line/60 space-y-2">
       {QUICK_ACTIONS.map((row, ri) => (
         <div key={ri} className="flex flex-wrap gap-2">
           {row.map((action) => (
             <button
               key={action}
               onClick={() => onSelect(action)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-night-850 border border-night-700 rounded-full text-night-200 hover:border-brand-400 hover:text-brand-400 hover:bg-brand-500/10 transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-surfaceBg border border-line rounded-full text-fg-muted hover:border-brand-400 hover:text-brand-700 hover:bg-brand-500/10 transition-colors shadow-sm"
             >
               <Zap size={10} className="text-brand-400" />
               {action}
@@ -208,15 +208,15 @@ function ToolCallDisclosure({ toolCall }: { toolCall: ToolCall }) {
   const isSuccess = toolCall.result !== null && toolCall.result !== undefined;
 
   return (
-    <div className="mt-2 border border-night-700 rounded-lg overflow-hidden text-xs">
+    <div className="mt-2 border border-line rounded-lg overflow-hidden text-xs">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-3 py-1.5 bg-night-900 hover:bg-night-800 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-1.5 bg-canvas hover:bg-elevated transition-colors text-left"
       >
-        <span className="flex items-center gap-1.5 text-night-300">
+        <span className="flex items-center gap-1.5 text-fg-subtle">
           <span className={`w-1.5 h-1.5 rounded-full ${isSuccess ? "bg-success-500" : "bg-danger-500"}`} />
           <span className="font-mono font-medium">{toolCall.tool}</span>
-          <span className="text-night-300">→</span>
+          <span className="text-fg-subtle">→</span>
           <span className={isSuccess ? "text-success-400" : "text-danger-400"}>
             {isSuccess ? "success" : "error"}
           </span>
@@ -283,7 +283,7 @@ function MessageBubble({ msg }: { msg: Message }) {
             "px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed",
             isUser
               ? "bg-brand-600 text-white rounded-br-sm"
-              : "bg-night-800 text-night-100 rounded-bl-sm",
+              : "bg-elevated text-fg rounded-bl-sm",
           ].join(" ")}
         >
           {msg.text}
@@ -307,7 +307,7 @@ function MessageBubble({ msg }: { msg: Message }) {
               <button
                 key={fu}
                 data-followup={fu}
-                className="px-2.5 py-1 text-[11px] font-medium bg-night-850 border border-brand-500/30 text-brand-400 rounded-full hover:bg-brand-500/10 hover:border-brand-400 transition-colors"
+                className="px-2.5 py-1 text-[11px] font-medium bg-surfaceBg border border-brand-200 text-brand-600 rounded-full hover:bg-brand-500/10 hover:border-brand-400 transition-colors"
               >
                 {fu}
               </button>
@@ -315,13 +315,13 @@ function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        <span className="text-[10px] text-night-300 mt-1 px-1">
+        <span className="text-[10px] text-fg-subtle mt-1 px-1">
           {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
 
       {isUser && (
-        <div className="w-7 h-7 rounded-full bg-night-700 text-night-200 flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">
+        <div className="w-7 h-7 rounded-full bg-night-700 text-fg-muted flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-bold">
           U
         </div>
       )}
@@ -461,16 +461,16 @@ export default function ChatPage() {
     <>
       {showOnboarding && <OnboardingModal onClose={() => setShowOnboarding(false)} />}
 
-      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-night-700/80 bg-night-850/95 shadow-card">
+      <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-2xl border border-line/80 bg-surfaceBg/95 shadow-card">
         {/* Page header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-night-700/80 bg-night-850/90 px-6 py-4 backdrop-blur-sm">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-line/80 bg-surfaceBg/90 px-6 py-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
               <Bot size={20} />
             </div>
             <div>
               <h1 className="app-inpage-title text-lg sm:text-xl">Matex AI</h1>
-              <p className="text-xs text-night-300">
+              <p className="text-xs text-fg-subtle">
                 Ask me anything about your listings, auctions, escrow, logistics, and more.
               </p>
             </div>
@@ -497,7 +497,7 @@ export default function ChatPage() {
         >
           {messages.length === 0 && (
             <EmptyState
-              image="/grphs/Brand/ai-copilot-illustration-b-copilot.png"
+              icon={Bot}
               title="How can I help you today?"
               description="Use the quick actions above or type your question below to get started."
               size="md"
@@ -513,7 +513,7 @@ export default function ChatPage() {
               <div className="w-7 h-7 rounded-full bg-brand-600 text-white flex items-center justify-center flex-shrink-0">
                 <Bot size={14} />
               </div>
-              <div className="bg-night-800 rounded-2xl rounded-bl-sm px-4 py-3">
+              <div className="bg-elevated rounded-2xl rounded-bl-sm px-4 py-3">
                 <div className="flex gap-1.5 items-center">
                   <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
                   <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -526,7 +526,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input bar */}
-        <div className="flex-shrink-0 border-t border-night-700 bg-night-850 px-4 py-3">
+        <div className="flex-shrink-0 border-t border-line bg-surfaceBg px-4 py-3">
           <div className="flex items-end gap-2 max-w-4xl mx-auto">
             <textarea
               ref={inputRef}
@@ -535,7 +535,7 @@ export default function ChatPage() {
               onKeyDown={handleKeyDown}
               placeholder="Ask Matex AI… (Enter to send, Shift+Enter for newline)"
               rows={1}
-              className="flex-1 resize-none px-4 py-2.5 text-sm border border-night-700 rounded-xl focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all min-h-[42px] max-h-32 overflow-y-auto leading-relaxed"
+              className="flex-1 resize-none px-4 py-2.5 text-sm border border-line rounded-xl focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all min-h-[42px] max-h-32 overflow-y-auto leading-relaxed"
               style={{ height: "auto" }}
               onInput={(e) => {
                 const el = e.currentTarget;
@@ -554,14 +554,14 @@ export default function ChatPage() {
             <button
               onClick={clearConversation}
               disabled={messages.length === 0}
-              className="p-2.5 text-night-300 rounded-xl disabled:opacity-30 hover:text-danger-500 hover:bg-danger-500/15 transition-colors flex-shrink-0"
+              className="p-2.5 text-fg-subtle rounded-xl disabled:opacity-30 hover:text-danger-500 hover:bg-danger-500/15 transition-colors flex-shrink-0"
               aria-label="Clear conversation"
               title="Clear conversation"
             >
               <Trash2 size={18} />
             </button>
           </div>
-          <p className="text-[10px] text-night-300 text-center mt-1.5">
+          <p className="text-[10px] text-fg-subtle text-center mt-1.5">
             Matex AI can make mistakes. Verify important information independently.
           </p>
         </div>

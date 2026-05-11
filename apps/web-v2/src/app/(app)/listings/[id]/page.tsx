@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/shadcn/dialog";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import { ConfidenceStack } from "@/components/listings/ConfidenceStack";
 import { CertifiedWeightCard } from "@/components/listings/CertifiedWeightCard";
 import { InspectionReportSection } from "@/components/listings/InspectionReportSection";
@@ -165,6 +166,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
   const [activeIdx, setActiveIdx] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
   const media = [...photos];
 
   const goTo = (idx: number) => setActiveIdx(Math.max(0, Math.min(idx, media.length - 1)));
@@ -172,17 +174,26 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
   return (
     <div className="space-y-2">
       {/* Main view */}
-      <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-night-800">
+      <div className="relative aspect-[16/9] rounded-xl overflow-hidden bg-elevated">
         {showVideo && videoUrl ? (
           <div className="w-full h-full flex items-center justify-center bg-black">
-            <video controls autoPlay className="w-full h-full object-contain">
+            <video
+              controls
+              autoPlay={!reducedMotion}
+              muted
+              playsInline
+              className="w-full h-full object-contain"
+            >
               <source src={videoUrl} />
+              Your browser does not support video playback.
             </video>
             <button
+              type="button"
               onClick={() => setShowVideo(false)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center"
+              aria-label="Close video"
+              className="absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
-              <X size={16} />
+              <X size={16} aria-hidden />
             </button>
           </div>
         ) : media[activeIdx] ? (
@@ -192,27 +203,17 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
             className="relative block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Open photo in lightbox"
           >
-            {/* unoptimized: media URLs come from Supabase Storage and are
-                not yet listed in next.config remotePatterns. Switching to
-                next/image still gains us lazy loading + layout stability;
-                CDN-resize comes in a follow-up that adds the domain. */}
-            <Image
-              src={media[activeIdx]}
-              alt={`${title} — photo ${activeIdx + 1}`}
-              fill
-              sizes="(max-width: 1024px) 100vw, 60vw"
-              className="object-cover cursor-zoom-in"
-              unoptimized
-            />
+            {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts; <Image> would require enumerating remotePatterns */}
+            <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
           </button>
         ) : (
-          <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
+          <div className="relative w-full h-full bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
             <Image
               src="/grphs/Materials/scrap-metal-pile-s-scrap.png"
               alt=""
               aria-hidden
               fill
-              sizes="(max-width: 1024px) 100vw, 60vw"
+              sizes="(min-width: 1024px) 60vw, 100vw"
               className="object-cover opacity-50"
             />
           </div>
@@ -224,14 +225,14 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
             <button
               onClick={() => goTo(activeIdx - 1)}
               disabled={activeIdx === 0}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-night-850/80 shadow flex items-center justify-center disabled:opacity-30 hover:bg-night-850 transition"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surfaceBg/80 shadow flex items-center justify-center disabled:opacity-30 hover:bg-surfaceBg transition"
             >
               <ChevronLeft size={16} />
             </button>
             <button
               onClick={() => goTo(activeIdx + 1)}
               disabled={activeIdx === media.length - 1}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-night-850/80 shadow flex items-center justify-center disabled:opacity-30 hover:bg-night-850 transition"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-surfaceBg/80 shadow flex items-center justify-center disabled:opacity-30 hover:bg-surfaceBg transition"
             >
               <ChevronRight size={16} />
             </button>
@@ -266,17 +267,11 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
               onClick={() => { setActiveIdx(i); setShowVideo(false); }}
               className={clsx(
                 "w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all",
-                i === activeIdx && !showVideo ? "border-brand-600" : "border-transparent hover:border-night-600"
+                i === activeIdx && !showVideo ? "border-brand-600" : "border-transparent hover:border-line-strong"
               )}
             >
-              <Image
-                src={src}
-                alt=""
-                width={64}
-                height={64}
-                className="w-full h-full object-cover"
-                unoptimized
-              />
+              {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts */}
+              <img src={src} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
           {videoUrl && (
@@ -284,7 +279,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
               onClick={() => setShowVideo(true)}
               className={clsx(
                 "w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 bg-gray-900 flex items-center justify-center transition-all",
-                showVideo ? "border-brand-600" : "border-transparent hover:border-night-600"
+                showVideo ? "border-brand-600" : "border-transparent hover:border-line-strong"
               )}
             >
               <Play size={20} className="text-white" fill="white" />
@@ -318,7 +313,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
                   type="button"
                   onClick={() => goTo(activeIdx - 1)}
                   disabled={activeIdx === 0}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-850/10 text-white hover:bg-night-850/20 disabled:opacity-30 flex items-center justify-center transition"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surfaceBg/10 text-white hover:bg-surfaceBg/20 disabled:opacity-30 flex items-center justify-center transition"
                   aria-label="Previous photo"
                 >
                   <ChevronLeft size={20} />
@@ -327,7 +322,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
                   type="button"
                   onClick={() => goTo(activeIdx + 1)}
                   disabled={activeIdx === media.length - 1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-night-850/10 text-white hover:bg-night-850/20 disabled:opacity-30 flex items-center justify-center transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-surfaceBg/10 text-white hover:bg-surfaceBg/20 disabled:opacity-30 flex items-center justify-center transition"
                   aria-label="Next photo"
                 >
                   <ChevronRight size={20} />
@@ -392,16 +387,16 @@ function BidModal({
         {/* Current bid info */}
         <div className="bg-brand-500/10 rounded-lg p-3 text-sm">
           <div className="flex justify-between items-center">
-            <span className="text-night-200">Current highest bid</span>
-            <span className="font-bold text-brand-400">{fmtCAD(listing.current_bid ?? listing.price)} CAD</span>
+            <span className="text-fg-muted">Current highest bid</span>
+            <span className="font-bold text-brand-700">{fmtCAD(listing.current_bid ?? listing.price)} CAD</span>
           </div>
           <div className="flex justify-between items-center mt-1">
-            <span className="text-night-200">Minimum bid</span>
-            <span className="font-semibold text-night-100">{fmtCAD(minBid)} CAD</span>
+            <span className="text-fg-muted">Minimum bid</span>
+            <span className="font-semibold text-fg">{fmtCAD(minBid)} CAD</span>
           </div>
           {listing.bidding_ends_at && (
             <div className="flex justify-between items-center mt-1">
-              <span className="text-night-200">Ends in</span>
+              <span className="text-fg-muted">Ends in</span>
               <CountdownTimer targetDate={listing.bidding_ends_at} />
             </div>
           )}
@@ -409,22 +404,22 @@ function BidModal({
 
         {/* Bid input */}
         <div>
-          <label className="block text-sm font-medium text-night-200 mb-1">Your Maximum Bid (CAD)</label>
+          <label className="block text-sm font-medium text-fg-muted mb-1">Your Maximum Bid (CAD)</label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 font-medium text-sm">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle font-medium text-sm">$</span>
             <input
               type="number"
               min={minBid}
               step={1}
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
-              className="w-full pl-7 pr-3 py-2.5 border border-night-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+              className="w-full pl-7 pr-3 py-2.5 border border-line rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
             />
           </div>
           {error && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><AlertTriangle size={11} />{error}</p>}
         </div>
 
-        <p className="text-xs text-night-300">
+        <p className="text-xs text-fg-subtle">
           By placing a bid you agree to purchase at this price if you win. Bid deposits may be required for high-value auctions.
         </p>
 
@@ -499,20 +494,20 @@ function AuctionRegisterModal({
         </div>
 
         {/* Deposit */}
-        <div className="bg-night-900 rounded-lg p-3">
+        <div className="bg-canvas rounded-lg p-3">
           <div className="flex justify-between items-center">
-            <span className="text-sm text-night-200">Refundable Deposit</span>
-            <span className="font-bold text-night-100">{fmtCAD(deposit)} CAD</span>
+            <span className="text-sm text-fg-muted">Refundable Deposit</span>
+            <span className="font-bold text-fg">{fmtCAD(deposit)} CAD</span>
           </div>
-          <p className="text-xs text-night-300 mt-1">Refunded within 24 hours if you do not win.</p>
+          <p className="text-xs text-fg-subtle mt-1">Refunded within 24 hours if you do not win.</p>
         </div>
 
         {/* Payment method */}
         <div>
-          <label className="block text-sm font-medium text-night-200 mb-2">Payment Method</label>
+          <label className="block text-sm font-medium text-fg-muted mb-2">Payment Method</label>
           <div className="space-y-2">
             {["wallet", "credit_card", "bank_transfer"].map((method) => (
-              <label key={method} className="flex items-center gap-3 p-2.5 border border-night-700 rounded-lg cursor-pointer hover:border-brand-400 transition-colors">
+              <label key={method} className="flex items-center gap-3 p-2.5 border border-line rounded-lg cursor-pointer hover:border-brand-400 transition-colors">
                 <input
                   type="radio"
                   name="payment_method"
@@ -521,16 +516,16 @@ function AuctionRegisterModal({
                   onChange={() => setPaymentMethod(method)}
                   className="text-brand-400 focus:ring-brand-400"
                 />
-                <CreditCard size={16} className="text-night-300" />
-                <span className="text-sm text-night-200 capitalize">{method.replace("_", " ")}</span>
+                <CreditCard size={16} className="text-fg-subtle" />
+                <span className="text-sm text-fg-muted capitalize">{method.replace("_", " ")}</span>
               </label>
             ))}
           </div>
         </div>
 
         {/* Terms */}
-        <div className="flex items-center gap-2 text-xs text-night-300">
-          <a href="#" className="flex items-center gap-1 text-brand-400 hover:underline font-medium">
+        <div className="flex items-center gap-2 text-xs text-fg-subtle">
+          <a href="#" className="flex items-center gap-1 text-brand-600 hover:underline font-medium">
             <Download size={12} /> Download Terms &amp; Conditions PDF
           </a>
         </div>
@@ -585,33 +580,33 @@ function BuyNowModal({
   return (
     <Modal open={open} onClose={onClose} title="Order Summary" size="md">
       <div className="space-y-4">
-        <div className="bg-night-900 rounded-lg p-3 text-sm">
-          <p className="font-semibold text-night-100 mb-2">{listing.title}</p>
+        <div className="bg-canvas rounded-lg p-3 text-sm">
+          <p className="font-semibold text-fg mb-2">{listing.title}</p>
           <div className="space-y-1.5">
-            <div className="flex justify-between text-night-200">
+            <div className="flex justify-between text-fg-muted">
               <span>Listing price ({listing.quantity.toLocaleString()} {listing.unit})</span>
-              <span className="font-medium text-night-100">{fmtCAD(subtotal)}</span>
+              <span className="font-medium text-fg">{fmtCAD(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-night-200">
+            <div className="flex justify-between text-fg-muted">
               <span>Tax (est.)</span>
               <span>{fmtCAD(tax)}</span>
             </div>
-            <div className="flex justify-between text-night-200">
+            <div className="flex justify-between text-fg-muted">
               <span>Shipping (est.)</span>
               <span>{shippingEstimate > 0 ? fmtCAD(shippingEstimate) : "TBD"}</span>
             </div>
-            <div className="flex justify-between text-night-200">
+            <div className="flex justify-between text-fg-muted">
               <span>Matex Commission (3.5%)</span>
               <span>{fmtCAD(commission)}</span>
             </div>
-            <div className="border-t border-night-700 pt-1.5 mt-1.5 flex justify-between font-bold text-night-100">
+            <div className="border-t border-line pt-1.5 mt-1.5 flex justify-between font-bold text-fg">
               <span>Total Estimate</span>
               <span className="text-brand-400">{fmtCAD(total)}</span>
             </div>
           </div>
         </div>
 
-        <p className="text-xs text-night-300 flex items-start gap-1.5">
+        <p className="text-xs text-fg-subtle flex items-start gap-1.5">
           <Info size={12} className="flex-shrink-0 mt-0.5 text-brand-500" />
           Final amounts may vary based on actual weight, carrier selection, and applicable taxes at checkout.
         </p>
@@ -677,26 +672,26 @@ function InspectionBookingCard({ listingId }: { listingId: string }) {
         <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
         <div>
           <p className="font-semibold text-success-400 text-sm">Inspection Booked</p>
-          <p className="text-xs text-success-400 mt-0.5">You'll receive a confirmation email shortly.</p>
+          <p className="text-xs text-success-400 mt-0.5">You&apos;ll receive a confirmation email shortly.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-3">
+    <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Calendar size={16} className="text-brand-400" />
-        <h4 className="font-semibold text-night-100 text-sm">Book Inspection</h4>
+        <Calendar size={16} className="text-brand-600" />
+        <h4 className="font-semibold text-fg text-sm">Book Inspection</h4>
         <Badge variant="warning">Required</Badge>
       </div>
 
       {loading && (
-        <div className="text-xs text-night-300 animate-pulse py-2">Loading available slots…</div>
+        <div className="text-xs text-fg-subtle animate-pulse py-2">Loading available slots…</div>
       )}
 
       {!loading && slots.length === 0 && (
-        <p className="text-xs text-night-300">No slots currently available. Contact the seller to arrange an inspection.</p>
+        <p className="text-xs text-fg-subtle">No slots currently available. Contact the seller to arrange an inspection.</p>
       )}
 
       {!loading && slots.length > 0 && (
@@ -708,17 +703,17 @@ function InspectionBookingCard({ listingId }: { listingId: string }) {
               onClick={() => setSelectedSlot(slot.slot_id)}
               className={clsx(
                 "w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors",
-                !slot.available && "opacity-40 cursor-not-allowed bg-night-900 border-night-700 text-night-300",
+                !slot.available && "opacity-40 cursor-not-allowed bg-canvas border-line text-fg-subtle",
                 slot.available && selectedSlot === slot.slot_id
                   ? "border-brand-600 bg-brand-500/10 text-brand-300 font-medium"
                   : slot.available
-                  ? "border-night-700 hover:border-brand-400 text-night-200"
+                  ? "border-line hover:border-brand-400 text-fg-muted"
                   : ""
               )}
             >
               <span className="font-medium">{new Date(slot.date).toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}</span>
-              <span className="ml-2 text-night-300">{slot.time}</span>
-              {!slot.available && <span className="ml-2 text-night-300">— Unavailable</span>}
+              <span className="ml-2 text-fg-subtle">{slot.time}</span>
+              {!slot.available && <span className="ml-2 text-fg-subtle">— Unavailable</span>}
             </button>
           ))}
         </div>
@@ -754,17 +749,17 @@ function SellerCard({
   const stars = pisStars(listing.seller_pis_score);
 
   return (
-    <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-3">
+    <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-3">
       {/* Company */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0">
           <Package size={18} className="text-brand-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-night-100 text-sm truncate">{listing.seller_name}</p>
+          <p className="font-semibold text-fg text-sm truncate">{listing.seller_name}</p>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            <MapPin size={11} className="text-night-300" />
-            <span className="text-xs text-night-300">{listing.seller_province}</span>
+            <MapPin size={11} className="text-fg-subtle" />
+            <span className="text-xs text-fg-subtle">{listing.seller_province}</span>
           </div>
         </div>
       </div>
@@ -783,7 +778,7 @@ function SellerCard({
               className={i < stars ? "text-amber-400 fill-amber-400" : "text-gray-200 fill-gray-200"}
             />
           ))}
-          <span className="text-xs text-night-300 ml-1">({listing.seller_pis_score}/100)</span>
+          <span className="text-xs text-fg-subtle ml-1">({listing.seller_pis_score}/100)</span>
         </div>
       </div>
 
@@ -801,8 +796,8 @@ function SellerCard({
           className={clsx(
             "w-full flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg border transition-colors",
             saved
-              ? "text-red-600 border-danger-500/30 bg-danger-500/10 hover:bg-danger-500/15"
-              : "text-night-200 border-night-700 bg-night-850 hover:bg-night-900"
+              ? "text-red-600 border-red-200 bg-danger-500/10 hover:bg-red-100"
+              : "text-fg-muted border-line bg-surfaceBg hover:bg-canvas"
           )}
         >
           <Heart size={14} className={saved ? "fill-red-500" : ""} />
@@ -832,61 +827,61 @@ function PriceBreakdownCard({
   const total = subtotal + commission + tax + (lowestShipping > 0 ? lowestShipping : 0);
 
   return (
-    <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-3">
-      <h4 className="font-semibold text-night-100 text-sm flex items-center gap-2">
-        <CreditCard size={15} className="text-brand-400" />
+    <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-3">
+      <h4 className="font-semibold text-fg text-sm flex items-center gap-2">
+        <CreditCard size={15} className="text-brand-600" />
         Price Breakdown
       </h4>
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
-          <span className="text-night-300">Listing Price</span>
-          <span className="font-medium text-night-100">{fmtCAD(subtotal)} CAD</span>
+          <span className="text-fg-subtle">Listing Price</span>
+          <span className="font-medium text-fg">{fmtCAD(subtotal)} CAD</span>
         </div>
         {taxEstimate && (
           <>
             {taxEstimate.hst !== undefined && (
               <div className="flex justify-between">
-                <span className="text-night-300">HST</span>
-                <span className="text-night-200">{fmtCAD(taxEstimate.hst)}</span>
+                <span className="text-fg-subtle">HST</span>
+                <span className="text-fg-muted">{fmtCAD(taxEstimate.hst)}</span>
               </div>
             )}
             {taxEstimate.gst !== undefined && !taxEstimate.hst && (
               <div className="flex justify-between">
-                <span className="text-night-300">GST</span>
-                <span className="text-night-200">{fmtCAD(taxEstimate.gst)}</span>
+                <span className="text-fg-subtle">GST</span>
+                <span className="text-fg-muted">{fmtCAD(taxEstimate.gst)}</span>
               </div>
             )}
             {taxEstimate.pst !== undefined && (
               <div className="flex justify-between">
-                <span className="text-night-300">PST</span>
-                <span className="text-night-200">{fmtCAD(taxEstimate.pst)}</span>
+                <span className="text-fg-subtle">PST</span>
+                <span className="text-fg-muted">{fmtCAD(taxEstimate.pst)}</span>
               </div>
             )}
             {taxEstimate.qst !== undefined && (
               <div className="flex justify-between">
-                <span className="text-night-300">QST</span>
-                <span className="text-night-200">{fmtCAD(taxEstimate.qst)}</span>
+                <span className="text-fg-subtle">QST</span>
+                <span className="text-fg-muted">{fmtCAD(taxEstimate.qst)}</span>
               </div>
             )}
           </>
         )}
         <div className="flex justify-between">
-          <span className="text-night-300">Shipping (est.)</span>
-          <span className="text-night-200">{lowestShipping > 0 ? fmtCAD(lowestShipping) : "TBD"}</span>
+          <span className="text-fg-subtle">Shipping (est.)</span>
+          <span className="text-fg-muted">{lowestShipping > 0 ? fmtCAD(lowestShipping) : "TBD"}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-night-300 flex items-center gap-1">
+          <span className="text-fg-subtle flex items-center gap-1">
             Matex Commission
-            <span className="text-xs bg-night-800 px-1 rounded">3.5%</span>
+            <span className="text-xs bg-elevated px-1 rounded">3.5%</span>
           </span>
-          <span className="text-night-200">{fmtCAD(commission)}</span>
+          <span className="text-fg-muted">{fmtCAD(commission)}</span>
         </div>
-        <div className="border-t border-night-700/60 pt-2 flex justify-between font-bold">
-          <span className="text-night-200">Total Estimate</span>
-          <span className="text-brand-400 text-base">{fmtCAD(total)}</span>
+        <div className="border-t border-line/60 pt-2 flex justify-between font-bold">
+          <span className="text-fg-muted">Total Estimate</span>
+          <span className="text-brand-600 text-base">{fmtCAD(total)}</span>
         </div>
       </div>
-      <p className="text-[10px] text-night-300 leading-relaxed">
+      <p className="text-[10px] text-fg-subtle leading-relaxed">
         * Estimate only. Final price confirmed at checkout based on actual weight, selected carrier, and applicable taxes.
       </p>
     </div>
@@ -903,7 +898,7 @@ function ShippingQuotesTable({ quotes }: { quotes: ShippingQuote[] }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr className="bg-night-900 text-left text-xs text-night-300 uppercase tracking-wide">
+          <tr className="bg-canvas text-left text-xs text-fg-subtle uppercase tracking-wide">
             <th className="px-3 py-2 font-semibold">Carrier</th>
             <th className="px-3 py-2 font-semibold">Service</th>
             <th className="px-3 py-2 font-semibold text-right">Price (CAD)</th>
@@ -913,12 +908,12 @@ function ShippingQuotesTable({ quotes }: { quotes: ShippingQuote[] }) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {quotes.map((q, i) => (
-            <tr key={i} className="hover:bg-night-900 transition-colors">
-              <td className="px-3 py-2.5 font-medium text-night-100">{q.carrier_name}</td>
-              <td className="px-3 py-2.5 text-night-200">{q.service_level}</td>
-              <td className="px-3 py-2.5 text-right font-semibold text-brand-400">{fmtCAD(q.price)}</td>
-              <td className="px-3 py-2.5 text-right text-night-200">{q.transit_days}d</td>
-              <td className="px-3 py-2.5 text-right text-night-200 flex items-center justify-end gap-1">
+            <tr key={i} className="hover:bg-canvas transition-colors">
+              <td className="px-3 py-2.5 font-medium text-fg">{q.carrier_name}</td>
+              <td className="px-3 py-2.5 text-fg-muted">{q.service_level}</td>
+              <td className="px-3 py-2.5 text-right font-semibold text-brand-600">{fmtCAD(q.price)}</td>
+              <td className="px-3 py-2.5 text-right text-fg-muted">{q.transit_days}d</td>
+              <td className="px-3 py-2.5 text-right text-fg-muted flex items-center justify-end gap-1">
                 <Leaf size={11} className="text-emerald-500" />
                 {q.co2_emissions_kg.toFixed(1)}
               </td>
@@ -938,15 +933,15 @@ function LoadingSkeleton() {
     <div className="animate-pulse space-y-4">
       <div className="flex gap-6">
         <div className="flex-1 space-y-4">
-          <div className="aspect-[16/9] rounded-xl bg-night-800" />
-          <div className="h-6 bg-night-800 rounded w-3/4" />
-          <div className="h-4 bg-night-800 rounded w-1/2" />
-          <div className="h-32 bg-night-800 rounded" />
+          <div className="aspect-[16/9] rounded-xl bg-elevated" />
+          <div className="h-6 bg-elevated rounded w-3/4" />
+          <div className="h-4 bg-elevated rounded w-1/2" />
+          <div className="h-32 bg-elevated rounded" />
         </div>
         <div className="w-80 flex-shrink-0 space-y-4">
-          <div className="h-40 bg-night-800 rounded-xl" />
-          <div className="h-32 bg-night-800 rounded-xl" />
-          <div className="h-48 bg-night-800 rounded-xl" />
+          <div className="h-40 bg-elevated rounded-xl" />
+          <div className="h-32 bg-elevated rounded-xl" />
+          <div className="h-48 bg-elevated rounded-xl" />
         </div>
       </div>
     </div>
@@ -1160,7 +1155,7 @@ export default function ListingDetailPage() {
     return (
       <div>
         <div className="mb-4">
-          <Link href="/search" className="inline-flex items-center gap-1 text-sm text-night-300 hover:text-brand-400 transition-colors">
+          <Link href="/search" className="inline-flex items-center gap-1 text-sm text-fg-subtle hover:text-brand-600 transition-colors">
             <ChevronLeft size={15} /> Back to Search
           </Link>
         </div>
@@ -1172,12 +1167,12 @@ export default function ListingDetailPage() {
   if (notFound || !listing) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-16 h-16 rounded-full bg-night-800 flex items-center justify-center mb-4">
-          <Package size={28} className="text-night-300" />
+        <div className="w-16 h-16 rounded-full bg-elevated flex items-center justify-center mb-4">
+          <Package size={28} className="text-fg-subtle" />
         </div>
-        <h3 className="text-base font-semibold text-night-100 mb-1">Listing Not Found</h3>
-        <p className="text-sm text-night-300 mb-4">This listing may have been removed or is no longer available.</p>
-        <Link href="/search" className="text-sm font-medium text-brand-400 hover:underline">
+        <h3 className="text-base font-semibold text-fg mb-1">Listing Not Found</h3>
+        <p className="text-sm text-fg-subtle mb-4">This listing may have been removed or is no longer available.</p>
+        <Link href="/search" className="text-sm font-medium text-brand-600 hover:underline">
           Browse all materials →
         </Link>
       </div>
@@ -1189,14 +1184,14 @@ export default function ListingDetailPage() {
   return (
     <div>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 mb-5 text-sm text-night-300">
-        <Link href="/search" className="hover:text-brand-400 transition-colors flex items-center gap-1">
+      <div className="flex items-center gap-2 mb-5 text-sm text-fg-subtle">
+        <Link href="/search" className="hover:text-brand-600 transition-colors flex items-center gap-1">
           <ChevronLeft size={14} /> Search
         </Link>
         <span className="text-gray-300">/</span>
-        <span className="text-night-300">{listing.material_category}</span>
+        <span className="text-fg-subtle">{listing.material_category}</span>
         <span className="text-gray-300">/</span>
-        <span className="text-night-100 font-medium truncate max-w-xs">{listing.title}</span>
+        <span className="text-fg font-medium truncate max-w-xs">{listing.title}</span>
       </div>
 
       {/* Two-column layout */}
@@ -1221,7 +1216,7 @@ export default function ListingDetailPage() {
                       {HAZMAT_LABELS[listing.hazmat_class] ?? listing.hazmat_class}
                     </Badge>
                   )}
-                  <span className="text-xs text-night-300">
+                  <span className="text-xs text-fg-subtle">
                     Listed {new Date(listing.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}
                   </span>
                 </div>
@@ -1232,7 +1227,7 @@ export default function ListingDetailPage() {
                 <button
                   type="button"
                   onClick={handleShareListing}
-                  className="p-2 rounded-lg border border-night-700 text-night-300 hover:bg-night-900 transition-colors"
+                  className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors"
                   aria-label="Share listing"
                 >
                   <Share2 size={15} />
@@ -1240,7 +1235,7 @@ export default function ListingDetailPage() {
                 <button
                   type="button"
                   onClick={openReportDialog}
-                  className="p-2 rounded-lg border border-night-700 text-night-300 hover:bg-night-900 transition-colors"
+                  className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors"
                   aria-label="Report listing"
                 >
                   <Flag size={15} />
@@ -1335,10 +1330,10 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Material Specifications */}
-          <div className="bg-night-850 border border-night-700 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-night-700/60 bg-night-900 flex items-center gap-2">
-              <Scale size={15} className="text-brand-400" />
-              <h3 className="font-semibold text-night-100 text-sm">Material Specifications</h3>
+          <div className="bg-surfaceBg border border-line rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-line/60 bg-canvas flex items-center gap-2">
+              <Scale size={15} className="text-brand-600" />
+              <h3 className="font-semibold text-fg text-sm">Material Specifications</h3>
             </div>
             <div className="divide-y divide-gray-50">
               {[
@@ -1351,8 +1346,8 @@ export default function ListingDetailPage() {
                 { label: "Inspection Required", value: listing.inspection_required ? "Yes — Third-party inspection" : "No" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex px-4 py-2.5 text-sm">
-                  <span className="w-44 flex-shrink-0 text-night-300 font-medium">{label}</span>
-                  <span className="text-night-100">{value}</span>
+                  <span className="w-44 flex-shrink-0 text-fg-subtle font-medium">{label}</span>
+                  <span className="text-fg">{value}</span>
                 </div>
               ))}
             </div>
@@ -1360,20 +1355,20 @@ export default function ListingDetailPage() {
 
           {/* Chain of Custody */}
           {listing.chain_of_custody && (
-            <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-2">
-              <h3 className="font-semibold text-night-100 text-sm flex items-center gap-2">
-                <FileText size={15} className="text-brand-400" />
+            <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-2">
+              <h3 className="font-semibold text-fg text-sm flex items-center gap-2">
+                <FileText size={15} className="text-brand-600" />
                 Chain of Custody
               </h3>
-              <p className="text-sm text-night-200 whitespace-pre-wrap">{listing.chain_of_custody}</p>
+              <p className="text-sm text-fg-muted whitespace-pre-wrap">{listing.chain_of_custody}</p>
             </div>
           )}
 
           {/* Certifications */}
           {listing.certifications?.length > 0 && (
-            <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-2">
-              <h3 className="font-semibold text-night-100 text-sm flex items-center gap-2">
-                <ShieldCheck size={15} className="text-brand-400" />
+            <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-2">
+              <h3 className="font-semibold text-fg text-sm flex items-center gap-2">
+                <ShieldCheck size={15} className="text-brand-600" />
                 Certifications
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -1389,19 +1384,19 @@ export default function ListingDetailPage() {
 
           {/* Environmental Permits */}
           {listing.environmental_permits?.length > 0 && (
-            <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-2">
-              <h3 className="font-semibold text-night-100 text-sm flex items-center gap-2">
+            <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-2">
+              <h3 className="font-semibold text-fg text-sm flex items-center gap-2">
                 <Leaf size={15} className="text-emerald-600" />
                 Environmental Permits
               </h3>
               <div className="space-y-2">
                 {listing.environmental_permits.map((permit, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs bg-night-900 rounded-lg px-3 py-2 border border-night-700/60">
+                  <div key={i} className="flex items-center justify-between text-xs bg-canvas rounded-lg px-3 py-2 border border-line/60">
                     <div>
-                      <span className="font-medium text-night-100 capitalize">{permit.permit_type.replace("_", " ")}</span>
-                      <span className="text-night-300 ml-2">#{permit.number}</span>
+                      <span className="font-medium text-fg capitalize">{permit.permit_type.replace("_", " ")}</span>
+                      <span className="text-fg-subtle ml-2">#{permit.number}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-night-300">
+                    <div className="flex items-center gap-1 text-fg-subtle">
                       <Calendar size={10} />
                       Expires: {new Date(permit.expiry).toLocaleDateString("en-CA")}
                     </div>
@@ -1446,9 +1441,9 @@ export default function ListingDetailPage() {
           />
 
           {/* Description */}
-          <div className="bg-night-850 border border-night-700 rounded-xl p-4 space-y-2">
-            <h3 className="font-semibold text-night-100 text-sm flex items-center gap-2">
-              <Info size={15} className="text-brand-400" />
+          <div className="bg-surfaceBg border border-line rounded-xl p-4 space-y-2">
+            <h3 className="font-semibold text-fg text-sm flex items-center gap-2">
+              <Info size={15} className="text-brand-600" />
               Description
             </h3>
             <ExpandableText text={listing.description} />
@@ -1456,11 +1451,11 @@ export default function ListingDetailPage() {
 
           {/* Shipping estimates */}
           {quotes.length > 0 && (
-            <div className="bg-night-850 border border-night-700 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-night-700/60 bg-night-900 flex items-center gap-2">
-                <Truck size={15} className="text-brand-400" />
-                <h3 className="font-semibold text-night-100 text-sm">Shipping Estimates</h3>
-                <span className="text-xs text-night-300 ml-auto">From {listing.seller_province}</span>
+            <div className="bg-surfaceBg border border-line rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-line/60 bg-canvas flex items-center gap-2">
+                <Truck size={15} className="text-brand-600" />
+                <h3 className="font-semibold text-fg text-sm">Shipping Estimates</h3>
+                <span className="text-xs text-fg-subtle ml-auto">From {listing.seller_province}</span>
               </div>
               <div className="p-1">
                 <ShippingQuotesTable quotes={quotes} />
@@ -1642,11 +1637,11 @@ function ExpandableText({ text }: { text: string }) {
   const isLong = text?.length > 400;
   const displayText = isLong && !expanded ? text.slice(0, 400) + "…" : text;
 
-  if (!text) return <p className="text-sm text-night-300 italic">No description provided.</p>;
+  if (!text) return <p className="text-sm text-fg-subtle italic">No description provided.</p>;
 
   return (
     <div>
-      <p className="text-sm text-night-200 leading-relaxed whitespace-pre-wrap">{displayText}</p>
+      <p className="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap">{displayText}</p>
       {isLong && (
         <button
           onClick={() => setExpanded((e) => !e)}

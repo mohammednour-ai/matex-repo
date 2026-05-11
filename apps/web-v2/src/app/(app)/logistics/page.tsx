@@ -318,8 +318,8 @@ export default function LogisticsPage() {
 
       {/* Active shipments */}
       <div className="marketplace-card overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-night-700/60">
-          <h2 className="text-sm font-semibold text-night-200">Active Shipments</h2>
+        <div className="px-5 py-3.5 border-b border-line/60">
+          <h2 className="text-sm font-semibold text-fg-muted">Active Shipments</h2>
         </div>
         {shipmentsLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -329,7 +329,7 @@ export default function LogisticsPage() {
           <div className="px-5 py-4 text-sm text-danger-400">{shipmentsError}</div>
         ) : shipments.length === 0 ? (
           <EmptyState
-            image="/grphs/Platform%20Domains/logistics-d-logistics.png"
+            icon={Truck}
             title="No shipments yet"
             description="Book your first load below to start tracking pickup, ETA, and proof of delivery."
             size="md"
@@ -339,15 +339,15 @@ export default function LogisticsPage() {
             {shipments.map((sh) => (
               <div key={sh.shipment_id}>
                 <div className="flex flex-wrap items-center gap-4 px-5 py-4">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-night-800">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-elevated">
                     <Image src="/grphs/Icons/shipping-truck-i-truck.png" alt="" width={20} height={20} className="h-5 w-5 object-contain" aria-hidden />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium text-night-100 truncate">{sh.order_title}</p>
+                      <p className="text-sm font-medium text-fg truncate">{sh.order_title}</p>
                       {statusBadge(sh.status)}
                     </div>
-                    <p className="text-xs text-night-300 mt-0.5">
+                    <p className="text-xs text-fg-subtle mt-0.5">
                       {sh.carrier} · {sh.origin} → {sh.destination} · {sh.tracking_number}
                     </p>
                     {sh.bol_number && (
@@ -356,7 +356,7 @@ export default function LogisticsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="text-right text-xs text-night-300 shrink-0">
+                  <div className="text-right text-xs text-fg-subtle shrink-0">
                     <p>ETA: {formatDate(sh.eta)}</p>
                     <p className="flex items-center justify-end gap-1 text-emerald-600">
                       <Leaf className="h-3 w-3" /> {sh.co2_kg.toFixed(1)} kg CO₂
@@ -392,7 +392,7 @@ export default function LogisticsPage() {
 
       {/* Get quotes */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold text-night-200">Get Carrier Quotes</h2>
+        <h2 className="mb-4 text-sm font-semibold text-fg-muted">Get Carrier Quotes</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-4">
           <Input
             label="Linked Order ID"
@@ -420,11 +420,11 @@ export default function LogisticsPage() {
             onChange={(e) => setWeight(e.target.value)}
           />
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-night-200">Hazmat Class</label>
+            <label className="text-sm font-medium text-fg-muted">Hazmat Class</label>
             <select
               value={hazmat}
               onChange={(e) => setHazmat(e.target.value)}
-              className="rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+              className="rounded-lg border border-line-strong px-3 py-2 text-sm text-fg focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
             >
               {HAZMAT_CLASSES.map((c) => (
                 <option key={c.value} value={c.value}>{c.label}</option>
@@ -454,7 +454,7 @@ export default function LogisticsPage() {
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
-                <tr className="border-b border-night-700 text-xs font-semibold uppercase tracking-wider text-night-300">
+                <tr className="border-b border-line text-xs font-semibold uppercase tracking-wider text-fg-subtle">
                   <th className="pb-2 text-left">Carrier</th>
                   <th className="pb-2 text-right">Price</th>
                   <th className="pb-2 text-right">Transit</th>
@@ -468,14 +468,14 @@ export default function LogisticsPage() {
                   <tr key={q.carrier} className={q.recommended ? "bg-brand-500/10" : ""}>
                     <td className="py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-night-100">{q.carrier}</span>
+                        <span className="font-medium text-fg">{q.carrier}</span>
                         {q.recommended && <Badge variant="info">Best Value</Badge>}
                       </div>
                     </td>
-                    <td className="py-3 text-right font-bold text-night-100">{formatCAD(q.price)}</td>
-                    <td className="py-3 text-right text-night-200">{q.transit_days}d</td>
+                    <td className="py-3 text-right font-bold text-fg">{formatCAD(q.price)}</td>
+                    <td className="py-3 text-right text-fg-muted">{q.transit_days}d</td>
                     <td className="py-3 text-right text-emerald-600">{q.co2_kg.toFixed(1)} kg</td>
-                    <td className="py-3 text-right">{"★".repeat(Math.round(q.rating))} <span className="text-night-300">{q.rating}</span></td>
+                    <td className="py-3 text-right">{"★".repeat(Math.round(q.rating))} <span className="text-fg-subtle">{q.rating}</span></td>
                     <td className="py-3 text-right">
                       <Button
                         size="sm"
@@ -516,15 +516,15 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
   const currentStep = stepMap[shipment.status];
 
   return (
-    <div className="border-t border-night-700/60 bg-night-900 px-5 py-4">
+    <div className="border-t border-line/60 bg-canvas px-5 py-4">
       <div className="flex gap-0 overflow-x-auto">
         {TRACKING_STEPS.map((step, i) => (
           <div key={step} className="flex flex-1 items-start min-w-[80px]">
             <div className="flex flex-col items-center w-full">
-              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-night-700 text-night-300"}`}>
+              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${i <= currentStep ? "bg-brand-600 text-white" : "bg-night-700 text-fg-subtle"}`}>
                 {i < currentStep ? "✓" : i + 1}
               </div>
-              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-400 font-medium" : "text-night-300"}`}>
+              <p className={`mt-1 text-center text-[10px] leading-tight ${i <= currentStep ? "text-brand-700 font-medium" : "text-fg-subtle"}`}>
                 {step}
               </p>
             </div>

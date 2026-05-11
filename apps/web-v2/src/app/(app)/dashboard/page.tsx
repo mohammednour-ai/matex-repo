@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Package,
   Wallet,
@@ -188,14 +187,14 @@ function DashboardSkeleton() {
       <div className={clsx("h-56 rounded-[2rem]", pulse)} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-night-700/70", pulse)} />
+          <div key={i} className={clsx("h-36 rounded-[1.75rem] border border-line/70", pulse)} />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(300px,0.95fr)_minmax(0,1.45fr)]">
-        <div className={clsx("h-72 rounded-[1.75rem] border border-night-700/70", pulse)} />
-        <div className={clsx("h-72 rounded-[1.75rem] border border-night-700/70", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-line/70", pulse)} />
+        <div className={clsx("h-72 rounded-[1.75rem] border border-line/70", pulse)} />
       </div>
-      <div className={clsx("h-56 rounded-[1.75rem] border border-night-700/70", pulse)} />
+      <div className={clsx("h-56 rounded-[1.75rem] border border-line/70", pulse)} />
     </div>
   );
 }
@@ -357,8 +356,6 @@ export default function DashboardPage() {
       value: string | number;
       subValue?: string | null;
       icon: typeof Package;
-      /** Optional grphs PNG override; renders in place of the lucide icon when set. */
-      image?: string;
       trend?: string | null;
       footnote?: string | null;
     };
@@ -367,7 +364,6 @@ export default function DashboardPage() {
         label: "Active Listings",
         value: stats?.active_listings ?? "—",
         icon: Package,
-        image: "/grphs/Platform%20Domains/listing-d-listing.png",
         trend: listingsTrend,
         footnote: null,
       },
@@ -376,14 +372,12 @@ export default function DashboardPage() {
         value:
           wallet && !Number.isNaN(wallet.balance) ? formatCAD(wallet.balance) : "—",
         icon: Wallet,
-        image: "/grphs/Icons/wallet-i-wallet.png",
         footnote: "Live balance",
       },
       {
         label: "Unread Messages",
         value: sectionErrors.unread ? "—" : unreadCount,
         icon: MessageSquare,
-        image: "/grphs/Platform%20Domains/messaging-d-messaging.png",
         footnote: "Across threads",
       },
       {
@@ -394,7 +388,6 @@ export default function DashboardPage() {
             ? `${formatCAD(stats.escrow_held ?? 0)} in escrow`
             : null,
         icon: ShieldCheck,
-        image: "/grphs/Platform%20Domains/escrow-d-escrow.png",
         footnote: null,
       },
     ];
@@ -405,7 +398,6 @@ export default function DashboardPage() {
               label: "Active Bids",
               value: stats?.active_bids ?? "—",
               icon: Target,
-              image: "/grphs/Icons/bid-gavel-i-bid.png",
               footnote: "Open bids on listings",
             },
           ]
@@ -447,18 +439,9 @@ export default function DashboardPage() {
         kycLevel={kycLevel}
       />
 
-      {Object.keys(sectionErrors).length > 0 && (
-        // Surface the per-section load failures collected in `load()`. The
-        // page used to swallow these (silent retries only) which left users
-        // staring at "—" placeholders with no way to know what went wrong
-        // or to manually retry. Successful retries clear `sectionErrors`
-        // and this strip disappears on its own.
-        <div
-          className="dashboard-status-strip text-sm text-night-100"
-          role="status"
-          aria-live="polite"
-        >
-          <CircleAlert className="h-4 w-4 shrink-0 text-warning-400" />
+      {kycLevel < 2 && (
+        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-fg">
+          <CircleAlert className="h-4 w-4 shrink-0 text-orange-700" />
           <span>
             <strong className="text-night-100">Some sections didn't load</strong>
             {" — "}
@@ -492,7 +475,7 @@ export default function DashboardPage() {
 
       {showOrdersStrip && (
         <div className="dashboard-status-strip text-sm">
-          <span className="font-semibold text-night-100">Open orders</span>
+          <span className="font-semibold text-fg">Open orders</span>
           {ordersPending > 0 && (
             <span className="rounded-full bg-brand-500/10 px-2.5 py-0.5 text-xs font-semibold text-brand-300 ring-1 ring-brand-500/25">
               {ordersPending} need action
@@ -509,11 +492,11 @@ export default function DashboardPage() {
       {(stats?.active_auctions ?? 0) > 0 && (
         <div className="dashboard-alert">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-brand-500/30 bg-night-800/70">
-              <Image src="/grphs/Icons/bid-gavel-i-bid.png" alt="" width={22} height={22} className="h-5 w-5 object-contain" aria-hidden />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-brand-500/30 bg-elevated/70 text-brand-400">
+              <Gavel size={20} aria-hidden />
             </div>
             <div>
-              <span className="font-bold text-night-100">
+              <span className="font-bold text-fg">
                 {stats!.active_auctions} live auction{stats!.active_auctions > 1 ? "s" : ""} in progress
               </span>
               {stats?.next_auction_end && (
@@ -548,14 +531,14 @@ export default function DashboardPage() {
           <div key={card.label} className="dashboard-stat-card group">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[13px] font-semibold uppercase tracking-wider text-night-200">
+                <p className="text-[13px] font-semibold uppercase tracking-wider text-fg-muted">
                   {card.label}
                 </p>
-                <p className="dashboard-metric-value mt-2.5 font-extrabold text-night-100">
+                <p className="dashboard-metric-value mt-2.5 font-extrabold text-fg">
                   {card.value}
                 </p>
                 {"subValue" in card && card.subValue && (
-                  <p className="mt-0.5 text-xs font-medium text-night-200">{card.subValue}</p>
+                  <p className="mt-0.5 text-xs font-medium text-fg-muted">{card.subValue}</p>
                 )}
                 {card.trend != null && card.trend !== "" && (
                   <p
@@ -568,25 +551,14 @@ export default function DashboardPage() {
                   </p>
                 )}
                 {card.label === "Active Listings" && !card.trend && (
-                  <p className="dashboard-stat-delta text-night-300">—</p>
+                  <p className="dashboard-stat-delta text-fg-subtle">—</p>
                 )}
                 {card.footnote && (
-                  <p className="dashboard-stat-delta text-night-300">{card.footnote}</p>
+                  <p className="dashboard-stat-delta text-fg-subtle">{card.footnote}</p>
                 )}
               </div>
               <span className="dashboard-stat-icon">
-                {card.image ? (
-                  <Image
-                    src={card.image}
-                    alt=""
-                    width={20}
-                    height={20}
-                    className="h-5 w-5 object-contain"
-                    aria-hidden
-                  />
-                ) : (
-                  <card.icon className="h-4 w-4 text-night-200" />
-                )}
+                <card.icon className="h-4 w-4 text-fg-muted" aria-hidden />
               </span>
             </div>
           </div>
@@ -613,23 +585,12 @@ export default function DashboardPage() {
                     action.primary && "dashboard-stat-icon--primary",
                   )}
                 >
-                  {action.image ? (
-                    <Image
-                      src={action.image}
-                      alt=""
-                      width={24}
-                      height={24}
-                      className="h-6 w-6 object-contain"
-                      aria-hidden
-                    />
-                  ) : (
-                    <action.icon
-                      className={clsx(
-                        "h-6 w-6",
-                        action.primary ? "text-brand-400" : "text-night-200",
-                      )}
-                    />
-                  )}
+                  <action.icon
+                    className={clsx(
+                      "h-6 w-6",
+                      action.primary ? "text-brand-400" : "text-fg-muted",
+                    )}
+                  />
                 </span>
                 <span className="dashboard-action-label">{action.label}</span>
                 <span className="dashboard-action-note">{action.note}</span>
@@ -652,7 +613,8 @@ export default function DashboardPage() {
         >
           {notifications.length === 0 && bookings.length === 0 ? (
             <EmptyState
-              image="/grphs/Brand/empty-activity-feed-b-empty-activity.png"
+              icon={CircleAlert}
+              iconTone="neutral"
               title="No recent activity"
               description="Notifications and scheduled visits will appear here as you trade."
               size="sm"
@@ -686,7 +648,7 @@ export default function DashboardPage() {
       >
         {bookings.length === 0 ? (
           <EmptyState
-            image="/grphs/Platform%20Domains/booking-d-booking.png"
+            icon={Calendar}
             title="No visits or inspections scheduled"
             description="Book on-site visits and inspections from your listings and orders."
             cta={{ label: "Go to inspections", href: "/inspections" }}
@@ -704,10 +666,10 @@ export default function DashboardPage() {
                     <Calendar className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-night-100">
+                    <p className="text-sm font-semibold text-fg">
                       {b.title ?? b.event_type.replace(/_/g, " ")}
                     </p>
-                    <p className="text-xs text-night-200">{formatEventDate(b.scheduled_at)}</p>
+                    <p className="text-xs text-fg-muted">{formatEventDate(b.scheduled_at)}</p>
                   </div>
                 </div>
                 <Badge variant={b.status === "confirmed" ? "success" : "warning"}>{b.status}</Badge>

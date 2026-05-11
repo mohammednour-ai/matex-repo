@@ -12,6 +12,9 @@ import {
   BarChart3,
   RefreshCw,
   PenLine,
+  PauseCircle,
+  CalendarOff,
+  AlertOctagon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { callTool, callCopilot, extractId } from "@/lib/api";
@@ -94,24 +97,33 @@ const TYPE_LABELS: Record<ContractType, string> = {
 };
 
 const TYPE_COLORS: Record<ContractType, string> = {
-  standing: "bg-brand-500/15 text-brand-400 ring-1 ring-brand-500/25",
-  volume: "bg-success-500/15 text-success-400 ring-1 ring-success-500/25",
-  hybrid: "bg-info-500/15 text-info-400 ring-1 ring-info-500/25",
-  index_linked: "bg-warning-500/15 text-warning-400 ring-1 ring-warning-500/25",
-  rfq_framework: "bg-night-800 text-night-200 ring-1 ring-night-700",
-  consignment: "bg-brand-500/15 text-brand-300 ring-1 ring-brand-500/25",
+  standing: "bg-blue-100 text-brand-400",
+  volume: "bg-emerald-100 text-success-400",
+  hybrid: "bg-purple-100 text-brand-400",
+  index_linked: "bg-amber-100 text-warning-400",
+  rfq_framework: "bg-elevated text-fg-muted",
+  consignment: "bg-orange-100 text-orange-700",
 };
 
 function statusBadge(s: ContractStatus) {
-  const map: Record<ContractStatus, { label: string; variant: "success" | "warning" | "danger" | "info" | "gray" }> = {
-    draft: { label: "Draft", variant: "gray" },
-    pending_signature: { label: "Pending Signature", variant: "warning" },
-    active: { label: "Active", variant: "success" },
-    suspended: { label: "Suspended", variant: "warning" },
-    expired: { label: "Expired", variant: "gray" },
-    breached: { label: "Breached", variant: "danger" },
+  type Variant = "success" | "warning" | "danger" | "info" | "gray";
+  const ICON_CLASS = "mr-1 h-3 w-3";
+  const map: Record<ContractStatus, { label: string; variant: Variant; icon: typeof FileText }> = {
+    draft: { label: "Draft", variant: "gray", icon: FileText },
+    pending_signature: { label: "Pending Signature", variant: "warning", icon: PenLine },
+    active: { label: "Active", variant: "success", icon: CheckCircle },
+    suspended: { label: "Suspended", variant: "warning", icon: PauseCircle },
+    expired: { label: "Expired", variant: "gray", icon: CalendarOff },
+    breached: { label: "Breached", variant: "danger", icon: AlertOctagon },
   };
-  return <Badge variant={map[s].variant}>{map[s].label}</Badge>;
+  const m = map[s];
+  const Icon = m.icon;
+  return (
+    <Badge variant={m.variant}>
+      <Icon className={ICON_CLASS} aria-hidden />
+      {m.label}
+    </Badge>
+  );
 }
 
 function formatCAD(n: number): string {
@@ -235,13 +247,13 @@ export default function ContractsPage() {
           return (
             <div key={p.commodity} className="marketplace-card p-4">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-semibold text-night-300">{p.commodity}</p>
-                <button onClick={loadPrices} className="text-zinc-300 hover:text-night-300">
+                <p className="text-xs font-semibold text-fg-subtle">{p.commodity}</p>
+                <button onClick={loadPrices} className="text-zinc-300 hover:text-fg-subtle">
                   <RefreshCw className={`h-3 w-3 ${pricesLoading ? "animate-spin" : ""}`} />
                 </button>
               </div>
-              <p className="text-lg font-bold text-night-100">${p.price.toLocaleString()} USD/{p.unit}</p>
-              <p className="text-xs text-night-300">≈ {formatCAD(impliedCAD)}/MT CAD</p>
+              <p className="text-lg font-bold text-fg">${p.price.toLocaleString()} USD/{p.unit}</p>
+              <p className="text-xs text-fg-subtle">≈ {formatCAD(impliedCAD)}/MT CAD</p>
               <p className={`text-xs font-medium mt-0.5 ${p.change_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                 {p.change_pct >= 0 ? "▲" : "▼"} {Math.abs(p.change_pct)}%
               </p>
@@ -255,11 +267,11 @@ export default function ContractsPage() {
           const activeN = contracts.filter((c) => c.status === "active").length;
           const pendingN = contracts.filter((c) => c.esign_status === "pending").length;
           return [
-            { label: "Active Contracts", value: activeN, color: activeN > 0 ? "text-emerald-600" : "text-night-100" },
-            { label: "Pending Signature", value: pendingN, color: pendingN > 0 ? "text-amber-600" : "text-night-100" },
+            { label: "Active Contracts", value: activeN, color: activeN > 0 ? "text-emerald-600" : "text-fg" },
+            { label: "Pending Signature", value: pendingN, color: pendingN > 0 ? "text-amber-600" : "text-fg" },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-night-700 bg-night-850 p-4 shadow-sm">
-              <p className="text-xs font-semibold text-night-300">{s.label}</p>
+            <div key={s.label} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
+              <p className="text-xs font-semibold text-fg-subtle">{s.label}</p>
               <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
             </div>
           ));
@@ -279,7 +291,7 @@ export default function ContractsPage() {
         </div>
       ) : contracts.length === 0 ? (
         <EmptyState
-          image="/grphs/Platform%20Domains/contracts-d-contracts.png"
+          icon={FileText}
           title="No supply contracts yet"
           description="Create a standing order, volume commitment, or index-linked agreement to lock in supply."
           cta={{ label: "New contract", onClick: () => router.push("/contracts/create") }}
@@ -290,7 +302,7 @@ export default function ContractsPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px] text-sm">
             <thead>
-              <tr className="border-b border-night-700 bg-night-900 text-xs font-semibold uppercase tracking-wider text-night-300">
+              <tr className="border-b border-line bg-canvas text-xs font-semibold uppercase tracking-wider text-fg-subtle">
                 <th className="px-5 py-3 text-left">Contract</th>
                 <th className="px-5 py-3 text-left">Type</th>
                 <th className="px-5 py-3 text-left">Parties</th>
@@ -309,10 +321,10 @@ export default function ContractsPage() {
                     ? `${formatCAD((impliedPrices[contract.index_name] * 1.38) + (contract.premium ?? 0))}/MT (live)`
                     : null;
                 return (
-                  <tr key={contract.contract_id} className="hover:bg-night-900 transition">
+                  <tr key={contract.contract_id} className="hover:bg-canvas transition">
                     <td className="px-5 py-4">
-                      <p className="font-medium text-night-100 max-w-[200px] truncate">{contract.title}</p>
-                      <p className="text-xs text-night-300 truncate">{contract.material}</p>
+                      <p className="font-medium text-fg max-w-[200px] truncate">{contract.title}</p>
+                      <p className="text-xs text-fg-subtle truncate">{contract.material}</p>
                     </td>
                     <td className="px-5 py-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${TYPE_COLORS[contract.type]}`}>
@@ -320,23 +332,23 @@ export default function ContractsPage() {
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <p className="text-xs text-night-200 truncate max-w-[140px]">{contract.buyer}</p>
-                      <p className="text-xs text-night-300 truncate max-w-[140px]">→ {contract.seller}</p>
+                      <p className="text-xs text-fg-muted truncate max-w-[140px]">{contract.buyer}</p>
+                      <p className="text-xs text-fg-subtle truncate max-w-[140px]">→ {contract.seller}</p>
                     </td>
                     <td className="px-5 py-4 min-w-[140px]">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 rounded-full bg-night-700 h-1.5 overflow-hidden">
                           <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-night-300 whitespace-nowrap">{contract.fulfilled_volume}/{contract.committed_volume} {contract.unit}</span>
+                        <span className="text-xs text-fg-subtle whitespace-nowrap">{contract.fulfilled_volume}/{contract.committed_volume} {contract.unit}</span>
                       </div>
-                      <p className="text-[10px] text-night-300 mt-0.5">{pct}% fulfilled</p>
+                      <p className="text-[10px] text-fg-subtle mt-0.5">{pct}% fulfilled</p>
                     </td>
                     <td className="px-5 py-4">
-                      <p className="text-xs text-night-200">{contract.pricing_model}</p>
+                      <p className="text-xs text-fg-muted">{contract.pricing_model}</p>
                       {impliedPrice && <p className="text-[10px] text-amber-600">{impliedPrice}</p>}
                     </td>
-                    <td className="px-5 py-4 text-xs text-night-200 whitespace-nowrap">{formatDate(contract.next_order_date)}</td>
+                    <td className="px-5 py-4 text-xs text-fg-muted whitespace-nowrap">{formatDate(contract.next_order_date)}</td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col gap-1">
                         {statusBadge(contract.status)}
@@ -363,10 +375,10 @@ export default function ContractsPage() {
 
       {/* Contract detail drawer */}
       {selectedContract && (
-        <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-night-700 bg-night-850 shadow-2xl overflow-y-auto">
-          <div className="flex items-center justify-between border-b border-night-700 px-5 py-4">
-            <h2 className="font-semibold text-night-100 text-base truncate pr-4">{selectedContract.title}</h2>
-            <button onClick={() => setSelectedContract(null)} className="text-night-300 hover:text-night-200">
+        <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-line bg-surfaceBg shadow-2xl overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
+            <h2 className="font-semibold text-fg text-base truncate pr-4">{selectedContract.title}</h2>
+            <button onClick={() => setSelectedContract(null)} className="text-fg-subtle hover:text-fg-muted">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -385,16 +397,16 @@ export default function ContractsPage() {
                 { label: "Next Order", value: formatDate(selectedContract.next_order_date) },
               ].map(({ label, value }) => (
                 <div key={label}>
-                  <p className="text-xs text-night-300">{label}</p>
-                  <p className="font-medium text-night-100">{value}</p>
+                  <p className="text-xs text-fg-subtle">{label}</p>
+                  <p className="font-medium text-fg">{value}</p>
                 </div>
               ))}
             </div>
 
             {/* Fulfillment chart */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-2">Fulfillment Progress</p>
-              <div className="rounded-xl border border-night-700 bg-night-900 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-2">Fulfillment Progress</p>
+              <div className="rounded-xl border border-line bg-canvas p-4">
                 <div className="flex items-end gap-2 h-20">
                   {[
                     { label: "Jan", pct: 100 },
@@ -408,7 +420,7 @@ export default function ContractsPage() {
                       <div className="w-full rounded-t bg-info-500/30 transition-all" style={{ height: `${m.pct}%` }}>
                         {m.pct > 0 && <div className="h-full rounded-t bg-blue-600" style={{ height: `${Math.min(m.pct, 100)}%` }} />}
                       </div>
-                      <p className="text-[10px] text-night-300">{m.label}</p>
+                      <p className="text-[10px] text-fg-subtle">{m.label}</p>
                     </div>
                   ))}
                 </div>
@@ -416,10 +428,10 @@ export default function ContractsPage() {
             </div>
 
             {/* eSign status */}
-            <div className="rounded-xl border border-night-700 p-4">
+            <div className="rounded-xl border border-line p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-1">eSignature</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-1">eSignature</p>
                   {selectedContract.esign_status === "completed" ? (
                     <div className="flex items-center gap-1.5 text-success-400 text-sm">
                       <CheckCircle className="h-4 w-4" /> Signed by all parties
@@ -427,7 +439,7 @@ export default function ContractsPage() {
                   ) : selectedContract.esign_status === "pending" ? (
                     <p className="text-sm text-amber-600">Awaiting signature…</p>
                   ) : (
-                    <p className="text-sm text-night-300">Not yet sent for signing.</p>
+                    <p className="text-sm text-fg-subtle">Not yet sent for signing.</p>
                   )}
                 </div>
                 {selectedContract.esign_status !== "completed" && (
@@ -466,14 +478,14 @@ export default function ContractsPage() {
                   <button
                     key={chip}
                     onClick={() => handleAiChip(chip)}
-                    className="rounded-full border border-info-500/40 bg-night-850 px-3 py-1 text-xs text-brand-400 hover:bg-info-500/15 transition"
+                    className="rounded-full border border-blue-300 bg-surfaceBg px-3 py-1 text-xs text-brand-400 hover:bg-blue-100 transition"
                   >
                     {chip}
                   </button>
                 ))}
               </div>
               {aiResponse && (
-                <div className="mb-3 rounded-lg bg-night-850 border border-info-500/30 p-3 text-xs text-night-200 leading-relaxed">
+                <div className="mb-3 rounded-lg bg-surfaceBg border border-blue-200 p-3 text-xs text-fg-muted leading-relaxed">
                   {aiResponse}
                 </div>
               )}
@@ -484,7 +496,7 @@ export default function ContractsPage() {
                   value={aiMessage}
                   onChange={(e) => setAiMessage(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAiSend()}
-                  className="flex-1 rounded-lg border border-info-500/30 bg-night-850 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="flex-1 rounded-lg border border-blue-200 bg-surfaceBg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
                 <button
                   onClick={handleAiSend}

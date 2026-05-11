@@ -96,7 +96,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     case "logistics":
       return (
-        <span className={clsx(base, "bg-night-900 text-night-200")}>
+        <span className={clsx(base, "bg-canvas text-fg-muted")}>
           <Truck size={18} />
         </span>
       );
@@ -132,7 +132,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     default:
       return (
-        <span className={clsx(base, "bg-night-800 text-night-300")}>
+        <span className={clsx(base, "bg-elevated text-fg-subtle")}>
           <Info size={18} />
         </span>
       );
@@ -180,7 +180,7 @@ function NotificationRow({
   return (
     <div
       className={clsx(
-        "flex items-start gap-3 px-4 py-4 hover:bg-night-900 transition-colors cursor-pointer border-b border-night-700/60 last:border-b-0",
+        "flex items-start gap-3 px-4 py-4 hover:bg-canvas transition-colors cursor-pointer border-b border-line/60 last:border-b-0",
         !notification.read && "bg-brand-500/40",
       )}
       onClick={() => {
@@ -195,7 +195,7 @@ function NotificationRow({
           <p
             className={clsx(
               "text-sm leading-snug",
-              notification.read ? "font-medium text-night-200" : "font-semibold text-night-100",
+              notification.read ? "font-medium text-fg-muted" : "font-semibold text-fg",
             )}
           >
             {notification.title}
@@ -204,10 +204,10 @@ function NotificationRow({
             {!notification.read && (
               <span className="w-2 h-2 bg-brand-500 rounded-full flex-shrink-0" />
             )}
-            <span className="text-[11px] text-night-300 whitespace-nowrap">{timeAgo}</span>
+            <span className="text-[11px] text-fg-subtle whitespace-nowrap">{timeAgo}</span>
           </div>
         </div>
-        <p className="text-xs text-night-300 mt-0.5 line-clamp-2">{notification.body}</p>
+        <p className="text-xs text-fg-subtle mt-0.5 line-clamp-2">{notification.body}</p>
       </div>
     </div>
   );
@@ -228,7 +228,7 @@ function EmptyState({ tab }: { tab: Tab }) {
   };
   return (
     <EmptyIllustration
-      image="/grphs/Platform%20Domains/notifications-d-notifications.png"
+      icon={Bell}
       title={titles[tab]}
       description={
         tab === "unread"
@@ -322,7 +322,7 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={() => void fetchNotifications()}
-              className="rounded-xl p-2 text-night-300 transition-colors hover:bg-night-800 hover:text-night-100"
+              className="rounded-xl p-2 text-fg-subtle transition-colors hover:bg-elevated hover:text-fg"
               aria-label="Refresh notifications"
               title="Refresh"
             >
@@ -342,7 +342,7 @@ export default function NotificationsPage() {
 
       <div className="marketplace-card overflow-hidden">
       {/* Tabs */}
-      <div className="mb-0 border-b border-night-700/80">
+      <div className="mb-0 border-b border-line/80">
         <div className="-mb-px flex gap-0 overflow-x-auto scrollbar-hide">
           {TABS.map((tab) => {
             const count = tabCount(tab.id);
@@ -354,8 +354,8 @@ export default function NotificationsPage() {
                 className={clsx(
                   "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors",
                   active
-                    ? "border-brand-600 text-brand-400"
-                    : "border-transparent text-night-300 hover:text-night-200 hover:border-night-600",
+                    ? "border-brand-600 text-brand-700"
+                    : "border-transparent text-fg-subtle hover:text-fg-muted hover:border-line-strong",
                 )}
               >
                 {tab.label}
@@ -364,8 +364,8 @@ export default function NotificationsPage() {
                     className={clsx(
                       "text-[11px] font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center",
                       active
-                        ? "bg-brand-500/15 text-brand-400"
-                        : "bg-night-800 text-night-300",
+                        ? "bg-brand-100 text-brand-700"
+                        : "bg-elevated text-fg-subtle",
                     )}
                   >
                     {count}
@@ -378,7 +378,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Content */}
-      <div className="bg-night-850 rounded-b-xl border border-t-0 border-night-700 overflow-hidden">
+      <div className="bg-surfaceBg rounded-b-xl border border-t-0 border-line overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
@@ -386,7 +386,7 @@ export default function NotificationsPage() {
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4">
             <AlertTriangle size={28} className="text-danger-500 mb-3" />
-            <p className="font-medium text-night-200 text-sm">{error}</p>
+            <p className="font-medium text-fg-muted text-sm">{error}</p>
             <button
               onClick={() => void fetchNotifications()}
               className="mt-3 text-sm text-brand-400 hover:underline font-medium"
@@ -401,8 +401,8 @@ export default function NotificationsPage() {
             {/* Group header for unread */}
             {activeTab === "all" && unreadCount > 0 && (
               <>
-                <div className="px-4 py-2 bg-night-900 border-b border-night-700/60">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-night-300">
+                <div className="px-4 py-2 bg-canvas border-b border-line/60">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
                     Unread
                   </span>
                 </div>
@@ -417,8 +417,8 @@ export default function NotificationsPage() {
                     />
                   ))}
                 {filtered.filter((n) => n.read).length > 0 && (
-                  <div className="px-4 py-2 bg-night-900 border-y border-night-700/60">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-night-300">
+                  <div className="px-4 py-2 bg-canvas border-y border-line/60">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-fg-subtle">
                       Earlier
                     </span>
                   </div>

@@ -1,7 +1,10 @@
 {
   "extends": "next/core-web-vitals",
+  "ignorePatterns": ["node_modules/", ".next/", "playwright-report/", "test-results/", "e2e/report/templates/"],
   "rules": {
     "@next/next/no-img-element": "warn",
-    "react/no-unescaped-entities": "off"
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off",
+    "@next/next/no-html-link-for-pages": "off"
   }
 }

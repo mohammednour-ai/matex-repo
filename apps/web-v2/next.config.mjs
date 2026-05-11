@@ -1,3 +1,11 @@
+import nextBundleAnalyzer from "@next/bundle-analyzer";
+
+// Run `ANALYZE=true pnpm --filter @matex/web-v2 build` to emit interactive
+// bundle reports under apps/web-v2/.next/analyze/ (client.html + server.html).
+const withBundleAnalyzer = nextBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async redirects() {
@@ -10,4 +18,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

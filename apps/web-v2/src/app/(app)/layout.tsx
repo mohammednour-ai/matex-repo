@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { clearSession, getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import clsx from "clsx";
 
 type NavItem = {
@@ -110,14 +111,18 @@ function ClientAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-4 bg-[linear-gradient(165deg,#0e1116_0%,#15191f_42%,#1a1f27_100%)] px-6">
+      <div className="app-shell-canvas relative flex min-h-screen flex-col items-center justify-center gap-4 px-6">
         <div
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(150,165,190,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(150,165,190,0.04)_1px,transparent_1px)] bg-[length:24px_24px]"
+          className="pointer-events-none absolute inset-0 bg-[length:24px_24px]"
+          style={{
+            backgroundImage:
+              "linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)",
+          }}
           aria-hidden
         />
         <div className="relative flex flex-col items-center gap-3">
           <div className="h-11 w-11 rounded-2xl border-2 border-brand-500/30 border-t-brand-500 animate-spin shadow-[0_0_18px_-6px_rgba(232,119,34,0.30)]" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-night-300">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-fg-subtle">
             Loading Matex
           </p>
         </div>
@@ -149,6 +154,16 @@ function Sidebar({
     setShowAdminNav(Boolean(getUser()?.isPlatformAdmin));
     setUser(getUser());
   }, [pathname]);
+  // Esc closes the mobile drawer when it's open. Click-outside backdrop is
+  // already wired; this gives keyboard users an equivalent affordance.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") onMobileClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen, onMobileClose]);
   const width = collapsed ? COLLAPSED_W : EXPANDED_W;
 
   const logo = (
@@ -263,15 +278,16 @@ function Sidebar({
           <div className={collapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-night-300">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-fg-subtle">
                   Experience
                 </p>
-                <p className="mt-1 text-xs text-night-300">Production-grade workspace</p>
+                <p className="mt-1 text-xs text-fg-subtle">Production-grade workspace</p>
               </div>
             )}
             <button
               onClick={onToggle}
-              className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 transition-colors hover:text-white hover:bg-night-850/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/[0.04] text-fg-subtle transition-colors hover:text-fg hover:bg-surfaceBg/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -295,7 +311,12 @@ function Sidebar({
       </aside>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden flex">
+        <div
+          className="fixed inset-0 z-40 md:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main navigation"
+        >
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={onMobileClose}
@@ -317,10 +338,11 @@ function Sidebar({
                   </Link>
                   <button
                     onClick={onMobileClose}
+                    type="button"
                     aria-label="Close navigation"
-                    className="rounded-2xl border border-white/10 bg-night-850/[0.04] p-2 text-night-300 hover:bg-night-850/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/[0.04] text-fg-subtle hover:bg-surfaceBg/[0.08] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                   >
-                    <X size={18} />
+                    <X size={18} aria-hidden />
                   </button>
                 </div>
                 <nav className="flex-1 py-3 overflow-y-auto">
@@ -344,9 +366,9 @@ function MobileMenuTrigger({ onOpen }: { onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       aria-label="Open navigation"
-      className="fixed left-4 top-4 z-30 rounded-2xl border border-night-700 bg-night-850/80 p-2.5 text-night-200 backdrop-blur transition-colors hover:border-brand-400/40 hover:text-white md:hidden"
+      className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-surfaceBg/80 text-fg-muted backdrop-blur transition-colors hover:border-brand-400/40 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 md:hidden"
     >
-      <Menu size={20} />
+      <Menu size={20} aria-hidden />
     </button>
   );
 }
@@ -396,16 +418,16 @@ function UserMenu() {
           aria-label="Account menu"
           aria-expanded={avatarOpen}
           aria-haspopup="true"
-          className="flex items-center gap-3 rounded-2xl border border-night-700 bg-night-850/80 px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition-all hover:border-brand-400/40 hover:bg-night-800/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+          className="flex items-center gap-3 rounded-2xl border border-line bg-surfaceBg/80 px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition-all hover:border-brand-400/40 hover:bg-elevated/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
         >
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-night-700 to-night-800 text-sm font-black text-white ring-1 ring-brand-500/30 shadow-[0_8px_20px_-10px_rgba(0,0,0,0.65)]">
             {userInitial}
           </span>
           <span className="hidden min-w-0 sm:block">
-            <span className="block truncate text-sm font-semibold text-night-100">
+            <span className="block truncate text-sm font-semibold text-fg">
               {user?.email?.split("@")[0] ?? "Matex user"}
             </span>
-            <span className="text-xs text-night-300">{companyLabel}</span>
+            <span className="text-xs text-fg-subtle">{companyLabel}</span>
           </span>
         </button>
 
@@ -416,12 +438,18 @@ function UserMenu() {
               onClick={() => setAvatarOpen(false)}
               aria-hidden
             />
-            <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-night-700 bg-night-900 py-1 shadow-2xl">
-              <div className="border-b border-night-700/60 px-4 py-3">
-                <p className="truncate text-sm font-semibold text-night-100">
+            <div className="absolute right-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-line bg-canvas py-1 shadow-2xl">
+              <div className="border-b border-line/60 px-4 py-3">
+                <p className="truncate text-sm font-semibold text-fg">
                   {user?.email?.split("@")[0] ?? "Matex user"}
                 </p>
-                <p className="truncate text-xs text-night-300">{user?.email}</p>
+                <p className="truncate text-xs text-fg-subtle">{user?.email}</p>
+              </div>
+              <div className="border-b border-line/60 px-4 py-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-fg-disabled">
+                  Theme
+                </p>
+                <ThemeToggle />
               </div>
               <div className="py-1">
                 <button
@@ -430,9 +458,9 @@ function UserMenu() {
                     setAvatarOpen(false);
                     router.push("/settings");
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-fg-muted transition-colors hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
-                  <Settings size={15} />
+                  <Settings size={15} aria-hidden />
                   Settings
                 </button>
                 <button
@@ -441,9 +469,9 @@ function UserMenu() {
                     setAvatarOpen(false);
                     handleSignOut();
                   }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-night-200 transition-colors hover:bg-night-800 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-fg-muted transition-colors hover:bg-elevated hover:text-danger-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
                 >
-                  <LogOut size={15} />
+                  <LogOut size={15} aria-hidden />
                   Sign out
                 </button>
               </div>
@@ -479,6 +507,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <ClientAuthGuard>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-brand-500 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
+      >
+        Skip to main content
+      </a>
+
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
@@ -486,12 +521,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      <MobileMenuTrigger onOpen={() => setMobileOpen(true)} />
-      <UserMenu />
+      <header role="banner">
+        <MobileMenuTrigger onOpen={() => setMobileOpen(true)} />
+        <UserMenu />
+      </header>
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className={clsx(
-          "app-shell-canvas min-h-screen transition-all duration-200",
+          "app-shell-canvas min-h-screen transition-[margin] duration-200 focus:outline-none",
           isDashboard && "dashboard-canvas",
         )}
         style={{ marginLeft: sidebarWidth }}
@@ -505,13 +544,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           // independent of page height, decoupled from scroll.
           <div
             aria-hidden
-            className="dashboard-og-watermark pointer-events-none fixed inset-y-0 right-0 z-0 opacity-[0.13] mix-blend-screen"
+            className="dashboard-og-watermark pointer-events-none absolute inset-0 z-0 bg-industrial-grain opacity-[0.10]"
             style={{
-              left: sidebarWidth,
-              backgroundImage: "url('/grphs/Brand/og-social-share-image-b-og-share.jpg')",
-              backgroundSize: "60% auto",
-              backgroundPosition: "60% center",
-              backgroundRepeat: "no-repeat",
               maskImage:
                 "radial-gradient(ellipse 35% 50% at 60% 50%, rgba(0,0,0,0.95), transparent 78%)",
               WebkitMaskImage:

@@ -11,6 +11,7 @@ import {
   ArrowRight,
   Copy,
   Shield,
+  ShoppingCart,
 } from "lucide-react";
 import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { callTool, getUser, extractId } from "@/lib/api";
@@ -364,7 +365,7 @@ export default function CheckoutPage() {
           description="Review your order, complete payment, and confirm your purchase."
         />
         <EmptyState
-          image="/grphs/Platform%20Domains/listing-d-listing.png"
+          icon={ShoppingCart}
           title="No order to check out"
           description={
             itemError ||

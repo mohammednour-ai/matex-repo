@@ -16,6 +16,8 @@
     "test:uiux": "playwright test --project=uiux",
     "test:visual": "playwright test --project=visual",
     "test:visual:update": "playwright test --project=visual --update-snapshots",
+    "test:a11y": "playwright test --project=a11y",
+    "test:lighthouse": "lhci autorun --config=./.lighthouserc.json",
     "test:compliance": "playwright test --project=compliance",
     "test:legacy": "playwright test --project=legacy",
     "test:report": "tsx e2e/report/generate-report.ts",
@@ -29,7 +31,6 @@
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.4.0",
     "@tanstack/react-table": "^8.21.3",
-    "@tremor/react": "^3.18.7",
     "autoprefixer": "^10.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -51,12 +52,19 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@lhci/cli": "^0.15.1",
+    "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.55.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "cross-env": "^10.1.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14",
+    "eslint-config-next": "^14.2.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "sharp": "^0.33.0",
+    "svgo": "^3.3.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }

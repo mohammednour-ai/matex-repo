@@ -136,7 +136,7 @@ function CardMenu({
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="p-1 rounded-md text-night-300 hover:text-night-200 hover:bg-night-800 transition-colors"
+        className="p-1 rounded-md text-fg-subtle hover:text-fg-muted hover:bg-elevated transition-colors"
         aria-label="More actions"
       >
         <MoreVertical className="w-4 h-4" />
@@ -148,15 +148,15 @@ function CardMenu({
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="absolute right-0 top-7 z-20 w-40 bg-night-850 rounded-xl border border-night-700 shadow-lg py-1 overflow-hidden">
+          <div className="absolute right-0 top-7 z-20 w-40 bg-surfaceBg rounded-xl border border-line shadow-lg py-1 overflow-hidden">
             <button
               onClick={() => {
                 setOpen(false);
                 router.push(`/listings/${listing.listing_id}`);
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-night-200 hover:bg-night-900 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-fg-muted hover:bg-canvas transition-colors"
             >
-              <Eye className="w-4 h-4 text-night-300" />
+              <Eye className="w-4 h-4 text-fg-subtle" />
               View
             </button>
             <button
@@ -164,9 +164,9 @@ function CardMenu({
                 setOpen(false);
                 router.push(`/listings/${listing.listing_id}/edit`);
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-night-200 hover:bg-night-900 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-fg-muted hover:bg-canvas transition-colors"
             >
-              <Edit2 className="w-4 h-4 text-night-300" />
+              <Edit2 className="w-4 h-4 text-fg-subtle" />
               Edit
             </button>
             {listing.status !== "archived" && (
@@ -202,11 +202,11 @@ function ListingCardItem({
 
   return (
     <div
-      className="bg-night-850 rounded-xl border border-night-700 overflow-hidden hover:shadow-md hover:border-night-600 transition-all duration-150 flex flex-col"
+      className="bg-surfaceBg rounded-xl border border-line overflow-hidden hover:shadow-md hover:border-line-strong transition-all duration-150 flex flex-col"
     >
       {/* Thumbnail */}
       <div
-        className="relative aspect-video bg-night-800 cursor-pointer overflow-hidden"
+        className="relative aspect-video bg-elevated cursor-pointer overflow-hidden"
         onClick={() => router.push(`/listings/${listing.listing_id}`)}
       >
         {listing.thumbnail_url ? (
@@ -239,7 +239,7 @@ function ListingCardItem({
         <div className="flex items-start justify-between gap-2">
           <Link
             href={`/listings/${listing.listing_id}`}
-            className="text-sm font-semibold text-night-100 hover:text-brand-400 transition-colors leading-snug line-clamp-2 flex-1"
+            className="text-sm font-semibold text-fg hover:text-brand-600 transition-colors leading-snug line-clamp-2 flex-1"
           >
             {listing.title}
           </Link>
@@ -250,7 +250,7 @@ function ListingCardItem({
         <div className="flex items-center flex-wrap gap-1.5">
           <SaleModeBadge mode={listing.sale_mode} />
           {listing.category && (
-            <span className="text-[10px] text-night-300 bg-night-900 rounded-full px-2 py-0.5 border border-night-700">
+            <span className="text-[10px] text-fg-subtle bg-canvas rounded-full px-2 py-0.5 border border-line">
               {listing.category}
             </span>
           )}
@@ -258,27 +258,27 @@ function ListingCardItem({
 
         {/* Quantity */}
         {listing.quantity != null && (
-          <p className="text-xs text-night-300">
+          <p className="text-xs text-fg-subtle">
             {listing.quantity} {listing.unit ?? "units"}
           </p>
         )}
 
         {/* Price */}
-        <p className="text-base font-bold text-night-100">{formatPrice(listing)}</p>
+        <p className="text-base font-bold text-fg">{formatPrice(listing)}</p>
 
         {/* Stats row */}
-        <div className="flex items-center gap-4 mt-auto pt-2 border-t border-night-700/60">
-          <span className="flex items-center gap-1 text-xs text-night-300">
+        <div className="flex items-center gap-4 mt-auto pt-2 border-t border-line/60">
+          <span className="flex items-center gap-1 text-xs text-fg-subtle">
             <Eye className="w-3 h-3" />
             {listing.view_count ?? 0} views
           </span>
           {listing.sale_mode !== "fixed" && (
-            <span className="flex items-center gap-1 text-xs text-night-300">
+            <span className="flex items-center gap-1 text-xs text-fg-subtle">
               <Gavel className="w-3 h-3" />
               {listing.bids_count ?? 0} bid{listing.bids_count !== 1 ? "s" : ""}
             </span>
           )}
-          <span className="ml-auto flex items-center gap-1 text-xs text-night-300">
+          <span className="ml-auto flex items-center gap-1 text-xs text-fg-subtle">
             <Clock className="w-3 h-3" />
             {formatDate(listing.created_at)}
           </span>
@@ -286,26 +286,26 @@ function ListingCardItem({
       </div>
 
       {/* Quick actions footer */}
-      <div className="flex border-t border-night-700/60">
+      <div className="flex border-t border-line/60">
         <Link
           href={`/listings/${listing.listing_id}`}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-200 hover:bg-night-900 hover:text-night-100 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-fg-muted hover:bg-canvas hover:text-fg transition-colors"
         >
           <Eye className="w-3.5 h-3.5" />
           View
         </Link>
-        <div className="w-px bg-night-800" />
+        <div className="w-px bg-elevated" />
         <Link
           href={`/listings/${listing.listing_id}/edit`}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-200 hover:bg-night-900 hover:text-night-100 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-fg-muted hover:bg-canvas hover:text-fg transition-colors"
         >
           <Edit2 className="w-3.5 h-3.5" />
           Edit
         </Link>
-        <div className="w-px bg-night-800" />
+        <div className="w-px bg-elevated" />
         <button
           onClick={() => onArchive(listing.listing_id)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-night-300 hover:bg-danger-500/10 hover:text-red-600 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-fg-subtle hover:bg-danger-500/10 hover:text-red-600 transition-colors"
           disabled={listing.status === "archived"}
         >
           <Archive className="w-3.5 h-3.5" />
@@ -320,34 +320,29 @@ function ListingCardItem({
 
 const EMPTY_BY_TAB: Record<
   Tab,
-  { image: string; title: string; description: string; showCreate: boolean }
+  { title: string; description: string; showCreate: boolean }
 > = {
   all: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No listings yet",
     description: "Create your first listing to start selling recycled materials on Matex.",
     showCreate: true,
   },
   active: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No active listings",
     description: "Publish a draft listing or create a new one to start receiving offers.",
     showCreate: true,
   },
   draft: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No drafts",
     description: "Save a listing as draft to continue editing it later.",
     showCreate: true,
   },
   sold: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No sold listings",
     description: "Listings you've completed will appear here.",
     showCreate: false,
   },
   ended: {
-    image: "/grphs/Platform%20Domains/listing-d-listing.png",
     title: "No ended listings",
     description: "Expired or closed listings will appear here.",
     showCreate: false,
@@ -364,7 +359,7 @@ function ListingsEmptyState({
   const config = EMPTY_BY_TAB[tab];
   return (
     <EmptyIllustration
-      image={config.image}
+      icon={Package}
       title={config.title}
       description={config.description}
       cta={config.showCreate ? { label: "Create listing", onClick: onCreate } : undefined}
@@ -383,8 +378,8 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
 
   const stats = [
     { label: "Active", value: active, color: "text-emerald-600" },
-    { label: "Drafts", value: draft, color: "text-night-200" },
-    { label: "Sold", value: sold, color: "text-brand-400" },
+    { label: "Drafts", value: draft, color: "text-fg-muted" },
+    { label: "Sold", value: sold, color: "text-brand-600" },
     { label: "Total views", value: totalViews, color: "text-purple-600" },
   ];
 
@@ -393,10 +388,10 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
       {stats.map((s) => (
         <div
           key={s.label}
-          className="bg-night-850 rounded-xl border border-night-700 px-4 py-3 text-center"
+          className="bg-surfaceBg rounded-xl border border-line px-4 py-3 text-center"
         >
           <p className={clsx("text-2xl font-bold", s.color)}>{s.value}</p>
-          <p className="text-xs text-night-300 mt-0.5">{s.label}</p>
+          <p className="text-xs text-fg-subtle mt-0.5">{s.label}</p>
         </div>
       ))}
     </div>
@@ -407,7 +402,7 @@ function SummaryStats({ listings }: { listings: ListingCard[] }) {
 
 function SkeletonCard() {
   return (
-    <div className="bg-night-850 rounded-xl border border-night-700 overflow-hidden animate-pulse">
+    <div className="bg-surfaceBg rounded-xl border border-line overflow-hidden animate-pulse">
       <div className="aspect-video bg-night-700" />
       <div className="p-4 space-y-3">
         <div className="h-4 bg-night-700 rounded w-3/4" />
@@ -530,7 +525,7 @@ export default function MyListingsPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-night-700">
+      <div className="mb-6 flex items-center gap-1 overflow-x-auto border-b border-line">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -538,8 +533,8 @@ export default function MyListingsPage() {
             className={clsx(
               "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
               activeTab === tab.id
-                ? "border-brand-600 text-brand-400"
-                : "border-transparent text-night-300 hover:border-night-600 hover:text-night-100"
+                ? "border-brand-600 text-brand-600"
+                : "border-transparent text-fg-subtle hover:border-line-strong hover:text-fg"
             )}
           >
             {tab.label}
@@ -548,8 +543,8 @@ export default function MyListingsPage() {
                 className={clsx(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold min-w-[18px] text-center",
                   activeTab === tab.id
-                    ? "bg-brand-500/15 text-brand-400"
-                    : "bg-night-800 text-night-200"
+                    ? "bg-brand-100 text-brand-700"
+                    : "bg-elevated text-fg-muted"
                 )}
               >
                 {tabCounts[tab.id]}
@@ -575,13 +570,13 @@ export default function MyListingsPage() {
         <>
           {tableViewEnabled && (
             <div className="mb-3 flex justify-end">
-              <div className="inline-flex rounded-lg border border-night-700 bg-night-850 p-0.5 text-xs font-semibold">
+              <div className="inline-flex rounded-lg border border-line bg-surfaceBg p-0.5 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => setViewMode("cards")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "cards" ? "bg-brand-500/10 text-brand-400" : "text-night-300 hover:text-night-100",
+                    viewMode === "cards" ? "bg-brand-500/10 text-brand-700" : "text-fg-subtle hover:text-fg",
                   )}
                 >
                   Cards
@@ -591,7 +586,7 @@ export default function MyListingsPage() {
                   onClick={() => setViewMode("table")}
                   className={clsx(
                     "rounded-md px-3 py-1.5 transition-colors",
-                    viewMode === "table" ? "bg-brand-500/10 text-brand-400" : "text-night-300 hover:text-night-100",
+                    viewMode === "table" ? "bg-brand-500/10 text-brand-700" : "text-fg-subtle hover:text-fg",
                   )}
                 >
                   Table
