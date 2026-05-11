@@ -108,34 +108,77 @@ async function generateOrder({ args }: ToolRequest) {
   const supabase = serviceClient();
   const contractId = String(args.contract_id ?? "");
   if (!contractId) return failEnvelope("VALIDATION_ERROR", "contract_id is required.");
-  const contractResult = await supabase.schema("contracts_mcp").from("contracts").select("*")
-    .eq("contract_id", contractId).eq("status", "active").maybeSingle();
+
+  // Back-compat: accept quantity OR quantity_kg, scheduled_date OR delivery_date.
+  const orderQuantity = Number(args.quantity ?? args.quantity_kg ?? 0);
+  const scheduledDate = args.scheduled_date
+    ? String(args.scheduled_date)
+    : args.delivery_date
+      ? String(args.delivery_date)
+      : "";
+  if (!(orderQuantity > 0)) return failEnvelope("VALIDATION_ERROR", "quantity must be > 0.");
+  if (!scheduledDate) return failEnvelope("VALIDATION_ERROR", "scheduled_date is required.");
+
+  const contractResult = await supabase
+    .schema("contracts_mcp")
+    .from("contracts")
+    .select("total_volume,fulfilled_volume,pricing_model,start_date,end_date,unit,status")
+    .eq("contract_id", contractId)
+    .eq("status", "active")
+    .maybeSingle();
   if (contractResult.error) return failEnvelope("DB_ERROR", "Database operation failed");
   if (!contractResult.data) return failEnvelope("NOT_FOUND", "Active contract not found.");
   const contract = contractResult.data as Record<string, unknown>;
-  const orderQuantity = Number(args.quantity_kg ?? contract.quantity_kg ?? 0);
-  const pricePerKg = Number(contract.price_per_kg ?? 0);
-  const orderAmount = Number((orderQuantity * pricePerKg).toFixed(2));
-  if (args.delivery_date && contract.start_date) {
-    const deliveryDate = new Date(String(args.delivery_date));
-    const startDate = new Date(String(contract.start_date));
-    if (deliveryDate < startDate) {
-      return failEnvelope("VALIDATION_ERROR", `delivery_date (${args.delivery_date}) must not be before contract start_date (${contract.start_date}).`);
-    }
+
+  const totalVolume = Number(contract.total_volume ?? 0);
+  const fulfilledVolume = Number(contract.fulfilled_volume ?? 0);
+  const remaining = totalVolume - fulfilledVolume;
+  if (totalVolume > 0 && orderQuantity > remaining) {
+    return failEnvelope("VALIDATION_ERROR", `quantity exceeds contract remaining volume (${remaining}).`);
   }
-  const orderId = generateId();
+  if (contract.start_date && new Date(scheduledDate) < new Date(String(contract.start_date))) {
+    return failEnvelope("VALIDATION_ERROR", `scheduled_date (${scheduledDate}) must not be before contract start_date (${contract.start_date}).`);
+  }
+  if (contract.end_date && new Date(scheduledDate) > new Date(String(contract.end_date))) {
+    return failEnvelope("VALIDATION_ERROR", `scheduled_date (${scheduledDate}) must not be after contract end_date (${contract.end_date}).`);
+  }
+
+  const pricingModel = (contract.pricing_model ?? {}) as Record<string, unknown>;
+  const pricingType = String(pricingModel.type ?? "fixed");
+  if (pricingType !== "fixed") {
+    return failEnvelope("NOT_IMPLEMENTED", `pricing_model.type='${pricingType}' is not supported by generate_order yet. v1 ships fixed only.`);
+  }
+  const basePrice = Number(pricingModel.base_price ?? 0);
+  if (!(basePrice > 0)) return failEnvelope("VALIDATION_ERROR", "Contract pricing_model.base_price must be > 0.");
+  const calculatedPrice = Number((orderQuantity * basePrice).toFixed(2));
+
+  const contractOrderId = generateId();
   const ts = now();
   const { error } = await supabase.schema("contracts_mcp").from("contract_orders").insert({
-    order_id: orderId, contract_id: contractId,
-    quantity_kg: orderQuantity, price_per_kg: pricePerKg, order_amount: orderAmount,
-    delivery_date: args.delivery_date ? String(args.delivery_date) : null,
-    status: "pending_confirmation", created_at: ts, updated_at: ts,
+    contract_order_id: contractOrderId,
+    contract_id: contractId,
+    scheduled_date: scheduledDate,
+    quantity: orderQuantity,
+    calculated_price: calculatedPrice,
+    status: "scheduled",
+    created_at: ts,
   });
   if (error) return failEnvelope("DB_ERROR", "Database operation failed");
   await emitEvent(supabase, SOURCE, "contracts.order.triggered", {
-    contract_id: contractId, order_id: orderId, order_amount: orderAmount,
+    contract_id: contractId,
+    contract_order_id: contractOrderId,
+    quantity: orderQuantity,
+    calculated_price: calculatedPrice,
+    scheduled_date: scheduledDate,
   });
-  return okEnvelope({ order_id: orderId, contract_id: contractId, order_amount: orderAmount, status: "pending_confirmation" });
+  return okEnvelope({
+    contract_order_id: contractOrderId,
+    contract_id: contractId,
+    quantity: orderQuantity,
+    calculated_price: calculatedPrice,
+    scheduled_date: scheduledDate,
+    status: "scheduled",
+  });
 }
 
 async function negotiateTerms({ args, caller }: ToolRequest) {
@@ -212,37 +255,73 @@ async function terminateContract({ args, caller }: ToolRequest) {
 }
 
 async function evaluateBreach({ args }: ToolRequest) {
+  // Schema-aligned column reads; see the matching MCP handler in
+  // packages/mcp-servers/contracts-mcp/src/index.ts for the TODO on the
+  // comparison semantics (we kept them to avoid scope creep; redesign
+  // is a separate PR — P1-1d).
   const supabase = serviceClient();
   const contractId = String(args.contract_id ?? "");
-  const orderId = String(args.order_id ?? "");
-  if (!contractId || !orderId) return failEnvelope("VALIDATION_ERROR", "contract_id and order_id are required.");
+  const contractOrderId = args.contract_order_id ? String(args.contract_order_id) : "";
+  const orderId = args.order_id ? String(args.order_id) : "";
+  if (!contractId || (!contractOrderId && !orderId)) {
+    return failEnvelope("VALIDATION_ERROR", "contract_id and either contract_order_id or order_id are required.");
+  }
+
+  let orderQuery = supabase
+    .schema("contracts_mcp")
+    .from("contract_orders")
+    .select("quantity,calculated_price,status,scheduled_date")
+    .eq("contract_id", contractId);
+  if (contractOrderId) {
+    orderQuery = orderQuery.eq("contract_order_id", contractOrderId);
+  } else {
+    orderQuery = orderQuery.eq("order_id", orderId);
+  }
+
   const [contractResult, orderResult] = await Promise.all([
-    supabase.schema("contracts_mcp").from("contracts")
-      .select("quantity_kg,price_per_kg,breach_penalties,status").eq("contract_id", contractId).maybeSingle(),
-    supabase.schema("contracts_mcp").from("contract_orders")
-      .select("quantity_kg,status,delivery_date").eq("order_id", orderId).eq("contract_id", contractId).maybeSingle(),
+    supabase
+      .schema("contracts_mcp")
+      .from("contracts")
+      .select("total_volume,pricing_model,breach_penalties,status,unit")
+      .eq("contract_id", contractId)
+      .maybeSingle(),
+    orderQuery.maybeSingle(),
   ]);
   if (contractResult.error || orderResult.error) return failEnvelope("DB_ERROR", "Database operation failed");
   if (!contractResult.data) return failEnvelope("NOT_FOUND", "Contract not found.");
   if (!orderResult.data) return failEnvelope("NOT_FOUND", "Contract order not found.");
+
   const contract = contractResult.data as Record<string, unknown>;
   const order = orderResult.data as Record<string, unknown>;
   const penaltyConfig = (contract.breach_penalties ?? {}) as Record<string, unknown>;
-  const orderQty = Number(order.quantity_kg ?? 0);
-  const contractQty = Number(contract.quantity_kg ?? 0);
-  const pricePerKg = Number(contract.price_per_kg ?? 0);
-  const shortfallKg = Math.max(0, contractQty - orderQty);
-  const shortfallPct = contractQty > 0 ? Number(((shortfallKg / contractQty) * 100).toFixed(2)) : 0;
+  const pricingModel = (contract.pricing_model ?? {}) as Record<string, unknown>;
+
+  const orderQty = Number(order.quantity ?? 0);
+  const contractQty = Number(contract.total_volume ?? 0);
+  const basePrice = Number(pricingModel.base_price ?? 0);
+
+  const shortfallQty = Math.max(0, contractQty - orderQty);
+  const shortfallPct = contractQty > 0 ? Number(((shortfallQty / contractQty) * 100).toFixed(2)) : 0;
   const penaltyRate = Number(penaltyConfig.shortfall_rate ?? 0.05);
-  const penaltyAmount = shortfallPct > 0 ? Number((shortfallKg * pricePerKg * penaltyRate).toFixed(2)) : 0;
-  const isLateDelivery = order.delivery_date && order.status !== "completed" && new Date(String(order.delivery_date)) < new Date();
+  const penaltyAmount = shortfallPct > 0 ? Number((shortfallQty * basePrice * penaltyRate).toFixed(2)) : 0;
+  const isLateDelivery =
+    order.scheduled_date &&
+    order.status !== "fulfilled" &&
+    new Date(String(order.scheduled_date)) < new Date();
   const latePenalty = isLateDelivery ? Number(penaltyConfig.late_delivery_fee ?? 0) : 0;
   const totalPenalty = Number((penaltyAmount + latePenalty).toFixed(2));
   return okEnvelope({
-    contract_id: contractId, order_id: orderId, is_breach: totalPenalty > 0,
-    shortfall_kg: shortfallKg, shortfall_pct: shortfallPct,
-    late_delivery: Boolean(isLateDelivery), penalty_amount: penaltyAmount,
-    late_penalty: latePenalty, total_penalty: totalPenalty,
+    contract_id: contractId,
+    contract_order_id: contractOrderId || null,
+    order_id: orderId || null,
+    is_breach: totalPenalty > 0,
+    shortfall_quantity: shortfallQty,
+    shortfall_unit: String(contract.unit ?? ""),
+    shortfall_pct: shortfallPct,
+    late_delivery: Boolean(isLateDelivery),
+    penalty_amount: penaltyAmount,
+    late_penalty: latePenalty,
+    total_penalty: totalPenalty,
   });
 }
 
