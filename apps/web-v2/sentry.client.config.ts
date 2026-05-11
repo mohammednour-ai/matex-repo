@@ -5,11 +5,12 @@
 import * as Sentry from "@sentry/nextjs";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+const env = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
 
 if (dsn) {
   Sentry.init({
     dsn,
-    environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? "development",
+    environment: env,
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
@@ -24,4 +25,12 @@ if (dsn) {
       return event;
     },
   });
+  // One-line init verification. Visible in browser devtools so a developer
+  // can quickly confirm Sentry is reporting in this build. Production-mode
+  // users see the same line, which is acceptable (no PII, no DSN).
+  console.info(`[sentry] client init (env=${env})`);
+} else if (env === "production") {
+  // DSN missing in a real prod build is almost always a config mistake —
+  // we won't capture client-side errors. Visible warning beats silence.
+  console.warn("[sentry] client DSN not set in production — errors will NOT be captured.");
 }
