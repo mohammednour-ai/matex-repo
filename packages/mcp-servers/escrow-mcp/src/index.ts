@@ -206,6 +206,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const amount = Number(args.amount ?? 0);
     const currency = String(args.currency ?? "CAD");
     if (!orderId || !buyerId || !sellerId || amount <= 0) return fail("VALIDATION_ERROR", "order_id, buyer_id, seller_id, amount>0 are required.");
+
+    // If a Stripe payment for this order has already been confirmed (the
+    // webhook may have landed BEFORE this create_escrow call — see PR 4
+    // race comment in apps/web-v2/src/app/api/stripe/webhook/route.ts),
+    // open the escrow directly in 'funds_held' instead of 'created'.
+    // Without this, the webhook's UPDATE-where-status='created' would
+    // have already failed (the row didn't exist yet) and the escrow
+    // would sit forever in 'created' even though Stripe has the money.
+    const settledTxResult = await supabase
+      .schema("payments_mcp")
+      .from("transactions")
+      .select("transaction_id,stripe_payment_intent_id")
+      .eq("order_id", orderId)
+      .eq("status", "completed")
+      .eq("payment_method", "stripe_card")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const settledTx = settledTxResult.error ? null : settledTxResult.data;
+    const startStatus: EscrowStatus = settledTx ? "funds_held" : "created";
+    const heldAmount = settledTx ? amount : 0;
+
     const escrowId = generateId();
     const createdAt = now();
     const createResult = await supabase.schema("escrow_mcp").from("escrows").insert({
@@ -214,18 +236,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       buyer_id: buyerId,
       seller_id: sellerId,
       original_amount: amount,
-      held_amount: 0,
+      held_amount: heldAmount,
       released_amount: 0,
       refunded_amount: 0,
       currency,
-      status: "created",
+      status: startStatus,
+      stripe_payment_intent_id: settledTx?.stripe_payment_intent_id ?? null,
       created_at: createdAt,
       updated_at: createdAt,
     });
     if (createResult.error) return fail("DB_ERROR", "Database operation failed");
+    // Always log the create. If we auto-funded, log that as a second
+    // entry so the timeline reads created → funds_held with the source
+    // attribution rather than collapsing the two events.
     await appendTimeline(escrowId, "created", amount, null, null, { currency });
-    await emitEvent("escrow.escrow.created", { escrow_id: escrowId, order_id: orderId, amount });
-    return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: "created" }) }] };
+    if (settledTx) {
+      await appendTimeline(escrowId, "funds_held", amount, null, "auto_on_create_settled_payment", {
+        transaction_id: settledTx.transaction_id,
+        stripe_payment_intent_id: settledTx.stripe_payment_intent_id,
+        source: "create_escrow_auto",
+      });
+    }
+    await emitEvent("escrow.escrow.created", { escrow_id: escrowId, order_id: orderId, amount, status: startStatus });
+    return { content: [{ type: "text", text: ok({ escrow_id: escrowId, status: startStatus, held_amount: heldAmount }) }] };
   }
 
   const escrowId = String(args.escrow_id ?? "");
