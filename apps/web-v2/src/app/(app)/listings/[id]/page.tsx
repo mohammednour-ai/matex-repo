@@ -296,8 +296,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           <DialogTitle className="sr-only">{`${title} — photo ${activeIdx + 1} of ${media.length}`}</DialogTitle>
           <div className="relative aspect-[16/10] w-full">
             {media[activeIdx] && (
-              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts
-              <img
+              <Image
                 src={media[activeIdx]}
                 alt={`${title} — photo ${activeIdx + 1}`}
                 fill
