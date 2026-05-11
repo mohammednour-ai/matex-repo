@@ -166,6 +166,7 @@ const ROUTE_MAP: Record<string, string> = {
   storage: "@matex/storage-mcp",
   log: "@matex/log-mcp",
   credit: "@matex/credit-mcp",
+  yardops: "@matex/yardops-mcp",
 };
 
 function expiryToSeconds(value: string, fallbackSeconds: number): number {
@@ -267,6 +268,8 @@ function isPublicTool(tool: string): boolean {
     "auth.refresh_token",
     "auth.request_password_reset",
     "auth.confirm_password_reset",
+    "yardops.login",
+    "yardops.create_tenant",
   ].includes(tool);
 }
 

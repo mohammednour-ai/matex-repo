@@ -386,7 +386,7 @@ export default function EscrowPage() {
 
       {/* Error banner */}
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}

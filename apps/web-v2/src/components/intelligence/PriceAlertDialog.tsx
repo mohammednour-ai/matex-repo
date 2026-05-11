@@ -91,7 +91,7 @@ export function PriceAlertDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-brand-600" />
+            <Bell className="h-4 w-4 text-brand-400" />
             New price alert
           </DialogTitle>
           <DialogDescription>

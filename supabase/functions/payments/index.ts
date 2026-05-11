@@ -19,9 +19,73 @@ import { serveDomain, type ToolRequest } from "../_shared/handler.ts";
 const SOURCE = "payments-edge";
 const DEFAULT_COMMISSION_RATE = 0.035;
 const DEFAULT_HST_RATE = 0.13;
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+// Pinned to keep PaymentIntent state-machine semantics stable across Stripe
+// dashboard upgrades. Bump deliberately when validating against newer
+// Stripe behaviour. Refs: docs/audit/2026-05-10/p0-1-stripe-elements-plan.md §6.
+const STRIPE_API_VERSION = "2024-11-20.acacia";
 
-type Mutating = "top_up_wallet" | "manage_payment_methods" | "process_payment";
-const MUTATING: Set<Mutating> = new Set(["top_up_wallet", "manage_payment_methods", "process_payment"]);
+type Mutating = "top_up_wallet" | "manage_payment_methods" | "process_payment" | "create_payment_intent";
+const MUTATING: Set<Mutating> = new Set(["top_up_wallet", "manage_payment_methods", "process_payment", "create_payment_intent"]);
+
+/**
+ * Direct Stripe PaymentIntent creation. Mirrors the same function in
+ * packages/mcp-servers/payments-mcp/src/index.ts so both transports have
+ * identical wire behaviour. The Deno runtime can't import the Node-only
+ * stripe-bridge, so the call lives here instead. Refs: plan §4.
+ */
+async function stripeCreatePaymentIntent(input: {
+  amountCents: number;
+  currency: string;
+  metadata: Record<string, string>;
+  idempotencyKey: string;
+}): Promise<
+  | { ok: true; payment_intent_id: string; client_secret: string; status: string }
+  | { ok: false; code: string; message: string }
+> {
+  if (!STRIPE_SECRET_KEY) {
+    const stubId = `pi_stub_${Date.now()}`;
+    return {
+      ok: true,
+      payment_intent_id: stubId,
+      client_secret: `${stubId}_secret_stub`,
+      status: "requires_confirmation",
+    };
+  }
+  const params = new URLSearchParams();
+  params.set("amount", String(input.amountCents));
+  params.set("currency", input.currency);
+  params.set("automatic_payment_methods[enabled]", "true");
+  for (const [k, v] of Object.entries(input.metadata)) {
+    if (v == null) continue;
+    params.set(`metadata[${k}]`, String(v));
+  }
+  const res = await fetch("https://api.stripe.com/v1/payment_intents", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": STRIPE_API_VERSION,
+      "idempotency-key": input.idempotencyKey,
+    },
+    body: params.toString(),
+  });
+  const json = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || json.error) {
+    const err = (json.error ?? {}) as Record<string, unknown>;
+    return {
+      ok: false,
+      code: String(err.code ?? "STRIPE_ERROR"),
+      message: String(err.message ?? "Stripe rejected the request"),
+    };
+  }
+  return {
+    ok: true,
+    payment_intent_id: String(json.id),
+    client_secret: String(json.client_secret),
+    status: String(json.status ?? "requires_confirmation"),
+  };
+}
 
 async function authorize(
   tool: string,
@@ -200,6 +264,34 @@ async function processPayment({ args }: ToolRequest) {
   const createdAt = now();
   const escrowReference = { order_id: orderId ?? null, escrow_state: "pending_funding" };
 
+  // Status is now method-aware. Previously every method wrote
+  // 'pending_capture', but the Stripe webhook only completes stripe_card
+  // transactions — wallet/credit/interac rows were stranded forever.
+  // See packages/mcp-servers/payments-mcp/src/index.ts for the matching
+  // logic and the migration 20260513000000 for the debit_wallet RPC.
+  let resolvedStatus: string;
+  const extraMetadata: Record<string, unknown> = {};
+  if (method === "wallet") {
+    const debitRes = await supabase.rpc("debit_wallet", { p_user_id: userId, p_amount: amount });
+    if (debitRes.error) return failEnvelope("DB_ERROR", "Could not debit wallet.");
+    if (debitRes.data === null || debitRes.data === undefined) {
+      return failEnvelope("INSUFFICIENT_BALANCE", "Wallet balance is insufficient for this payment.");
+    }
+    resolvedStatus = "completed";
+    extraMetadata.wallet_balance_after = Number(debitRes.data);
+  } else if (method === "credit_terms" || method === "credit") {
+    resolvedStatus = "completed";
+    extraMetadata.payment_terms = "net_30_credit";
+  } else if (method === "interac") {
+    resolvedStatus = "pending";
+    extraMetadata.awaiting_interac_confirmation = true;
+    extraMetadata.deposit_email = "payments@matex.ca";
+  } else if (method === "stripe_card") {
+    resolvedStatus = "pending_capture";
+  } else {
+    resolvedStatus = "pending";
+  }
+
   const { error } = await supabase.schema("payments_mcp").from("transactions").insert({
     transaction_id: transactionId,
     order_id: orderId ?? null,
@@ -209,10 +301,16 @@ async function processPayment({ args }: ToolRequest) {
     currency: "CAD",
     payment_method: method,
     transaction_type: "purchase",
-    status: "pending_capture",
+    status: resolvedStatus,
     commission_amount: commission,
     tax_amount: taxAmount,
-    metadata: { escrow_reference: escrowReference, hst_rate: hstRate, commission_rate: commissionRate },
+    completed_at: resolvedStatus === "completed" ? createdAt : null,
+    metadata: {
+      escrow_reference: escrowReference,
+      hst_rate: hstRate,
+      commission_rate: commissionRate,
+      ...extraMetadata,
+    },
     created_at: createdAt,
     updated_at: createdAt,
   });
@@ -223,6 +321,8 @@ async function processPayment({ args }: ToolRequest) {
     transaction_id: transactionId,
     order_id: orderId ?? null,
     amount,
+    status: resolvedStatus,
+    method,
   });
   return okEnvelope({
     transaction: {
@@ -232,12 +332,94 @@ async function processPayment({ args }: ToolRequest) {
       amount,
       payment_method: method,
       transaction_type: "purchase",
-      status: "pending_capture",
+      status: resolvedStatus,
       commission_amount: commission,
       tax_amount: taxAmount,
       created_at: createdAt,
       escrow_reference: escrowReference,
     },
+  });
+}
+
+async function createPaymentIntent({ args }: ToolRequest) {
+  const auth = await authorize("create_payment_intent", args);
+  if (!auth.ok) return auth.envelope;
+  const userId = auth.userId;
+  const amount = Number(args.amount ?? 0);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return failEnvelope("VALIDATION_ERROR", "amount must be greater than 0.");
+  }
+  const orderId = String(args.order_id ?? "");
+  if (!orderId) return failEnvelope("VALIDATION_ERROR", "order_id is required.");
+  const escrowId = args.escrow_id ? String(args.escrow_id) : null;
+  const currency = String(args.currency ?? "CAD").toLowerCase();
+
+  const supabase = serviceClient();
+  // Server-allocated transaction_id doubles as the Stripe idempotency key.
+  // See plan §4 / payments-mcp.create_payment_intent for the rationale.
+  const transactionId = generateId();
+
+  const insertResult = await supabase.schema("payments_mcp").from("transactions").insert({
+    transaction_id: transactionId,
+    order_id: orderId,
+    escrow_id: escrowId,
+    payer_id: userId,
+    amount,
+    original_amount: amount,
+    currency: currency.toUpperCase(),
+    payment_method: "stripe_card",
+    transaction_type: "purchase",
+    status: "pending_capture",
+    metadata: { source: "create_payment_intent" },
+    created_at: now(),
+    updated_at: now(),
+  });
+  if (insertResult.error) return failEnvelope("DB_ERROR", "Database operation failed");
+
+  const stripeResult = await stripeCreatePaymentIntent({
+    amountCents: Math.round(amount * 100),
+    currency,
+    metadata: {
+      transaction_id: transactionId,
+      order_id: orderId,
+      ...(escrowId ? { escrow_id: escrowId } : {}),
+      payer_id: userId,
+    },
+    idempotencyKey: transactionId,
+  });
+  if (!stripeResult.ok) {
+    await supabase.schema("payments_mcp").from("transactions")
+      .update({
+        status: "failed",
+        metadata: { stripe_error: { code: stripeResult.code, message: stripeResult.message } },
+        updated_at: now(),
+      })
+      .eq("transaction_id", transactionId);
+    return failEnvelope(stripeResult.code, stripeResult.message);
+  }
+
+  const updateResult = await supabase.schema("payments_mcp").from("transactions")
+    .update({ stripe_payment_intent_id: stripeResult.payment_intent_id, updated_at: now() })
+    .eq("transaction_id", transactionId);
+  if (updateResult.error) return failEnvelope("DB_ERROR", "Database operation failed");
+
+  await emitEvent(supabase, SOURCE, "payments.payment_intent.created", {
+    user_id: userId,
+    transaction_id: transactionId,
+    order_id: orderId,
+    escrow_id: escrowId,
+    payment_intent_id: stripeResult.payment_intent_id,
+    amount,
+    currency: currency.toUpperCase(),
+  });
+
+  return okEnvelope({
+    transaction_id: transactionId,
+    payment_intent_id: stripeResult.payment_intent_id,
+    client_secret: stripeResult.client_secret,
+    amount,
+    currency: currency.toUpperCase(),
+    status: stripeResult.status,
   });
 }
 
@@ -258,6 +440,7 @@ async function getTransactionHistory({ args }: ToolRequest) {
 Deno.serve(serveDomain({
   ping,
   process_payment: processPayment,
+  create_payment_intent: createPaymentIntent,
   get_wallet_balance: getWalletBalance,
   top_up_wallet: topUpWallet,
   manage_payment_methods: managePaymentMethods,

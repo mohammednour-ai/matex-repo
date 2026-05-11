@@ -42,7 +42,7 @@ function SignalRow({ icon, title, body, strength }: SignalRowProps) {
       <span
         className={clsx(
           "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg",
-          strength === "ok" && "bg-emerald-100 text-success-400",
+          strength === "ok" && "bg-success-500/15 text-success-400",
           strength === "soft" && "bg-warning-100 text-warning-400",
           strength === "missing" && "bg-elevated text-fg-muted",
         )}
@@ -92,7 +92,7 @@ export function ConfidenceStack({
       className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-5 shadow-sm"
     >
       <header className="mb-4 flex items-start gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-success-400">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success-500/15 text-success-400">
           <ShieldCheck className="h-5 w-5" />
         </span>
         <div className="min-w-0">

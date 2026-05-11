@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
+import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Modal } from "@/components/ui/shadcn/modal";
 import {
@@ -198,7 +199,7 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           <button
             type="button"
             onClick={() => setLightboxOpen(true)}
-            className="block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="relative block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Open photo in lightbox"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts; <Image> would require enumerating remotePatterns */}
@@ -299,7 +300,11 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
               <img
                 src={media[activeIdx]}
                 alt={`${title} — photo ${activeIdx + 1}`}
-                className="w-full h-full object-contain"
+                fill
+                sizes="100vw"
+                className="object-contain"
+                priority
+                unoptimized
               />
             )}
             {media.length > 1 && (
@@ -476,7 +481,7 @@ function AuctionRegisterModal({
     <Modal open={open} onClose={onClose} title="Register for Auction" size="md">
       <div className="space-y-4">
         {/* Session info */}
-        <div className="bg-warning-500/10 border border-amber-200 rounded-lg p-3 text-sm">
+        <div className="bg-warning-500/10 border border-warning-500/30 rounded-lg p-3 text-sm">
           <p className="font-semibold text-warning-400">{listing.title}</p>
           {listing.auction_session_date && (
             <p className="text-warning-400 mt-1">
@@ -509,7 +514,7 @@ function AuctionRegisterModal({
                   value={method}
                   checked={paymentMethod === method}
                   onChange={() => setPaymentMethod(method)}
-                  className="text-brand-600 focus:ring-brand-400"
+                  className="text-brand-400 focus:ring-brand-400"
                 />
                 <CreditCard size={16} className="text-fg-subtle" />
                 <span className="text-sm text-fg-muted capitalize">{method.replace("_", " ")}</span>
@@ -596,7 +601,7 @@ function BuyNowModal({
             </div>
             <div className="border-t border-line pt-1.5 mt-1.5 flex justify-between font-bold text-fg">
               <span>Total Estimate</span>
-              <span className="text-brand-600">{fmtCAD(total)}</span>
+              <span className="text-brand-400">{fmtCAD(total)}</span>
             </div>
           </div>
         </div>
@@ -663,7 +668,7 @@ function InspectionBookingCard({ listingId }: { listingId: string }) {
 
   if (booked) {
     return (
-      <div className="bg-success-500/10 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
+      <div className="bg-success-500/10 border border-success-500/30 rounded-xl p-4 flex items-center gap-3">
         <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
         <div>
           <p className="font-semibold text-success-400 text-sm">Inspection Booked</p>
@@ -700,7 +705,7 @@ function InspectionBookingCard({ listingId }: { listingId: string }) {
                 "w-full text-left px-3 py-2 rounded-lg border text-xs transition-colors",
                 !slot.available && "opacity-40 cursor-not-allowed bg-canvas border-line text-fg-subtle",
                 slot.available && selectedSlot === slot.slot_id
-                  ? "border-brand-600 bg-brand-500/10 text-brand-800 font-medium"
+                  ? "border-brand-600 bg-brand-500/10 text-brand-300 font-medium"
                   : slot.available
                   ? "border-line hover:border-brand-400 text-fg-muted"
                   : ""
@@ -748,7 +753,7 @@ function SellerCard({
       {/* Company */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0">
-          <Package size={18} className="text-brand-600" />
+          <Package size={18} className="text-brand-400" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-fg text-sm truncate">{listing.seller_name}</p>
@@ -1020,6 +1025,19 @@ export default function ListingDetailPage() {
       if (taxRes.success && taxRes.data) {
         setTaxEstimate(taxRes.data as unknown as TaxEstimate);
       }
+
+      // Fetch favorites to seed the saved-state of the heart button. Without
+      // this the toggle would always start as "unsaved" even for listings
+      // the user has already favorited, which made the first click on a
+      // saved listing add a duplicate and the second click do nothing.
+      const favRes = await callTool("listing.list_favorites", { user_id: user.userId });
+      if (favRes.success) {
+        const favUp = (favRes.data?.upstream_response as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined;
+        const favs = (favUp?.favorites ?? (favRes.data as { favorites?: { listing_id?: string }[] } | undefined)?.favorites) as { listing_id?: string }[] | undefined;
+        if (Array.isArray(favs)) {
+          setSaved(favs.some((f) => f?.listing_id === listingId));
+        }
+      }
     }
 
     setLoading(false);
@@ -1042,8 +1060,21 @@ export default function ListingDetailPage() {
   }
 
   async function handleSaveListing() {
-    await callTool("listing.add_favorite", { listing_id: listingId });
-    setSaved((s) => !s);
+    const user = getUser();
+    if (!user) return;
+    // Toggle: branch on current state to call the right tool. The favorites
+    // tools each require both listing_id AND user_id (server validates),
+    // so passing only listing_id here used to make the call fail silently
+    // while the local state flipped — the heart could look saved without
+    // the listing actually being saved.
+    const wasSaved = saved;
+    setSaved(!wasSaved); // optimistic
+    const tool = wasSaved ? "listing.remove_favorite" : "listing.add_favorite";
+    const res = await callTool(tool, { listing_id: listingId, user_id: user.userId });
+    if (!res.success) {
+      setSaved(wasSaved); // rollback
+      showError(res.error, wasSaved ? "Could not remove favorite." : "Could not save listing.");
+    }
   }
 
   if (loading) {
@@ -1132,9 +1163,9 @@ export default function ListingDetailPage() {
           {/* Sale mode banner */}
           <div className={clsx(
             "rounded-xl p-4 border",
-            listing.sale_mode === "fixed" && "bg-success-500/10 border-emerald-200",
-            listing.sale_mode === "bidding" && "bg-brand-500/10 border-brand-200",
-            listing.sale_mode === "auction" && "bg-warning-500/10 border-amber-200",
+            listing.sale_mode === "fixed" && "bg-success-500/10 border-success-500/30",
+            listing.sale_mode === "bidding" && "bg-brand-500/10 border-brand-500/30",
+            listing.sale_mode === "auction" && "bg-warning-500/10 border-warning-500/30",
           )}>
             {listing.sale_mode === "fixed" && (
               <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1159,17 +1190,17 @@ export default function ListingDetailPage() {
             {listing.sale_mode === "bidding" && (
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-sm text-brand-700 font-medium">Live Bidding</p>
-                  <p className="text-2xl font-bold text-brand-800 mt-1">
+                  <p className="text-sm text-brand-400 font-medium">Live Bidding</p>
+                  <p className="text-2xl font-bold text-brand-300 mt-1">
                     {fmtCAD(listing.current_bid ?? listing.price)} CAD
                     <span className="text-sm font-normal text-brand-500 ml-2">current bid</span>
                   </p>
-                  <p className="text-sm text-brand-600 mt-0.5">{listing.bid_count ?? 0} bids placed</p>
+                  <p className="text-sm text-brand-400 mt-0.5">{listing.bid_count ?? 0} bids placed</p>
                   {listing.bidding_ends_at && (
                     <div className="flex items-center gap-2 mt-1.5">
                       <Clock size={13} className="text-brand-500" />
-                      <span className="text-sm text-brand-700">Ends in:</span>
-                      <CountdownTimer targetDate={listing.bidding_ends_at} className="text-brand-800" />
+                      <span className="text-sm text-brand-400">Ends in:</span>
+                      <CountdownTimer targetDate={listing.bidding_ends_at} className="text-brand-300" />
                     </div>
                   )}
                 </div>
@@ -1258,7 +1289,7 @@ export default function ListingDetailPage() {
               </h3>
               <div className="flex flex-wrap gap-2">
                 {listing.certifications.map((cert) => (
-                  <span key={cert} className="flex items-center gap-1 text-xs bg-success-500/10 text-success-400 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                  <span key={cert} className="flex items-center gap-1 text-xs bg-success-500/10 text-success-400 border border-success-500/30 px-2.5 py-1 rounded-full font-medium">
                     <CheckCircle size={10} />
                     {cert}
                   </span>
@@ -1293,7 +1324,7 @@ export default function ListingDetailPage() {
 
           {/* Inspection Notice */}
           {listing.inspection_required && (
-            <div className="bg-warning-500/10 border border-amber-200 rounded-xl p-4 flex gap-3">
+            <div className="bg-warning-500/10 border border-warning-500/30 rounded-xl p-4 flex gap-3">
               <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-warning-400 text-sm">Inspection Required</p>
@@ -1453,7 +1484,7 @@ function ExpandableText({ text }: { text: string }) {
       {isLong && (
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="mt-2 text-xs font-medium text-brand-600 hover:underline"
+          className="mt-2 text-xs font-medium text-brand-400 hover:underline"
         >
           {expanded ? "Show less" : "Read more"}
         </button>

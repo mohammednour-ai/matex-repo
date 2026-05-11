@@ -11,6 +11,81 @@ const SERVER_VERSION = "0.1.0";
 const EVENT_REDIS_URL = process.env.REDIS_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+// Pinned to keep PaymentIntent state-machine semantics stable across Stripe
+// dashboard upgrades. Bump deliberately when validating against newer
+// Stripe behaviour. Refs: docs/audit/2026-05-10/p0-1-stripe-elements-plan.md §6.
+const STRIPE_API_VERSION = "2024-11-20.acacia";
+
+/**
+ * Direct Stripe PaymentIntent creation. We don't reach through the
+ * stripe-bridge MCP server here for two reasons:
+ *  - The bridge runs over stdio and is not exposed as an HTTP service that
+ *    payments-mcp can reach. Wiring it as one is a separate (larger) change.
+ *  - The Supabase Edge function (Deno) also creates PaymentIntents and can't
+ *    import the Node-only bridge. Doing the call inline in both transports
+ *    keeps them at exact behavioural parity (CLAUDE.md rule).
+ *
+ * The `stripe-bridge/src/index.ts` file documents the same contract; if a
+ * future PR exposes the bridge over HTTP we can route through it without
+ * changing this function's call sites.
+ */
+async function stripeCreatePaymentIntent(input: {
+  amountCents: number;
+  currency: string;
+  metadata: Record<string, string>;
+  idempotencyKey: string;
+}): Promise<
+  | { ok: true; payment_intent_id: string; client_secret: string; status: string }
+  | { ok: false; code: string; message: string }
+> {
+  if (!STRIPE_SECRET_KEY) {
+    // Stub mode: no key configured. Return a fake PI shaped like Stripe's so
+    // the surrounding flow can be exercised in dev without real keys. The
+    // client_secret is intentionally non-functional — Stripe.js will reject
+    // it on confirm, surfacing the missing-key state to the developer.
+    const stubId = `pi_stub_${Date.now()}`;
+    return {
+      ok: true,
+      payment_intent_id: stubId,
+      client_secret: `${stubId}_secret_stub`,
+      status: "requires_confirmation",
+    };
+  }
+  const params = new URLSearchParams();
+  params.set("amount", String(input.amountCents));
+  params.set("currency", input.currency);
+  params.set("automatic_payment_methods[enabled]", "true");
+  for (const [k, v] of Object.entries(input.metadata)) {
+    if (v == null) continue;
+    params.set(`metadata[${k}]`, String(v));
+  }
+  const res = await fetch("https://api.stripe.com/v1/payment_intents", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "content-type": "application/x-www-form-urlencoded",
+      "stripe-version": STRIPE_API_VERSION,
+      "idempotency-key": input.idempotencyKey,
+    },
+    body: params.toString(),
+  });
+  const json = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || json.error) {
+    const err = (json.error ?? {}) as Record<string, unknown>;
+    return {
+      ok: false,
+      code: String(err.code ?? "STRIPE_ERROR"),
+      message: String(err.message ?? "Stripe rejected the request"),
+    };
+  }
+  return {
+    ok: true,
+    payment_intent_id: String(json.id),
+    client_secret: String(json.client_secret),
+    status: String(json.status ?? "requires_confirmation"),
+  };
+}
 
 interface Wallet {
   user_id: string;
@@ -66,6 +141,7 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     { name: "process_payment", description: "Process buyer payment record. actor_id must equal user_id (the payer).", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, amount: { type: "number" }, method: { type: "string" }, order_id: { type: "string" } }, required: ["actor_id", "user_id", "amount", "method"] } },
+    { name: "create_payment_intent", description: "Allocate a Stripe PaymentIntent server-side and record a pending transaction row. Returns client_secret for the browser to confirm. actor_id must equal user_id.", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, amount: { type: "number" }, currency: { type: "string" }, order_id: { type: "string" }, escrow_id: { type: "string" } }, required: ["actor_id", "user_id", "amount", "order_id"] } },
     { name: "get_wallet_balance", description: "Get wallet balances by user. actor_id must equal user_id (or be a platform admin).", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" } }, required: ["actor_id", "user_id"] } },
     { name: "top_up_wallet", description: "Top up user wallet. actor_id must equal user_id.", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, amount: { type: "number" } }, required: ["actor_id", "user_id", "amount"] } },
     { name: "manage_payment_methods", description: "Add payment method metadata. actor_id must equal user_id.", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, user_id: { type: "string" }, type: { type: "string" }, label: { type: "string" }, set_default: { type: "boolean" } }, required: ["actor_id", "user_id", "type", "label"] } },
@@ -85,13 +161,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // Tools other than ping require an actor_id; verify it matches the target user_id (or actor is a platform admin).
   const actorId = String(args.actor_id ?? "");
   const targetUserId = String(args.user_id ?? "");
-  if (tool === "get_wallet_balance" || tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment" || tool === "get_transaction_history") {
+  if (tool === "get_wallet_balance" || tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment" || tool === "create_payment_intent" || tool === "get_transaction_history") {
     if (!actorId) return fail("VALIDATION_ERROR", "actor_id is required.");
     if (!targetUserId) return fail("VALIDATION_ERROR", "user_id is required.");
     if (actorId !== targetUserId) {
       const isAdmin = await isPlatformAdmin(actorId);
-      // For mutating tools (top_up_wallet, manage_payment_methods, process_payment) we require actor === user; admins cannot impersonate.
-      if (tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment") {
+      // For mutating tools (top_up_wallet, manage_payment_methods, process_payment, create_payment_intent) we require actor === user; admins cannot impersonate.
+      if (tool === "top_up_wallet" || tool === "manage_payment_methods" || tool === "process_payment" || tool === "create_payment_intent") {
         return fail("FORBIDDEN", "actor_id must match user_id for this operation.");
       }
       if (!isAdmin) return fail("FORBIDDEN", "actor_id must match user_id (or actor must be a platform admin).");
@@ -251,17 +327,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const hstRate = await getPlatformConfigNumber(supabase, "tax_rate_hst", DEFAULT_HST_RATE, (n) => n >= 0 && n < 1);
     const commission = calculateCommission(amount, { rate: commissionRate, minimum: 25, cap: 5000 });
     const taxAmount = roundToTwoDecimals(commission * hstRate);
+
+    // Status is now method-aware. Previously every method wrote
+    // 'pending_capture', but the Stripe webhook only completes
+    // stripe_card transactions — wallet/credit/interac rows were
+    // stranded in pending_capture forever.
+    //
+    //   stripe_card  → pending_capture (Stripe webhook flips to completed)
+    //   wallet       → completed       (debits wallet balance atomically)
+    //   credit_terms → completed       (records the obligation; credit-mcp
+    //                                   tracks the actual net-30 ledger)
+    //   credit       → completed       (alias of credit_terms in this code)
+    //   interac      → pending         (awaits manual ops confirmation; the
+    //                                   UI already tells the buyer to send
+    //                                   to payments@matex.ca with the order
+    //                                   number as memo)
+    let resolvedStatus: string;
+    const extraMetadata: Record<string, unknown> = {};
+    if (method === "wallet") {
+      // Atomic debit via the SQL function added in
+      // 20260513000000_payments_debit_wallet_function.sql. Returns null
+      // when the wallet is missing OR the balance is insufficient —
+      // either way, refuse to record a transaction we can't honour.
+      // Requires supabase configured; the in-memory dev fallback does
+      // not back the wallets table.
+      if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for wallet payments.");
+      const debitRes = await supabase.rpc("debit_wallet", { p_user_id: userId, p_amount: amount });
+      if (debitRes.error) return fail("DB_ERROR", "Could not debit wallet.");
+      if (debitRes.data === null || debitRes.data === undefined) {
+        return fail("INSUFFICIENT_BALANCE", "Wallet balance is insufficient for this payment.");
+      }
+      resolvedStatus = "completed";
+      extraMetadata.wallet_balance_after = Number(debitRes.data);
+    } else if (method === "credit_terms" || method === "credit") {
+      resolvedStatus = "completed";
+      extraMetadata.payment_terms = "net_30_credit";
+    } else if (method === "interac") {
+      resolvedStatus = "pending";
+      extraMetadata.awaiting_interac_confirmation = true;
+      extraMetadata.deposit_email = "payments@matex.ca";
+    } else if (method === "stripe_card") {
+      resolvedStatus = "pending_capture";
+    } else {
+      // Unknown / new method: default to pending so the order machine
+      // can't advance on a guess.
+      resolvedStatus = "pending";
+    }
+
+    const transactionId = generateId();
+    const createdAt = now();
     const transaction = {
-      transaction_id: generateId(),
+      transaction_id: transactionId,
       order_id: orderId,
       payer_id: userId,
       amount,
       payment_method: method,
       transaction_type: "purchase",
-      status: "completed",
+      status: resolvedStatus,
       commission_amount: commission,
       tax_amount: taxAmount,
-      created_at: now(),
+      created_at: createdAt,
       escrow_reference: {
         order_id: orderId ?? null,
         escrow_state: "pending_funding",
@@ -270,7 +395,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (supabase) {
       const { error } = await supabase.schema("payments_mcp").from("transactions").insert({
-        transaction_id: transaction.transaction_id,
+        transaction_id: transactionId,
         order_id: orderId ?? null,
         payer_id: userId,
         amount,
@@ -278,23 +403,112 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         currency: "CAD",
         payment_method: method,
         transaction_type: "purchase",
-        status: "pending_capture",
+        status: resolvedStatus,
         commission_amount: commission,
         tax_amount: taxAmount,
-        metadata: { escrow_reference: transaction.escrow_reference, hst_rate: hstRate, commission_rate: commissionRate },
-        created_at: transaction.created_at,
-        updated_at: transaction.created_at,
+        completed_at: resolvedStatus === "completed" ? createdAt : null,
+        metadata: {
+          escrow_reference: transaction.escrow_reference,
+          hst_rate: hstRate,
+          commission_rate: commissionRate,
+          ...extraMetadata,
+        },
+        created_at: createdAt,
+        updated_at: createdAt,
       });
       if (error) return fail("DB_ERROR", "Database operation failed");
-      const pendingTx = { ...transaction, status: "pending_capture" };
-      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-      return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
+      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transactionId, order_id: orderId ?? null, amount, status: resolvedStatus, method });
+      return { content: [{ type: "text", text: ok({ transaction }) }] };
     }
 
-    const pendingTx = { ...transaction, status: "pending_capture" };
-    transactions.push(pendingTx);
-    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-    return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
+    transactions.push({ ...transaction });
+    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transactionId, order_id: orderId ?? null, amount, status: resolvedStatus, method });
+    return { content: [{ type: "text", text: ok({ transaction }) }] };
+  }
+
+  if (tool === "create_payment_intent") {
+    // Card-only path. Wallet/credit payments stay on process_payment.
+    const userId = targetUserId;
+    const amount = Number(args.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) return fail("VALIDATION_ERROR", "amount must be greater than 0.");
+    const orderId = String(args.order_id ?? "");
+    if (!orderId) return fail("VALIDATION_ERROR", "order_id is required.");
+    const escrowId = args.escrow_id ? String(args.escrow_id) : null;
+    const currency = String(args.currency ?? "CAD").toLowerCase();
+    if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for create_payment_intent.");
+
+    // Server-allocated transaction_id — used as the Stripe idempotency key
+    // so a transient retry of this tool call (same key) returns the original
+    // PI rather than creating a second one. Two distinct user-driven retries
+    // get distinct keys (because they get distinct transaction_ids), which
+    // is the right semantics — the abandoned transaction is reaped later
+    // by reconciliation.
+    const transactionId = generateId();
+
+    // Insert the durable record first, in pending_capture, with no PI ID
+    // yet. If the Stripe call fails we still have an audit trail; if it
+    // succeeds we update the row with the PI id below.
+    const insertResult = await supabase.schema("payments_mcp").from("transactions").insert({
+      transaction_id: transactionId,
+      order_id: orderId,
+      escrow_id: escrowId,
+      payer_id: userId,
+      amount,
+      original_amount: amount,
+      currency: currency.toUpperCase(),
+      payment_method: "stripe_card",
+      transaction_type: "purchase",
+      status: "pending_capture",
+      metadata: { source: "create_payment_intent" },
+      created_at: now(),
+      updated_at: now(),
+    });
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    const stripeResult = await stripeCreatePaymentIntent({
+      amountCents: Math.round(amount * 100),
+      currency,
+      metadata: {
+        transaction_id: transactionId,
+        order_id: orderId,
+        ...(escrowId ? { escrow_id: escrowId } : {}),
+        payer_id: userId,
+      },
+      idempotencyKey: transactionId,
+    });
+    if (!stripeResult.ok) {
+      // Mark the transaction failed so reconciliation doesn't have to. The
+      // partial-unique index on stripe_payment_intent_id (NULL allowed)
+      // means leaving the row with a NULL PI id is fine.
+      await supabase.schema("payments_mcp").from("transactions")
+        .update({ status: "failed", metadata: { stripe_error: { code: stripeResult.code, message: stripeResult.message } }, updated_at: now() })
+        .eq("transaction_id", transactionId);
+      return fail(stripeResult.code, stripeResult.message);
+    }
+
+    const updateResult = await supabase.schema("payments_mcp").from("transactions")
+      .update({ stripe_payment_intent_id: stripeResult.payment_intent_id, updated_at: now() })
+      .eq("transaction_id", transactionId);
+    if (updateResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    await emitEvent("payments.payment_intent.created", {
+      user_id: userId,
+      transaction_id: transactionId,
+      order_id: orderId,
+      escrow_id: escrowId,
+      payment_intent_id: stripeResult.payment_intent_id,
+      amount,
+      currency: currency.toUpperCase(),
+    });
+
+    return { content: [{ type: "text", text: ok({
+      transaction_id: transactionId,
+      payment_intent_id: stripeResult.payment_intent_id,
+      client_secret: stripeResult.client_secret,
+      amount,
+      currency: currency.toUpperCase(),
+      status: stripeResult.status,
+    }) }] };
   }
 
   if (tool === "get_transaction_history") {

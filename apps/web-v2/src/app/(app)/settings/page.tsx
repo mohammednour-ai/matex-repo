@@ -13,7 +13,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import clsx from "clsx";
-import { callTool } from "@/lib/api";
+import { callTool, getUser } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -22,16 +22,17 @@ import { AppPageHeader } from "@/components/layout/AppPageHeader";
 
 // ─── Tab definitions ────────────────────────────────────────────────────────
 
-type Tab = "profile" | "company" | "kyc" | "notifications";
+type Tab = "kyc" | "profile" | "company" | "notifications";
 
 const TABS: {
   id: Tab;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
+  // KYC first — drives compliance + unlocks higher trade limits.
+  { id: "kyc", label: "KYC & Verification", icon: ShieldCheck },
   { id: "profile", label: "Profile", icon: User },
   { id: "company", label: "Company", icon: Building2 },
-  { id: "kyc", label: "KYC & Verification", icon: ShieldCheck },
   { id: "notifications", label: "Notifications", icon: Bell },
 ];
 
@@ -75,25 +76,49 @@ function ProfileTab() {
     setUploadingAvatar(true);
     setError("");
     try {
-      const res = await callTool("listing.upload_images", {
-        filename: file.name,
-        content_type: file.type,
-        size_bytes: file.size,
+      // 2 MB cap matches the UI copy below ("JPG, PNG or GIF. Max 2 MB.").
+      const MAX_BYTES = 2 * 1024 * 1024;
+      if (file.size > MAX_BYTES) {
+        setError("Image is over 2 MB. Please choose a smaller file.");
+        return null;
+      }
+
+      const user = getUser();
+      if (!user?.userId) {
+        setError("Sign in before uploading an avatar.");
+        return null;
+      }
+
+      // Bucket + path. We use a dedicated public "avatars" bucket so the
+      // resulting URL is stably loadable by <img> without needing a fresh
+      // signed download URL on every render. Path is namespaced by user_id
+      // so storage RLS can constrain writes to the owner.
+      const bucket = "avatars";
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `${user.userId}/${Date.now()}-${safeName}`;
+
+      // Right tool: storage.generate_signed_upload_url. The previous code
+      // called listing.upload_images with the wrong arg shape — the
+      // listing-mcp tool requires { listing_id, actor_id, images } and is
+      // for attaching photos to an existing listing, not for arbitrary
+      // user uploads.
+      const res = await callTool("storage.generate_signed_upload_url", {
+        bucket,
+        path,
       });
       if (!res.success) {
         setError(res.error?.message ?? "Could not get upload URL");
         return null;
       }
       const root = res.data as Record<string, unknown> | undefined;
-      const ur = (root?.upstream_response as Record<string, unknown> | undefined) ?? root;
-      const inner = (ur?.data as Record<string, unknown> | undefined) ?? ur;
+      const ur = (root?.upstream_response as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const inner = ur ?? root;
       const signed =
         (inner?.signed_url as string | undefined) ??
         (inner?.upload_url as string | undefined);
-      const pub =
-        (inner?.public_url as string | undefined) ??
-        (inner?.url as string | undefined);
-      if (!signed || !pub) {
+      if (!signed) {
         setError("Upload service did not return a signed URL");
         return null;
       }
@@ -106,7 +131,15 @@ function ProfileTab() {
         setError(`Upload failed (HTTP ${put.status})`);
         return null;
       }
-      return pub;
+      // Construct the public URL ourselves. The "avatars" bucket must be
+      // public for this to render via <img>; otherwise generate a signed
+      // download URL on demand.
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+      if (!supabaseUrl) {
+        setError("Supabase URL is not configured.");
+        return null;
+      }
+      return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Avatar upload failed");
       return null;
@@ -147,7 +180,7 @@ function ProfileTab() {
       {/* Avatar */}
       <div className="flex items-center gap-5">
         <div className="relative">
-          <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-brand-200 bg-brand-100 flex items-center justify-center">
+          <div className="h-20 w-20 overflow-hidden rounded-full border-2 border-brand-500/30 bg-brand-500/15 flex items-center justify-center">
             {form.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element -- user-uploaded avatar URLs from arbitrary Supabase storage hosts
               <img
@@ -312,7 +345,7 @@ function CompanyTab() {
   return (
     <div className="space-y-5 max-w-lg">
       {submitted && (
-        <div className="rounded-lg border border-amber-200 bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
+        <div className="rounded-lg border border-warning-500/30 bg-warning-500/10 px-4 py-3 text-sm text-warning-400">
           Company information is under review. Contact support to make changes.
         </div>
       )}
@@ -469,16 +502,30 @@ const kycLevelLabels: Record<KycLevelNum, string> = {
   3: "Level 3 — Corporate",
 };
 
-function KycTab() {
-  const [kycLevel, setKycLevel] = useState<KycLevelNum>(0);
+function KycTab({ initialLevel }: { initialLevel: number | null }) {
+  // initialLevel is provided by the parent SettingsPage so we don't
+  // round-trip kyc.get_kyc_level a second time. If a caller renders
+  // KycTab outside SettingsPage (or before the parent's fetch has
+  // resolved), initialLevel is null and we fall back to fetching here.
+  const [kycLevel, setKycLevel] = useState<KycLevelNum>(
+    initialLevel != null ? toKycLevelNum(initialLevel) : 0,
+  );
   const [uploading, setUploading] = useState<string | null>(null);
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialLevel == null);
   const [pendingDoc, setPendingDoc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (initialLevel != null) {
+      // Parent already has the level; mirror into local state and skip
+      // the redundant fetch. Re-runs only if the parent's value changes
+      // (e.g. after the user advances levels in another tab).
+      setKycLevel(toKycLevelNum(initialLevel));
+      setLoading(false);
+      return;
+    }
     callTool("kyc.get_kyc_level", {}).then((res) => {
       if (res.success) {
         const d = res.data as unknown as { current_level?: unknown; level?: unknown };
@@ -486,7 +533,7 @@ function KycTab() {
       }
       setLoading(false);
     });
-  }, []);
+  }, [initialLevel]);
 
   const handleUploadDoc = async (docType: string, file: File): Promise<void> => {
     setUploading(docType);
@@ -561,7 +608,7 @@ function KycTab() {
               className={clsx(
                 "rounded-xl border p-5 transition-colors",
                 completed
-                  ? "border-emerald-200 bg-success-500/50"
+                  ? "border-success-500/30 bg-success-500/50"
                   : active
                   ? "border-brand-200 bg-brand-500/50"
                   : "border-line/60 bg-surfaceBg opacity-60"
@@ -795,7 +842,29 @@ function NotificationsTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const [activeTab, setActiveTab] = useState<Tab>("kyc");
+  // Surface KYC level at the page so the sidebar can show an "Incomplete"
+  // pip on the KYC tab without each tab refetching independently.
+  const [pageKycLevel, setPageKycLevel] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    callTool("kyc.get_kyc_level", {}).then((res) => {
+      if (cancelled) return;
+      if (res.success) {
+        const lvl = (res.data as { level?: number } | undefined)?.level ?? 0;
+        setPageKycLevel(lvl);
+        // If user is already KYC ≥ 2, default landing tab to Profile (more
+        // commonly visited for returning users).
+        if (lvl >= 2) setActiveTab("profile");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const kycIncomplete = pageKycLevel != null && pageKycLevel < 2;
 
   return (
     <div className="space-y-6">
@@ -829,7 +898,7 @@ export default function SettingsPage() {
         <div className="marketplace-card min-h-96 flex-1 p-6">
           {activeTab === "profile" && <ProfileTab />}
           {activeTab === "company" && <CompanyTab />}
-          {activeTab === "kyc" && <KycTab />}
+          {activeTab === "kyc" && <KycTab initialLevel={pageKycLevel} />}
           {activeTab === "notifications" && <NotificationsTab />}
         </div>
       </div>

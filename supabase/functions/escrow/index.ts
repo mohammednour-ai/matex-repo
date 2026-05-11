@@ -152,6 +152,25 @@ async function createEscrow({ args }: ToolRequest) {
   if (!orderId || !buyerId || !sellerId || amount <= 0) {
     return failEnvelope("VALIDATION_ERROR", "order_id, buyer_id, seller_id, amount>0 are required.");
   }
+
+  // If a Stripe payment for this order has already been confirmed (the
+  // webhook may have landed BEFORE this create_escrow call — see PR 4
+  // race comment in apps/web-v2/src/app/api/stripe/webhook/route.ts),
+  // open the escrow directly in 'funds_held' instead of 'created'.
+  const settledTxResult = await supabase
+    .schema("payments_mcp")
+    .from("transactions")
+    .select("transaction_id,stripe_payment_intent_id")
+    .eq("order_id", orderId)
+    .eq("status", "completed")
+    .eq("payment_method", "stripe_card")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const settledTx = settledTxResult.error ? null : settledTxResult.data as { transaction_id: string; stripe_payment_intent_id: string | null } | null;
+  const startStatus = settledTx ? "funds_held" : "created";
+  const heldAmount = settledTx ? amount : 0;
+
   const escrowId = generateId();
   const createdAt = now();
   const { error } = await supabase.schema("escrow_mcp").from("escrows").insert({
@@ -160,18 +179,34 @@ async function createEscrow({ args }: ToolRequest) {
     buyer_id: buyerId,
     seller_id: sellerId,
     original_amount: amount,
-    held_amount: 0,
+    held_amount: heldAmount,
     released_amount: 0,
     refunded_amount: 0,
     currency,
-    status: "created",
+    status: startStatus,
+    stripe_payment_intent_id: settledTx?.stripe_payment_intent_id ?? null,
     created_at: createdAt,
     updated_at: createdAt,
   });
   if (error) return failEnvelope("DB_ERROR", "Database operation failed");
   await appendTimeline(supabase, escrowId, "created", amount, null, null, { currency });
-  await emitEvent(supabase, SOURCE, "escrow.escrow.created", { escrow_id: escrowId, order_id: orderId, amount });
-  return okEnvelope({ escrow_id: escrowId, status: "created" });
+  if (settledTx) {
+    await appendTimeline(
+      supabase,
+      escrowId,
+      "funds_held",
+      amount,
+      null,
+      "auto_on_create_settled_payment",
+      {
+        transaction_id: settledTx.transaction_id,
+        stripe_payment_intent_id: settledTx.stripe_payment_intent_id,
+        source: "create_escrow_auto",
+      },
+    );
+  }
+  await emitEvent(supabase, SOURCE, "escrow.escrow.created", { escrow_id: escrowId, order_id: orderId, amount, status: startStatus });
+  return okEnvelope({ escrow_id: escrowId, status: startStatus, held_amount: heldAmount });
 }
 
 async function holdFunds({ args }: ToolRequest) {

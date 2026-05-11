@@ -1642,12 +1642,13 @@ async function handleTool(
     const toEmail = String(args.email ?? "");
 
     // Store challenge in DB for later verification
+    await ensureMatexAuxTables(pool);
     await pool
       .query(
-        `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
-       values ($1, $2, encode(digest($3,'sha256'),'hex'), 'email', $4)
+        `insert into public.matex_otp_challenges (challenge_id, user_id, target_type, target_value, otp_hash, expires_at)
+       values ($1, $2, 'email', $3, $4, $5)
        on conflict do nothing`,
-        [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+        [challengeId, String(args.user_id ?? challengeId), toEmail, sha256Hex(code), expiresAt],
       )
       .catch(() => {
         /* table may not exist yet — non-blocking */
@@ -1677,12 +1678,13 @@ async function handleTool(
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const toPhone = String(args.phone ?? "");
 
+    await ensureMatexAuxTables(pool);
     await pool
       .query(
-        `insert into auth_mcp.otp_challenges (challenge_id, user_id, code_hash, channel, expires_at)
-       values ($1, $2, encode(digest($3,'sha256'),'hex'), 'sms', $4)
+        `insert into public.matex_otp_challenges (challenge_id, user_id, target_type, target_value, otp_hash, expires_at)
+       values ($1, $2, 'phone', $3, $4, $5)
        on conflict do nothing`,
-        [challengeId, String(args.user_id ?? challengeId), createHash("sha256").update(code).digest("hex"), expiresAt],
+        [challengeId, String(args.user_id ?? challengeId), toPhone, sha256Hex(code), expiresAt],
       )
       .catch(() => {
         /* table may not exist yet — non-blocking */

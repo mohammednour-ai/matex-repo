@@ -234,7 +234,7 @@ export default function AnalyticsPage() {
           label: "Total Users",
           value: (stats.total_users ?? 0).toLocaleString(),
           icon: Users,
-          color: "bg-brand-100 text-brand-700",
+          color: "bg-brand-500/15 text-brand-400",
           sub: stats.active_users_30d ? `${stats.active_users_30d} active last 30d` : undefined,
         },
         {
@@ -254,7 +254,7 @@ export default function AnalyticsPage() {
           label: "Platform Revenue",
           value: formatCAD(stats.total_revenue ?? 0),
           icon: DollarSign,
-          color: "bg-emerald-100 text-success-400",
+          color: "bg-success-500/15 text-success-400",
         },
       ]
     : [];

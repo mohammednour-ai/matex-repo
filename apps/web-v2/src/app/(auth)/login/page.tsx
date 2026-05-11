@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Eye, Loader2, EyeOff, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { identify, track } from "@/lib/analytics";
+import { setToken } from "@/lib/api";
 
 // ── types ──────────────────────────────────────────────────────────────
 type Tab = "login" | "register";
@@ -50,7 +51,7 @@ async function callMcp(tool: string, input: Record<string, unknown>, token?: str
 }
 
 const glassInput =
-  "w-full rounded-2xl border border-zinc-600 bg-surfaceBg/70 px-4 py-3 text-base text-fg placeholder:text-fg-subtle backdrop-blur-sm transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-white";
+  "w-full rounded-2xl border border-zinc-600 bg-night-850/70 px-4 py-3 text-base text-night-100 placeholder:text-night-300 backdrop-blur-sm transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-white";
 
 function GlassPasswordInput({
   label,
@@ -93,7 +94,7 @@ function GlassPasswordInput({
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? "Hide password" : "Show password"}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-subtle transition-colors hover:text-white"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-night-300 transition-colors hover:text-white"
         >
           {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
@@ -164,11 +165,11 @@ function SubmitButton({
       type={onClick ? "button" : "submit"}
       disabled={loading}
       onClick={onClick}
-      className="flex w-full items-center justify-center rounded-2xl bg-surfaceBg py-3 px-4 text-base font-bold text-black shadow-xl transition-all duration-300 hover:scale-[1.02] hover:bg-elevated hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+      className="flex w-full items-center justify-center rounded-2xl bg-night-850 py-3 px-4 text-base font-bold text-white shadow-xl transition-all duration-300 hover:scale-[1.02] hover:bg-night-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
     >
       {loading ? (
         <span className="flex items-center gap-2">
-          <svg className="h-5 w-5 animate-spin text-fg-muted" fill="none" viewBox="0 0 24 24" aria-hidden>
+          <svg className="h-5 w-5 animate-spin text-night-200" fill="none" viewBox="0 0 24 24" aria-hidden>
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path
               className="opacity-75"
@@ -208,11 +209,29 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
       if (!token) throw new Error("Login failed: no token returned.");
       const accountType = String(data.account_type ?? "individual");
       const isPlatformAdmin = Boolean(data.is_platform_admin);
-      localStorage.setItem("matex_token", token);
+      setToken(token);
       localStorage.setItem(
         "matex_user",
         JSON.stringify({ userId, email, accountType, isPlatformAdmin }),
       );
+      // Set the HttpOnly matex_session cookie that the middleware reads
+      // (apps/web-v2/src/middleware.ts). MUST complete before router.push:
+      // without the cookie the middleware redirects /dashboard back to
+      // /login, producing a confusing loop where the user appears to be
+      // "kicked out" immediately after logging in. The previous code
+      // fired this as fire-and-forget which is the bug.
+      try {
+        const sessionRes = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        if (!sessionRes.ok) throw new Error(`session setup ${sessionRes.status}`);
+      } catch {
+        // Cookie set failed — surface so the user knows to retry rather
+        // than seeing the post-login bounce-back to /login.
+        throw new Error("Login succeeded but session setup failed. Please retry.");
+      }
       identify(userId, { account_type: accountType, is_platform_admin: isPlatformAdmin });
       router.push("/dashboard");
     } catch (err) {
@@ -251,7 +270,7 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
             type="checkbox"
             checked={remember}
             onChange={(e) => setRemember(e.target.checked)}
-            className="h-5 w-5 rounded border-zinc-600 bg-surfaceBg/10 text-brand-500 focus:ring-white focus:ring-offset-0"
+            className="h-5 w-5 rounded border-zinc-600 bg-night-850/10 text-brand-500 focus:ring-white focus:ring-offset-0"
           />
           <span className="text-sm font-medium text-zinc-300">Remember me</span>
         </label>
@@ -381,7 +400,7 @@ function RegisterStepBar({ current }: { current: RegisterStep }) {
                   "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold transition-colors",
                   done && "bg-orange-400 text-black",
                   active && "border-2 border-orange-400 bg-orange-500/20 text-orange-300",
-                  !done && !active && "border border-white/20 bg-surfaceBg/5 text-fg-subtle"
+                  !done && !active && "border border-white/20 bg-night-850/5 text-night-300"
                 )}
               >
                 {done ? "✓" : i + 1}
@@ -389,7 +408,7 @@ function RegisterStepBar({ current }: { current: RegisterStep }) {
               <span
                 className={clsx(
                   "text-[10px] font-semibold uppercase tracking-wide",
-                  active ? "text-orange-300" : done ? "text-orange-400/70" : "text-fg-subtle"
+                  active ? "text-orange-300" : done ? "text-orange-400/70" : "text-night-300"
                 )}
               >
                 {STEP_LABELS[s]}
@@ -397,7 +416,7 @@ function RegisterStepBar({ current }: { current: RegisterStep }) {
             </div>
             {i < REGISTER_STEPS.length - 1 && (
               <div
-                className={clsx("mx-2 mb-3.5 h-px w-6 transition-colors", i < idx ? "bg-orange-400/70" : "bg-surfaceBg/15")}
+                className={clsx("mx-2 mb-3.5 h-px w-6 transition-colors", i < idx ? "bg-orange-400/70" : "bg-night-850/15")}
               />
             )}
           </div>
@@ -434,7 +453,7 @@ function ChipSelect({
               "rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors",
               selected
                 ? "border-orange-400/70 bg-orange-500/25 text-orange-200"
-                : "border-white/20 bg-surfaceBg/5 text-zinc-200 hover:border-white/35 hover:bg-surfaceBg/10"
+                : "border-white/20 bg-night-850/5 text-zinc-200 hover:border-white/35 hover:bg-night-850/10"
             )}
           >
             {label}
@@ -546,7 +565,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     setGlobalError(null);
     setLoading(true);
     try {
-      await callMcp("auth.verify_email", { email, code: otpCode, user_id: userId });
+      await callMcp("auth.verify_email", { email, otp_code: otpCode, user_id: userId });
       track("email_verified");
 
       const loginData = await callMcp("auth.login", { email, password });
@@ -559,7 +578,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       const loginAccountType = String(loginData.account_type ?? accountType ?? "individual");
       const loginIsAdmin = Boolean(loginData.is_platform_admin);
 
-      localStorage.setItem("matex_token", loginToken);
+      setToken(loginToken);
       localStorage.setItem(
         "matex_user",
         JSON.stringify({ userId: loginUserId, email, accountType: loginAccountType, isPlatformAdmin: loginIsAdmin })
@@ -608,6 +627,19 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         }
       }
 
+      // Set the HttpOnly matex_session cookie before navigating, same as
+      // the login flow above. Without this the middleware redirects the
+      // freshly-registered user back to /login.
+      try {
+        const sessionRes = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: loginToken }),
+        });
+        if (!sessionRes.ok) throw new Error(`session setup ${sessionRes.status}`);
+      } catch {
+        throw new Error("Registration succeeded but session setup failed. Please retry signing in.");
+      }
       router.push("/dashboard");
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : "Verification failed. Please try again.");
@@ -654,7 +686,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           <button
             type="button"
             onClick={() => setStep("profile")}
-            className="text-center text-sm text-fg-subtle hover:text-white"
+            className="text-center text-sm text-night-300 hover:text-white"
           >
             ← Back
           </button>
@@ -701,11 +733,11 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           <span className="text-xs font-semibold text-zinc-300">
             {PROFILE_SECTIONS[profileSection]}
           </span>
-          <span className="text-xs text-fg-subtle">
+          <span className="text-xs text-night-300">
             {profileSection + 1} / {PROFILE_SECTIONS.length}
           </span>
         </div>
-        <div className="-mt-2 mb-2 h-1 rounded-full bg-surfaceBg/10">
+        <div className="-mt-2 mb-2 h-1 rounded-full bg-night-850/10">
           <div
             className="h-full rounded-full bg-orange-400 transition-all duration-300"
             style={{ width: `${((profileSection + 1) / PROFILE_SECTIONS.length) * 100}%` }}
@@ -832,25 +864,29 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 <label className="text-base font-semibold text-zinc-100">Primary operating provinces</label>
                 <ChipSelect value={provinces} options={CA_PROVINCES} onChange={setProvinces} />
               </div>
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-surfaceBg/5 px-3 py-2.5">
-                <div
-                  role="switch"
-                  aria-checked={crossBorder}
-                  onClick={() => setCrossBorder((v) => !v)}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={crossBorder}
+                onClick={() => setCrossBorder((v) => !v)}
+                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-night-850/5 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+              >
+                <span
+                  aria-hidden
                   className={clsx(
-                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
                     crossBorder ? "bg-orange-500" : "bg-zinc-600"
                   )}
                 >
                   <span
                     className={clsx(
-                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-surfaceBg shadow transition-transform",
+                      "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-night-850 shadow transition-transform",
                       crossBorder ? "translate-x-4" : "translate-x-0"
                     )}
                   />
-                </div>
+                </span>
                 <span className="text-base font-medium text-zinc-100">I trade Canada–US cross-border</span>
-              </label>
+              </button>
             </div>
           </div>
         )}
@@ -886,7 +922,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           <button
             type="button"
             onClick={handleSectionBack}
-            className="text-sm text-fg-subtle hover:text-white"
+            className="text-sm text-night-300 hover:text-white"
           >
             ← Back
           </button>
@@ -895,7 +931,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
               type="button"
               disabled={loading}
               onClick={handleSkipSection}
-              className="text-sm text-fg-subtle hover:text-white disabled:opacity-50"
+              className="text-sm text-night-300 hover:text-white disabled:opacity-50"
             >
               Skip section
             </button>
@@ -933,7 +969,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold text-zinc-200">Phone number</label>
           <div className="flex">
-            <span className="inline-flex items-center rounded-l-2xl border border-r-0 border-zinc-600 bg-surfaceBg/5 px-3 text-sm text-fg-subtle select-none">
+            <span className="inline-flex items-center rounded-l-2xl border border-r-0 border-zinc-600 bg-night-850/5 px-3 text-sm text-night-300 select-none">
               +1
             </span>
             <input
@@ -961,7 +997,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
           label="Password"
           value={password}
           onChange={setPassword}
-          placeholder="Min. 8 characters"
+          placeholder="Min. 12 characters"
           error={fieldErrors.password}
           autoComplete="new-password"
         />
@@ -978,7 +1014,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                   "flex-1 rounded-xl border py-2 text-sm font-medium capitalize transition-colors",
                   accountType === type
                     ? "border-orange-400 bg-orange-500/25 text-white shadow-sm"
-                    : "border-zinc-600 bg-surfaceBg/5 text-zinc-300 hover:border-zinc-500 hover:bg-surfaceBg/10"
+                    : "border-zinc-600 bg-night-850/5 text-zinc-300 hover:border-zinc-500 hover:bg-night-850/10"
                 )}
               >
                 {type}
@@ -1014,9 +1050,49 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 const LOGIN_BG_VIDEOS = ["/login-bg3.mp4", "/login-bg2.mp4"] as const;
 
 const LOGIN_HERO_TRUST_CHIPS = [
-  "CAD settlement & invoicing-ready flows",
-  "Canada–US trade documentation awareness",
-  "Immutable audit trail for each transaction",
+  "FINTRAC / PCMLTFA compliance built-in",
+  "Interac e-Transfer — Canada's primary B2B payment rail",
+  "Catalytic converter regulatory tracking",
+  "Immutable audit trail for every transaction",
+] as const;
+
+const DIFFERENTIATOR_FEATURES = [
+  {
+    icon: "🛡️",
+    title: "FINTRAC compliance",
+    detail: "Auto-generated LCTRs, STR filing, 5-year record retention — PCMLTFA-ready out of the box.",
+    unique: true,
+  },
+  {
+    icon: "💳",
+    title: "Interac e-Transfer",
+    detail: "Canada's dominant B2B payment rail — no US-only processors, no cross-border friction.",
+    unique: true,
+  },
+  {
+    icon: "🔒",
+    title: "Escrow-backed settlement",
+    detail: "Funds held in escrow until delivery and inspection are confirmed. No net-30 exposure.",
+    unique: true,
+  },
+  {
+    icon: "📋",
+    title: "Cat converter tracking",
+    detail: "Serial number, VIN, and seller ID capture per converter — Bill C-36 compliant by default.",
+    unique: true,
+  },
+  {
+    icon: "📊",
+    title: "Live LME price feeds",
+    detail: "Real-time copper, aluminum, and PGM prices tied directly to listing and contract values.",
+    unique: false,
+  },
+  {
+    icon: "🤖",
+    title: "AI trading copilot",
+    detail: "Natural-language access to every platform tool — search, contracts, escrow, analytics.",
+    unique: false,
+  },
 ] as const;
 
 
@@ -1152,7 +1228,7 @@ export default function LoginPage() {
           >
             {LOADER_STATUS_LINES[loaderLine]}
           </p>
-          <div className="h-1.5 w-52 max-w-[80vw] overflow-hidden rounded-full bg-surfaceBg/15">
+          <div className="h-1.5 w-52 max-w-[80vw] overflow-hidden rounded-full bg-night-850/15">
             <div className="login-loader-bar-fill h-full w-full rounded-full bg-gradient-to-r from-orange-500 via-amber-400 to-orange-400" />
           </div>
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
@@ -1244,15 +1320,42 @@ export default function LoginPage() {
               </div>
             ))}
           </div>
-          <Image
-            src="/grphs/Brand/factory-skyline-hero-b-factory.png"
-            alt=""
-            aria-hidden
-            width={640}
-            height={260}
-            className="login-reveal-item mt-6 hidden w-full max-w-xl self-end object-contain drop-shadow-2xl lg:block"
-            style={loginRevealDelay(800)}
-          />
+
+          {/* Compliance-first differentiator grid */}
+          <div
+            className="login-reveal-item mt-6 w-full"
+            style={loginRevealDelay(780)}
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/10" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-orange-400/80">
+                Why Matex
+              </span>
+              <div className="h-px flex-1 bg-white/10" />
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {DIFFERENTIATOR_FEATURES.map((f) => (
+                <div
+                  key={f.title}
+                  className="group relative overflow-hidden rounded-xl border border-white/8 bg-white/[0.04] px-3.5 py-3 backdrop-blur-sm transition-colors hover:border-orange-400/25 hover:bg-white/[0.07]"
+                >
+                  {f.unique && (
+                    <span className="absolute right-2 top-2 rounded-full bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-orange-300">
+                      Only Matex
+                    </span>
+                  )}
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-base leading-none" aria-hidden>{f.icon}</span>
+                    <span className="text-sm font-semibold text-white">{f.title}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-zinc-400">{f.detail}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-center text-[10px] text-zinc-500">
+              The only Canadian B2B scrap marketplace with PCMLTFA compliance + Interac + escrow built in.
+            </p>
+          </div>
           </div>
         </section>
 
@@ -1276,7 +1379,7 @@ export default function LoginPage() {
           style={loginRevealDelay(340)}
         >
           <div className="flex max-h-[min(90dvh,900px)] flex-col overflow-hidden rounded-2xl border border-zinc-500/50 bg-zinc-900/80 shadow-2xl backdrop-blur-xl sm:max-h-[min(92dvh,960px)] sm:rounded-3xl lg:max-h-[calc(100dvh-4.5rem)]">
-            <div className="min-h-0 flex-1 overflow-y-scroll overscroll-y-contain p-5 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surfaceBg/5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surfaceBg/25 hover:[&::-webkit-scrollbar-thumb]:bg-surfaceBg/40">
+            <div className="min-h-0 flex-1 overflow-y-scroll overscroll-y-contain p-5 sm:p-6 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-night-850/5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-night-850/25 hover:[&::-webkit-scrollbar-thumb]:bg-night-850/40">
             <div className="mb-5 text-center sm:mb-6">
               <h2 className="mb-2 text-3xl font-bold text-white">
                 {tab === "login" ? "Welcome Back" : "Get started"}
@@ -1289,7 +1392,7 @@ export default function LoginPage() {
             <div className="mb-6 space-y-3">
               <button
                 type="button"
-                className="group flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-white/20 bg-surfaceBg/10 px-5 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition-colors hover:bg-surfaceBg/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:px-6 sm:text-lg"
+                className="group flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-white/20 bg-night-850/10 px-5 py-3.5 text-base font-semibold text-white backdrop-blur-sm transition-colors hover:bg-night-850/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 sm:px-6 sm:text-lg"
               >
                 <svg className="mr-4 h-6 w-6" viewBox="0 0 24 24" aria-hidden>
                   <path
@@ -1327,13 +1430,13 @@ export default function LoginPage() {
                 <div className="w-full border-t border-zinc-600" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="rounded-full bg-zinc-800/80 px-6 font-medium text-fg-subtle backdrop-blur-sm">
+                <span className="rounded-full bg-zinc-800/80 px-6 font-medium text-night-300 backdrop-blur-sm">
                   Or continue with email
                 </span>
               </div>
             </div>
 
-            <div className="mb-4 flex rounded-2xl border border-zinc-600 bg-surfaceBg/5 p-1">
+            <div className="mb-4 flex rounded-2xl border border-zinc-600 bg-night-850/5 p-1">
               {(["login", "register"] as Tab[]).map((t) => (
                 <button
                   key={t}
@@ -1342,8 +1445,8 @@ export default function LoginPage() {
                   className={clsx(
                     "flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors",
                     tab === t
-                      ? "bg-surfaceBg/15 text-white shadow-sm"
-                      : "text-fg-subtle hover:text-zinc-200"
+                      ? "bg-night-850/15 text-white shadow-sm"
+                      : "text-night-300 hover:text-zinc-200"
                   )}
                 >
                   {t === "login" ? "Sign in" : "Create account"}
@@ -1357,16 +1460,16 @@ export default function LoginPage() {
               <RegisterForm onSwitchToLogin={() => setTab("login")} />
             )}
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-fg-subtle">
-              <ShieldCheck className="h-5 w-5 shrink-0 text-fg-subtle" />
-              <span className="text-center text-sm font-semibold text-fg-subtle">
+            <div className="mt-6 flex items-center justify-center gap-2 text-night-300">
+              <ShieldCheck className="h-5 w-5 shrink-0 text-night-300" />
+              <span className="text-center text-sm font-semibold text-night-300">
                 Enterprise-Grade Security &amp; Compliance
               </span>
             </div>
             </div>
           </div>
 
-          <p className="mt-6 text-center text-xs text-fg-subtle">
+          <p className="mt-6 text-center text-xs text-night-300">
             By continuing you agree to Matex&apos;s{" "}
             <a href="/terms" className="text-zinc-300 underline hover:text-white">
               Terms

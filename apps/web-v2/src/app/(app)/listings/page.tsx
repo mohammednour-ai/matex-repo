@@ -93,7 +93,7 @@ function SaleModeBadge({ mode }: { mode: SaleMode }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-        mode === "fixed" && "bg-brand-500/10 text-brand-700 ring-brand-600/20",
+        mode === "fixed" && "bg-brand-500/10 text-brand-400 ring-brand-600/20",
         mode === "bidding" && "bg-warning-500/10 text-warning-400 ring-amber-600/20",
         mode === "auction" && "bg-brand-500/15 text-brand-400 ring-purple-600/20"
       )}
@@ -512,7 +512,7 @@ export default function MyListingsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3">
+        <div className="mb-6 flex items-center gap-2 rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3">
           <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
           <p className="text-sm text-danger-400">{error}</p>
           <button

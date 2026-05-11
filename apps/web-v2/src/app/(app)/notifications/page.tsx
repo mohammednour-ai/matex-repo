@@ -90,7 +90,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     case "escrow":
       return (
-        <span className={clsx(base, "bg-brand-500/10 text-brand-600")}>
+        <span className={clsx(base, "bg-brand-500/10 text-brand-400")}>
           <Shield size={18} />
         </span>
       );
@@ -126,7 +126,7 @@ function NotificationIcon({ type }: { type: NotificationType }) {
       );
     case "contract":
       return (
-        <span className={clsx(base, "bg-brand-500/10 text-orange-600")}>
+        <span className={clsx(base, "bg-brand-500/10 text-brand-400")}>
           <FileText size={18} />
         </span>
       );
@@ -332,7 +332,7 @@ export default function NotificationsPage() {
               type="button"
               onClick={() => void markAllRead()}
               disabled={unreadCount === 0}
-              className="rounded-xl px-3 py-1.5 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-500/10 hover:text-brand-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-xl px-3 py-1.5 text-sm font-medium text-brand-400 transition-colors hover:bg-brand-500/10 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Mark all read
             </button>
@@ -389,7 +389,7 @@ export default function NotificationsPage() {
             <p className="font-medium text-fg-muted text-sm">{error}</p>
             <button
               onClick={() => void fetchNotifications()}
-              className="mt-3 text-sm text-brand-600 hover:underline font-medium"
+              className="mt-3 text-sm text-brand-400 hover:underline font-medium"
             >
               Try again
             </button>

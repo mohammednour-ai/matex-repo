@@ -114,7 +114,7 @@ function OnboardingModal({ onClose }: { onClose: () => void }) {
                 key={cat.label}
                 className="border border-line/60 rounded-xl p-3 hover:border-brand-200 hover:bg-brand-500/10 transition-colors"
               >
-                <div className="flex items-center gap-2 mb-2 text-brand-600">
+                <div className="flex items-center gap-2 mb-2 text-brand-400">
                   {cat.icon}
                   <span className="font-semibold text-sm text-fg">{cat.label}</span>
                 </div>
@@ -148,7 +148,7 @@ function ContextBar({ context }: { context: Context }) {
     <div className="flex items-center gap-3 px-4 py-2 bg-canvas border-b border-line text-xs text-fg-subtle flex-wrap">
       <span className="font-medium text-fg-subtle uppercase tracking-wider">Context:</span>
       {context.userId ? (
-        <span className="inline-flex items-center gap-1 bg-brand-500/10 text-brand-700 px-2 py-0.5 rounded-full font-mono">
+        <span className="inline-flex items-center gap-1 bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-full font-mono">
           <span className="w-1.5 h-1.5 bg-brand-500 rounded-full" />
           {context.userId}
         </span>
@@ -478,7 +478,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={() => setShowOnboarding(true)}
-            className="rounded-xl border border-brand-200/80 px-3 py-1.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-500/10 hover:text-brand-800"
+            className="rounded-xl border border-brand-500/30/80 px-3 py-1.5 text-xs font-medium text-brand-400 transition-colors hover:bg-brand-500/10 hover:text-brand-300"
           >
             What can I do?
           </button>

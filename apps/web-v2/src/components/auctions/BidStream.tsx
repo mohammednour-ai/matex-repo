@@ -95,7 +95,7 @@ export function BidStream({ bids, currentUserKey, className }: BidStreamProps) {
               <span className="font-medium text-fg-muted flex items-center gap-1.5">
                 {bid.bidder}
                 {isYou && (
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-success-400 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-success-400 bg-success-500/15 px-1.5 py-0.5 rounded-full">
                     You
                   </span>
                 )}

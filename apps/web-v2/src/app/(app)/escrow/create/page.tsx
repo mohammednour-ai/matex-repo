@@ -12,203 +12,379 @@ import {
   Copy,
   Package,
 } from "lucide-react";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { callTool, getUser, extractId } from "@/lib/api";
-import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
-import { Input } from "@/components/ui/shadcn/input";
 import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 
 type PaymentMethod = "card" | "wallet" | "credit";
 
-type OrderSummary = {
+type OrderRow = {
   order_id: string;
-  title: string;
-  seller: string;
-  quantity: string;
-  unit_price: number;
-  total_price: number;
-  commission: number;
-  tax: number;
-  /** True when tax couldn't be computed via tax.calculate_tax and the HST 13% flat fallback was used. */
-  tax_is_estimate?: boolean;
-  tax_provinces?: { seller: string; buyer: string };
-  grand_total: number;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  quantity: number;
+  unit: string;
+  original_amount: number;
 };
 
-// Demo fallback. Used only when no `order_id` query param is present (e.g. a
-// recruiter or stakeholder lands on /escrow/create directly to see the flow).
-// Real orders go through orders.get_order + listing.get_listing fetches below.
-const DEMO_ORDER: OrderSummary = {
-  order_id: "demo-order",
-  title: "HMS #1 Scrap Steel — Lot 3 (demo)",
-  seller: "Ontario Metal Works (demo)",
-  quantity: "18 MT",
-  unit_price: 1583.33,
-  total_price: 28500,
-  commission: 997.5,
-  tax: 1299.75,
-  grand_total: 30797.25,
+type TaxBreakdown = {
+  subtotal?: number;
+  commission?: number;
+  gst?: number;
+  hst?: number;
+  pst?: number;
+  qst?: number;
+  total_tax?: number;
+  grand_total?: number;
+  province_buyer?: string;
+  province_seller?: string;
 };
 
-type LoadState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "empty"; message: string }
-  | { kind: "data"; order: OrderSummary };
+const COMMISSION_RATE = 0.035;
 
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 }
 
+// Both transports share the {success, data} envelope, but the legacy MCP
+// gateway path nests payloads under data.upstream_response.data. Try the
+// nested shape first and fall back to the flat one.
+function unwrap<T>(data: unknown, key: string): T | undefined {
+  const d = data as Record<string, unknown> | undefined;
+  if (!d) return undefined;
+  const ur = d.upstream_response as Record<string, unknown> | undefined;
+  if (ur && typeof ur === "object") {
+    const inner = ur.data as Record<string, unknown> | undefined;
+    if (inner && inner[key] !== undefined) return inner[key] as T;
+  }
+  if (d[key] !== undefined) return d[key] as T;
+  return undefined;
+}
+
 export default function CreateEscrowPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const orderIdParam = searchParams.get("order_id");
+  const orderId = searchParams.get("order_id") ?? "";
   const user = getUser();
+  const userId = user?.userId ?? "";
 
-  // No order_id → demo mode (no fetch). With order_id → real fetch via
-  // orders.get_order + listing.get_listing.
-  const [state, setState] = useState<LoadState>(
-    orderIdParam ? { kind: "loading" } : { kind: "data", order: DEMO_ORDER },
-  );
+  const [order, setOrder] = useState<OrderRow | null>(null);
+  const [listingTitle, setListingTitle] = useState<string>("");
+  const [sellerProvince, setSellerProvince] = useState<string>("");
+  const [tax, setTax] = useState<TaxBreakdown | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [loadingOrder, setLoadingOrder] = useState(true);
+  const [loadError, setLoadError] = useState<string>("");
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
-  const [walletBalance] = useState(12500);
   const [accepted, setAccepted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [fundError, setFundError] = useState<string>("");
   const [step, setStep] = useState<"form" | "success">("form");
-  const [escrowId, setEscrowId] = useState("");
+  const [escrowId, setEscrowId] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
+  // Card-payment state. Allocated when paymentMethod === "card" and the
+  // form is fully ready (order + tax loaded, terms accepted). Mirror of
+  // the /checkout flow but with escrow_id pre-allocated up front so the
+  // PaymentIntent's metadata carries it directly — the webhook (PR 4)
+  // can then UPDATE escrow.status='funds_held' without falling back to
+  // the order_id lookup.
+  const [allocatedEscrowId, setAllocatedEscrowId] = useState<string>("");
+  const [clientSecret, setClientSecret] = useState<string>("");
+  const [, setTransactionId] = useState<string>("");
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [allocError, setAllocError] = useState<string>("");
+  const stripeReady = isStripeConfigured();
+
+  // Stage 1: load order + wallet in parallel as soon as the page mounts.
+  // Stage 2 (separate effect): once order is known, fetch listing (for
+  // title + seller_province) and the tax breakdown.
   useEffect(() => {
-    if (!orderIdParam) return;
+    if (!orderId) {
+      setLoadingOrder(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
-      const orderRes = await callTool("orders.get_order", { order_id: orderIdParam });
+      setLoadingOrder(true);
+      setLoadError("");
+      const [orderRes, walletRes] = await Promise.allSettled([
+        callTool("orders.get_order", { order_id: orderId }),
+        userId
+          ? callTool("payments.get_wallet_balance", { user_id: userId, actor_id: userId })
+          : Promise.resolve({ success: false, error: { code: "NO_USER", message: "" } } as const),
+      ]);
       if (cancelled) return;
-      if (!orderRes.success) {
-        setState({
-          kind: orderRes.error?.code === "NOT_FOUND" ? "empty" : "error",
-          message: orderRes.error?.message ?? "Could not load this order.",
-        });
-        return;
-      }
-      const orderRow =
-        ((orderRes.data as Record<string, unknown> | undefined)?.order as
-          | Record<string, unknown>
-          | undefined) ?? null;
-      if (!orderRow) {
-        setState({ kind: "empty", message: "Order not found." });
-        return;
-      }
 
-      const listingId = String(orderRow.listing_id ?? "");
-      const listingRes = listingId
-        ? await callTool("listing.get_listing", { listing_id: listingId })
-        : null;
-      if (cancelled) return;
-      const listingRow =
-        ((listingRes?.data as Record<string, unknown> | undefined)?.listing as
-          | Record<string, unknown>
-          | undefined) ?? null;
-
-      const subtotal = Number(orderRow.original_amount ?? 0);
-      const commission = Number(orderRow.commission_amount ?? 0);
-      const quantity = Number(orderRow.quantity ?? 0);
-      const unit = String(orderRow.unit ?? "MT");
-
-      // Province-aware tax via tax.calculate_tax. seller_province comes from
-      // the listing's pickup address; buyer_province defaults to "ON" (the
-      // most common Canadian buyer) because profile.get_profile doesn't
-      // expose the buyer's incorporation_province today — wire that in once
-      // a profile.get_company tool exists.
-      const pickup =
-        (listingRow?.pickup_address as Record<string, unknown> | undefined) ??
-        undefined;
-      const paymentMeta =
-        (listingRow?.payment_meta as Record<string, unknown> | undefined) ??
-        undefined;
-      const sellerProvince = String(
-        paymentMeta?.seller_province ?? pickup?.province ?? "ON",
-      );
-      const buyerProvince = "ON";
-
-      let taxTotal = +(subtotal * 0.13).toFixed(2);
-      let taxIsEstimate = true;
-      if (subtotal > 0) {
-        const taxRes = await callTool("tax.calculate_tax", {
-          amount: subtotal,
-          seller_province: sellerProvince,
-          buyer_province: buyerProvince,
-        });
-        if (cancelled) return;
-        if (taxRes.success) {
-          const taxBody = taxRes.data as Record<string, unknown> | undefined;
-          const totalTax = Number(taxBody?.total_tax ?? NaN);
-          if (Number.isFinite(totalTax)) {
-            taxTotal = +totalTax.toFixed(2);
-            taxIsEstimate = false;
-          }
+      if (orderRes.status === "fulfilled" && orderRes.value.success) {
+        const o = unwrap<OrderRow>(orderRes.value.data, "order");
+        if (!o || !o.order_id) {
+          setLoadError("Order not found.");
+        } else {
+          setOrder({
+            ...o,
+            quantity: Number(o.quantity ?? 0),
+            original_amount: Number(o.original_amount ?? 0),
+          });
         }
+      } else {
+        const msg =
+          orderRes.status === "fulfilled"
+            ? orderRes.value.error?.message ?? "Could not load order."
+            : "Could not load order.";
+        setLoadError(msg);
       }
-      const grand = +(subtotal + commission + taxTotal).toFixed(2);
 
-      setState({
-        kind: "data",
-        order: {
-          order_id: String(orderRow.order_id ?? orderIdParam),
-          title: String(listingRow?.title ?? `Order ${orderIdParam.slice(0, 8)}`),
-          seller: String(
-            listingRow?.seller_name ??
-              listingRow?.company_name ??
-              `Seller ${String(orderRow.seller_id ?? "").slice(0, 8)}`,
-          ),
-          quantity: `${quantity} ${unit}`,
-          unit_price: quantity > 0 ? +(subtotal / quantity).toFixed(2) : 0,
-          total_price: subtotal,
-          commission,
-          tax: taxTotal,
-          tax_is_estimate: taxIsEstimate,
-          tax_provinces: { seller: sellerProvince, buyer: buyerProvince },
-          grand_total: grand,
-        },
-      });
+      if (walletRes.status === "fulfilled" && (walletRes.value as { success?: boolean }).success) {
+        const wallet = unwrap<{ balance?: number }>(
+          (walletRes.value as { data?: unknown }).data,
+          "wallet",
+        );
+        const flatBalance = ((walletRes.value as { data?: { balance?: number } }).data ?? {}).balance;
+        setWalletBalance(Number(wallet?.balance ?? flatBalance ?? 0));
+      }
+
+      setLoadingOrder(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [orderIdParam]);
+  }, [orderId, userId]);
 
-  const order = state.kind === "data" ? state.order : null;
+  // Stage 2: enrich with listing title + tax breakdown once order is known.
+  useEffect(() => {
+    if (!order) return;
+    let cancelled = false;
+    (async () => {
+      // Listing → title + seller_province
+      let resolvedSellerProvince = "";
+      if (order.listing_id) {
+        const res = await callTool("listing.get_listing", { listing_id: order.listing_id });
+        if (cancelled) return;
+        if (res.success) {
+          const listing = unwrap<{ title?: string; seller_province?: string }>(
+            res.data,
+            "listing",
+          ) ??
+            ((res.data as Record<string, unknown> | undefined) as
+              | { title?: string; seller_province?: string }
+              | undefined);
+          if (listing?.title) setListingTitle(String(listing.title));
+          if (listing?.seller_province) {
+            resolvedSellerProvince = String(listing.seller_province);
+            setSellerProvince(resolvedSellerProvince);
+          }
+        }
+      }
+
+      // Tax. We default to ON for both provinces if we don't have better info;
+      // tax-mcp will return the right breakdown for the (buyer, seller) pair.
+      const buyerProvince = (user as { province?: string } | null)?.province ?? "ON";
+      const sellerProv = resolvedSellerProvince || buyerProvince;
+      const taxRes = await callTool("tax.calculate_tax", {
+        amount: order.original_amount,
+        province_buyer: buyerProvince,
+        province_seller: sellerProv,
+      });
+      if (cancelled) return;
+      if (taxRes.success) {
+        setTax(taxRes.data as unknown as TaxBreakdown);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [order, user]);
+
+  // Derived totals. tax.calculate_tax already returns a grand_total that
+  // includes commission + taxes; if the call failed we synthesize the same
+  // shape locally so the buyer still sees a real number for what they're
+  // about to fund. This is NOT mock data — it's a deterministic computation
+  // off the real order's original_amount.
+  const subtotal = Number(order?.original_amount ?? 0);
+  const commission =
+    tax?.commission ?? Math.round(subtotal * COMMISSION_RATE * 100) / 100;
+  const totalTax = tax?.total_tax ?? 0;
+  const grandTotal =
+    tax?.grand_total ?? Math.round((subtotal + commission + totalTax) * 100) / 100;
+  const unitPrice =
+    order && Number(order.quantity) > 0 ? subtotal / Number(order.quantity) : 0;
+  const sellerLabel = order?.seller_id ? `${order.seller_id.slice(0, 8)}…` : "—";
+  const titleLabel =
+    listingTitle || (order ? `Order ${order.order_id.slice(0, 8)}…` : "");
 
   async function handleFundEscrow(): Promise<void> {
-    if (!order) return;
-    setLoading(true);
-    const userId = user?.userId ?? "";
+    setFundError("");
+    if (!order) {
+      setFundError("Order not loaded.");
+      return;
+    }
+    if (!userId) {
+      setFundError("Sign in to fund escrow.");
+      return;
+    }
+    if (userId !== order.buyer_id) {
+      setFundError("Only the buyer of this order can fund its escrow.");
+      return;
+    }
+    if (grandTotal <= 0) {
+      setFundError("Order amount is invalid.");
+      return;
+    }
+    setFunding(true);
 
     const escrowRes = await callTool("escrow.create_escrow", {
       order_id: order.order_id,
-      amount: order.grand_total,
-      buyer_id: userId,
+      buyer_id: order.buyer_id,
+      seller_id: order.seller_id,
+      amount: grandTotal,
       performed_by: userId,
     });
-    const newEscrowId = extractId(escrowRes, "escrow_id") || `ESC-${Date.now()}`;
+    if (!escrowRes.success) {
+      setFunding(false);
+      setFundError(escrowRes.error?.message ?? "Could not create escrow.");
+      return;
+    }
+    const newEscrowId = extractId(escrowRes, "escrow_id");
+    if (!newEscrowId) {
+      setFunding(false);
+      setFundError("Escrow created but no ID was returned.");
+      return;
+    }
 
-    await callTool("escrow.hold_funds", { escrow_id: newEscrowId, performed_by: userId });
+    const holdRes = await callTool("escrow.hold_funds", {
+      escrow_id: newEscrowId,
+      amount: grandTotal,
+      performed_by: userId,
+    });
+    if (!holdRes.success) {
+      setFunding(false);
+      setFundError(holdRes.error?.message ?? "Could not hold funds in escrow.");
+      return;
+    }
 
-    await callTool("payments.process_payment", {
+    const payRes = await callTool("payments.process_payment", {
       user_id: userId,
       actor_id: userId,
       escrow_id: newEscrowId,
       order_id: order.order_id,
-      amount: order.grand_total,
+      amount: grandTotal,
       payment_method: paymentMethod,
     });
+    if (!payRes.success) {
+      setFunding(false);
+      setFundError(payRes.error?.message ?? "Payment failed.");
+      return;
+    }
 
     setEscrowId(newEscrowId);
     setStep("success");
-    setLoading(false);
+    setFunding(false);
+  }
+
+  // Card flow: allocate escrow first (we need escrow_id for the PI metadata),
+  // then create the PaymentIntent. Triggered when the buyer has accepted the
+  // terms and selected card. Only runs when stripe is configured.
+  useEffect(() => {
+    if (paymentMethod !== "card") return;
+    if (!stripeReady || !accepted) return;
+    if (!order || grandTotal <= 0 || !userId) return;
+    if (clientSecret || allocLoading) return;
+    if (userId !== order.buyer_id) return;
+    let cancelled = false;
+    (async () => {
+      setAllocLoading(true);
+      setAllocError("");
+
+      // 1. Create the escrow up front so the PI carries escrow_id in its
+      //    metadata; the webhook then resolves directly to this escrow.
+      let escId = allocatedEscrowId;
+      if (!escId) {
+        const escrowRes = await callTool("escrow.create_escrow", {
+          order_id: order.order_id,
+          buyer_id: order.buyer_id,
+          seller_id: order.seller_id,
+          amount: grandTotal,
+          performed_by: userId,
+        });
+        if (cancelled) return;
+        if (!escrowRes.success) {
+          setAllocError(escrowRes.error?.message ?? "Could not create escrow.");
+          setAllocLoading(false);
+          return;
+        }
+        const newEscId = extractId(escrowRes, "escrow_id");
+        if (!newEscId) {
+          setAllocError("Escrow created but no ID returned.");
+          setAllocLoading(false);
+          return;
+        }
+        escId = newEscId;
+        setAllocatedEscrowId(newEscId);
+      }
+
+      // 2. Allocate the PaymentIntent referencing both order_id and escrow_id.
+      const piRes = await callTool("payments.create_payment_intent", {
+        user_id: userId,
+        actor_id: userId,
+        order_id: order.order_id,
+        escrow_id: escId,
+        amount: grandTotal,
+        currency: "CAD",
+      });
+      if (cancelled) return;
+      if (!piRes.success) {
+        setAllocError(piRes.error?.message ?? "Could not start card payment.");
+        setAllocLoading(false);
+        return;
+      }
+      const data = piRes.data as Record<string, unknown> | undefined;
+      const cs = String(data?.client_secret ?? "");
+      const tx = String(data?.transaction_id ?? "");
+      if (!cs || !tx) {
+        setAllocError("Payment service did not return a client secret.");
+        setAllocLoading(false);
+        return;
+      }
+      setClientSecret(cs);
+      setTransactionId(tx);
+      setAllocLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, stripeReady, accepted, order?.order_id, grandTotal, userId]);
+
+  // If the buyer un-accepts terms or switches away from card, drop the
+  // client_secret so a fresh allocation happens when they come back.
+  // The escrow stays allocated (admin can clean up unfunded escrows; the
+  // race fix in escrow.create_escrow auto-funds it if a confirmed PI for
+  // this order exists, so re-running the effect is safe).
+  useEffect(() => {
+    if (paymentMethod !== "card" || !accepted) {
+      if (clientSecret) {
+        setClientSecret("");
+        setTransactionId("");
+        setAllocError("");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod, accepted]);
+
+  // Called by CardPaymentForm after stripe.confirmPayment succeeds. The
+  // webhook will mark transactions.completed and transition the escrow
+  // to funds_held; we just advance the UI optimistically and trust the
+  // server-side state machine for the durable record.
+  async function handleCardSuccess(): Promise<void> {
+    if (!allocatedEscrowId) return;
+    setEscrowId(allocatedEscrowId);
+    setStep("success");
   }
 
   function handleCopy(): void {
@@ -217,7 +393,8 @@ export default function CreateEscrowPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (step === "success" && order) {
+  // Success step
+  if (step === "success") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <div className="w-full max-w-md space-y-5">
@@ -225,13 +402,13 @@ export default function CreateEscrowPage() {
             <CheckCircle className="mx-auto mb-3 h-12 w-12 text-emerald-600" />
             <h2 className="text-xl font-bold text-success-400">Escrow Funded!</h2>
             <p className="mt-1 text-sm text-success-400">
-              {formatCAD(order.grand_total)} is now held in escrow.
+              {formatCAD(grandTotal)} is now held in escrow.
             </p>
-            <div className="mt-4 flex items-center justify-between rounded-lg border border-emerald-300 bg-surfaceBg px-4 py-2.5">
-              <span className="text-xs text-fg-subtle">Escrow ID</span>
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-emerald-300 bg-night-850 px-4 py-2.5">
+              <span className="text-xs text-night-300">Escrow ID</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-fg truncate max-w-[160px]">{escrowId}</span>
-                <button onClick={handleCopy} className="text-fg-subtle hover:text-fg-muted">
+                <span className="font-mono text-sm font-semibold text-night-100 truncate max-w-[160px]">{escrowId}</span>
+                <button onClick={handleCopy} className="text-night-300 hover:text-night-200">
                   {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                 </button>
               </div>
@@ -239,7 +416,7 @@ export default function CreateEscrowPage() {
           </div>
 
           <div className="marketplace-card p-5">
-            <h3 className="text-sm font-semibold text-fg-muted mb-4">Next Steps</h3>
+            <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
                 { label: "Inspection booking", href: "/inspections", cta: "Book Inspection" },
@@ -251,7 +428,7 @@ export default function CreateEscrowPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-fg-muted">{s.label}</span>
+                    <span className="text-sm text-night-200">{s.label}</span>
                   </div>
                   <a href={s.href} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
                     {s.cta} <ArrowRight className="h-3 w-3" />
@@ -269,12 +446,13 @@ export default function CreateEscrowPage() {
     );
   }
 
-  if (state.kind === "loading") {
+  // Loading: order in flight
+  if (loadingOrder) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <AppPageHeader
           title="Fund Escrow"
-          description="Loading order…"
+          description="Funds will be held securely until all release conditions are met."
         />
         <div className="flex items-center justify-center py-16">
           <Spinner className="h-6 w-6 text-brand-500" />
@@ -283,34 +461,32 @@ export default function CreateEscrowPage() {
     );
   }
 
-  if (state.kind === "error" || state.kind === "empty") {
+  // No order_id, or order failed to load: empty / error state. We never
+  // fall through to a form against a fake order.
+  if (!order) {
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         <AppPageHeader
           title="Fund Escrow"
           description="Funds will be held securely until all release conditions are met."
         />
-        <div className="marketplace-card p-8 text-center">
-          <p className="text-sm font-semibold text-fg">{state.message}</p>
-          <p className="mt-2 text-sm text-fg-subtle">
-            Open a checked-out order from the listings flow to fund its escrow, or return to the dashboard.
-          </p>
-          <Button
-            size="md"
-            variant="secondary"
-            className="mt-4"
-            onClick={() => router.push("/dashboard")}
-          >
-            Back to dashboard
-          </Button>
-        </div>
+        <EmptyState
+          image="/grphs/Platform%20Domains/escrow-d-escrow.png"
+          title={!orderId ? "No order selected" : "Order not found"}
+          description={
+            loadError ||
+            (!orderId
+              ? "Open a confirmed order and choose Fund Escrow to start the funding flow."
+              : "We couldn't find that order. Check the link or return to your escrows list.")
+          }
+          cta={{ label: "View all escrows", href: "/escrow" }}
+          size="lg"
+        />
       </div>
     );
   }
 
-  // state.kind === "data" — order is non-null
-  if (!order) return null;
-
+  // Form
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <AppPageHeader
@@ -318,59 +494,81 @@ export default function CreateEscrowPage() {
         description="Funds will be held securely until all release conditions are met."
       />
 
-      {!orderIdParam && (
-        <div className="rounded-xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 text-xs text-warning-400">
-          Demo mode — no <code>order_id</code> in the URL. Showing a sample order so you can preview the flow. Real flows arrive from the checkout page with the order id attached.
+      {fundError && (
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+          {fundError}
         </div>
       )}
 
       {/* Order summary */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Order Summary</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Order Summary</h2>
         <div className="flex items-start gap-4 mb-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
             <Package className="h-6 w-6 text-blue-500" />
           </div>
           <div>
-            <p className="font-semibold text-fg">{order.title}</p>
-            <p className="text-sm text-fg-subtle">Seller: {order.seller}</p>
-            <p className="text-sm text-fg-subtle">Qty: {order.quantity} @ {formatCAD(order.unit_price)}/MT</p>
+            <p className="font-semibold text-night-100">{titleLabel}</p>
+            <p className="text-sm text-night-300">
+              Seller: <span className="font-mono">{sellerLabel}</span>
+              {sellerProvince ? ` · ${sellerProvince}` : ""}
+            </p>
+            <p className="text-sm text-night-300">
+              Qty: {order.quantity} {order.unit}
+              {unitPrice > 0 ? ` @ ${formatCAD(unitPrice)}/${order.unit}` : ""}
+            </p>
           </div>
         </div>
 
-        <div className="space-y-2 border-t border-line/60 pt-4">
-          {[
-            { label: "Material price", value: formatCAD(order.total_price) },
-            { label: "Platform commission (3.5%)", value: formatCAD(order.commission), sub: true },
-            {
-              label: order.tax_provinces
-                ? `Tax (${order.tax_provinces.seller} → ${order.tax_provinces.buyer}${order.tax_is_estimate ? " · estimate" : ""})`
-                : "HST (13% estimate)",
-              value: formatCAD(order.tax),
-              sub: true,
-            },
-          ].map((r) => (
-            <div key={r.label} className={`flex justify-between text-sm ${r.sub ? "text-fg-subtle" : "text-fg-muted"}`}>
-              <span>{r.label}</span>
-              <span>{r.value}</span>
+        <div className="space-y-2 border-t border-night-700/60 pt-4">
+          <div className="flex justify-between text-sm text-night-200">
+            <span>Material price</span>
+            <span>{formatCAD(subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-night-300">
+            <span>Platform commission (3.5%)</span>
+            <span>{formatCAD(commission)}</span>
+          </div>
+          {tax?.hst != null && tax.hst > 0 && (
+            <div className="flex justify-between text-sm text-night-300">
+              <span>HST</span>
+              <span>{formatCAD(tax.hst)}</span>
             </div>
-          ))}
-          <div className="flex justify-between border-t border-line pt-2 font-bold text-fg">
+          )}
+          {tax?.gst != null && tax.gst > 0 && (
+            <div className="flex justify-between text-sm text-night-300">
+              <span>GST</span>
+              <span>{formatCAD(tax.gst)}</span>
+            </div>
+          )}
+          {tax?.pst != null && tax.pst > 0 && (
+            <div className="flex justify-between text-sm text-night-300">
+              <span>PST</span>
+              <span>{formatCAD(tax.pst)}</span>
+            </div>
+          )}
+          {tax?.qst != null && tax.qst > 0 && (
+            <div className="flex justify-between text-sm text-night-300">
+              <span>QST</span>
+              <span>{formatCAD(tax.qst)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-night-700 pt-2 font-bold text-night-100">
             <span>Total to escrow</span>
-            <span className="text-blue-600 text-lg">{formatCAD(order.grand_total)}</span>
+            <span className="text-blue-600 text-lg">{formatCAD(grandTotal)}</span>
           </div>
         </div>
       </div>
 
       {/* Buyer / Seller */}
       <div className="grid grid-cols-2 gap-4">
-        <PartyCard role="Buyer" name={user?.email ?? "You"} />
-        <PartyCard role="Seller" name={order.seller} />
+        <PartyCard role="Buyer" name={user?.email ?? `${order.buyer_id.slice(0, 8)}…`} />
+        <PartyCard role="Seller" name={sellerLabel} />
       </div>
 
       {/* Payment method */}
       <div className="marketplace-card p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Payment Method</h2>
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Payment Method</h2>
         <div className="space-y-3">
           <PaymentOption
             id="card"
@@ -381,10 +579,42 @@ export default function CreateEscrowPage() {
             onSelect={() => setPaymentMethod("card")}
           />
           {paymentMethod === "card" && (
-            <div className="ml-9 rounded-lg border border-line bg-canvas p-4">
-              <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
-                Stripe Elements — Card input (placeholder)
-              </div>
+            <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
+              {!stripeReady ? (
+                <p className="text-xs text-night-300">
+                  Card payments are not configured for this environment. Set
+                  <code className="mx-1 rounded bg-night-850 px-1.5 py-0.5 font-mono text-[11px] text-brand-400">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>
+                  or pick a different payment method.
+                </p>
+              ) : !accepted ? (
+                <p className="text-xs text-night-300">
+                  Accept the terms below to load the card form.
+                </p>
+              ) : allocLoading ? (
+                <div className="flex items-center gap-3 py-2 text-sm text-night-300">
+                  <Spinner className="h-4 w-4 text-blue-500" />
+                  Preparing secure card form…
+                </div>
+              ) : allocError ? (
+                <div className="space-y-2 text-sm">
+                  <p className="text-danger-400">{allocError}</p>
+                  <button
+                    type="button"
+                    onClick={() => { setClientSecret(""); setAllocError(""); }}
+                    className="text-xs font-semibold text-brand-400 underline-offset-2 hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : clientSecret ? (
+                <StripeProvider clientSecret={clientSecret}>
+                  <CardPaymentForm
+                    amount={grandTotal}
+                    disabled={!accepted}
+                    onSuccess={handleCardSuccess}
+                  />
+                </StripeProvider>
+              ) : null}
             </div>
           )}
 
@@ -392,10 +622,10 @@ export default function CreateEscrowPage() {
             id="wallet"
             icon={<Wallet className="h-5 w-5" />}
             label={`Matex Wallet — Balance: ${formatCAD(walletBalance)}`}
-            description={walletBalance >= order.grand_total ? "Sufficient balance" : "Insufficient balance"}
+            description={walletBalance >= grandTotal ? "Sufficient balance" : "Insufficient balance"}
             selected={paymentMethod === "wallet"}
             onSelect={() => setPaymentMethod("wallet")}
-            disabled={walletBalance < order.grand_total}
+            disabled={walletBalance < grandTotal}
           />
 
           <PaymentOption
@@ -416,9 +646,9 @@ export default function CreateEscrowPage() {
             type="checkbox"
             checked={accepted}
             onChange={(e) => setAccepted(e.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-line-strong text-blue-600 focus:ring-blue-500"
+            className="mt-0.5 h-4 w-4 rounded border-night-600 text-blue-600 focus:ring-blue-500"
           />
-          <span className="text-sm text-fg-muted leading-relaxed">
+          <span className="text-sm text-night-200 leading-relaxed">
             I agree to the{" "}
             <a href="#" className="text-blue-600 hover:underline">Matex Escrow Terms</a>,{" "}
             <a href="#" className="text-blue-600 hover:underline">Platform Fee Schedule</a>, and confirm
@@ -428,25 +658,99 @@ export default function CreateEscrowPage() {
         </label>
       </div>
 
+      {paymentMethod !== "card" && (
+      // Card flow lives inside CardPaymentForm above (its own submit
+      // button confirms the PaymentIntent via stripe.confirmPayment).
+      // Wallet / credit go through this synchronous escrow.create_escrow
+      // → hold_funds → process_payment path.
       <Button
         size="lg"
         className="w-full"
         disabled={!accepted}
-        loading={loading}
+        loading={funding}
         onClick={handleFundEscrow}
       >
         <Shield className="h-4 w-4" />
-        Fund Escrow — {formatCAD(order.grand_total)}
+        Fund Escrow — {formatCAD(grandTotal)}
       </Button>
+      )}
     </div>
+  );
+}
+
+/**
+ * Card-payment form. Same shape as the version in /checkout — kept inline
+ * here rather than exported as a shared component because the success
+ * callback (handleCardSuccess) closes over per-page state. The duplication
+ * is small (~50 lines) and keeps each page's flow readable in one file.
+ */
+function CardPaymentForm({
+  amount,
+  disabled,
+  onSuccess,
+}: {
+  amount: number;
+  disabled: boolean;
+  onSuccess: () => Promise<void>;
+}): JSX.Element {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}/escrow/create?return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    await onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <PaymentElement options={{ layout: "tabs" }} />
+      {error && (
+        <div className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-xs text-danger-400">
+          {error}
+        </div>
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        loading={submitting}
+        disabled={disabled || !stripe || !elements || submitting}
+      >
+        <Shield className="h-4 w-4" />
+        Fund Escrow — {new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount)}
+      </Button>
+    </form>
   );
 }
 
 function PartyCard({ role, name }: { role: string; name: string }) {
   return (
     <div className="marketplace-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-1">{role}</p>
-      <p className="font-medium text-fg text-sm truncate">{name}</p>
+      <p className="text-xs font-semibold uppercase tracking-wider text-night-300 mb-1">{role}</p>
+      <p className="font-medium text-night-100 text-sm truncate">{name}</p>
     </div>
   );
 }
@@ -471,7 +775,7 @@ function PaymentOption({
   return (
     <label
       className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
-        selected ? "border-blue-500 bg-brand-500/10" : "border-line hover:border-line-strong"
+        selected ? "border-blue-500 bg-brand-500/10" : "border-night-700 hover:border-night-600"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input
@@ -483,10 +787,10 @@ function PaymentOption({
         disabled={disabled}
         className="sr-only"
       />
-      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-fg-subtle"}`}>{icon}</div>
+      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-fg-muted"}`}>{label}</p>
-        <p className="text-xs text-fg-subtle">{description}</p>
+        <p className={`text-sm font-medium ${selected ? "text-info-400" : "text-night-200"}`}>{label}</p>
+        <p className="text-xs text-night-300">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}
     </label>

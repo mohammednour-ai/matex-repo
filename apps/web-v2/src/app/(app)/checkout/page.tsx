@@ -13,16 +13,19 @@ import {
   Shield,
   ShoppingCart,
 } from "lucide-react";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 import Image from "next/image";
 
 type Step = 1 | 2 | 3;
-type PaymentMethod = "card" | "wallet" | "credit";
+type PaymentMethod = "card" | "wallet" | "credit" | "interac";
 
 type TaxBreakdown = {
   subtotal: number;
@@ -47,29 +50,8 @@ type OrderItem = {
   material_category: string;
 };
 
-function fallbackTax(subtotal: number, commission: number, provinceBuyer: string, provinceSeller: string): TaxBreakdown {
-  const hst = provinceBuyer === "ON" ? Math.round(subtotal * 0.13 * 100) / 100 : 0;
-  const gst = provinceBuyer !== "ON" ? Math.round(subtotal * 0.05 * 100) / 100 : 0;
-  const total_tax = Math.round((hst + gst) * 100) / 100;
-  return {
-    subtotal,
-    commission,
-    gst,
-    hst,
-    pst: 0,
-    total_tax,
-    grand_total: Math.round((subtotal + commission + total_tax) * 100) / 100,
-    province_buyer: provinceBuyer,
-    province_seller: provinceSeller,
-  };
-}
-
 function formatCAD(n: number): string {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
-}
-
-function generateInvoiceNumber(year: number, seq: number): string {
-  return `MTX-${year}-${String(seq).padStart(6, "0")}`;
 }
 
 export default function CheckoutPage() {
@@ -86,6 +68,8 @@ export default function CheckoutPage() {
   const [itemError, setItemError] = useState("");
   const [tax, setTax] = useState<TaxBreakdown | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
+  const [taxError, setTaxError] = useState<string>("");
+  const [taxRetryKey, setTaxRetryKey] = useState(0);
   const [shippingEstimate] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [walletBalance, setWalletBalance] = useState(0);
@@ -93,6 +77,16 @@ export default function CheckoutPage() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [, setEscrowId] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Card-payment state. Allocated in step 2 (and only when paymentMethod is
+  // 'card' so non-card users never round-trip Stripe). Cleared on step-back
+  // so a fresh PI is allocated if the user changes their mind.
+  const [orderId, setOrderId] = useState<string>(orderIdParam);
+  const [clientSecret, setClientSecret] = useState<string>("");
+  const [transactionId, setTransactionId] = useState<string>("");
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [allocError, setAllocError] = useState<string>("");
+  const stripeReady = isStripeConfigured();
 
   // Load listing → order item
   useEffect(() => {
@@ -142,12 +136,18 @@ export default function CheckoutPage() {
     })();
   }, [user?.userId]);
 
-  // Load tax once item is known
+  // Load tax once item is known. We never substitute flat-rate guesses
+  // when the call fails — Canadian sales tax is a (buyer_province,
+  // seller_province, material_category) lookup, and producing the wrong
+  // number on a checkout page is worse than refusing to compute one
+  // (tax_mcp owns recycled-metal zero-rating, QC QST, BC PST, etc.).
+  // Per .cursor/rules/matex-canadian-compliance.mdc.
   useEffect(() => {
     if (!item) return;
     let cancelled = false;
     (async () => {
       setTaxLoading(true);
+      setTaxError("");
       const provinceBuyer = (user as { province?: string } | null)?.province ?? "ON";
       const provinceSeller = "ON";
       const res = await callTool("tax.calculate_tax", {
@@ -160,84 +160,139 @@ export default function CheckoutPage() {
       if (res.success) {
         setTax(res.data as unknown as TaxBreakdown);
       } else {
-        const commission = Math.round(item.total * 0.035 * 100) / 100;
-        setTax(fallbackTax(item.total, commission, provinceBuyer, provinceSeller));
+        setTax(null);
+        setTaxError(res.error?.message ?? "Could not calculate tax. Please try again.");
       }
       setTaxLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [item, user]);
+  }, [item, user, taxRetryKey]);
 
-  const effectiveTax = tax ?? (item ? fallbackTax(item.total, 0, "ON", "ON") : null);
-  const grandTotal = (effectiveTax?.grand_total ?? 0) + shippingEstimate;
+  const effectiveTax = tax;
+  const grandTotal = effectiveTax ? effectiveTax.grand_total + shippingEstimate : 0;
+  const canCheckout = Boolean(effectiveTax) && !taxLoading;
+  // Card flow needs a clientSecret BEFORE mounting the PaymentElement, so
+  // we kick the PI allocation when step 2 opens with paymentMethod='card'.
+  // Wallet/credit/interac stay on the synchronous handleNonCardPayment path.
+  const cardReady = paymentMethod === "card" && Boolean(clientSecret) && !allocLoading;
 
-  async function handleConfirm(): Promise<void> {
-    if (!item || !effectiveTax) return;
-    if (!user?.userId) {
-      setItemError("Sign in to complete checkout.");
-      return;
+  // Create the order if it doesn't exist yet. Returns the order_id or null
+  // (with itemError set) on failure. Idempotent: if state.orderId is already
+  // populated (from the URL or a prior call), returns it without a new
+  // orders.create_order round-trip.
+  async function ensureOrder(): Promise<string | null> {
+    if (orderId) return orderId;
+    if (!item || !user?.userId) return null;
+    const orderRes = await callTool("orders.create_order", {
+      listing_id: item.listing_id,
+      buyer_id: user.userId,
+      seller_id: item.seller_id,
+      quantity: Number(item.quantity),
+      unit: item.unit,
+      original_amount: item.total,
+      payment_method: paymentMethod === "card" ? "card" : paymentMethod === "wallet" ? "wallet" : "credit_terms",
+    });
+    if (!orderRes.success) {
+      setItemError(orderRes.error?.message ?? "Could not create order.");
+      return null;
     }
-    if (!item.seller_id) {
-      setItemError("Listing is missing seller information. Cannot create order.");
-      return;
+    const newId = extractId(orderRes, "order_id") || "";
+    if (!newId) {
+      setItemError("Order created but no order_id returned.");
+      return null;
     }
-    setProcessing(true);
+    setOrderId(newId);
+    return newId;
+  }
 
-    let orderId = orderIdParam;
-    if (!orderId) {
-      const orderRes = await callTool("orders.create_order", {
-        listing_id: item.listing_id,
-        buyer_id: user.userId,
-        seller_id: item.seller_id,
-        quantity: Number(item.quantity),
-        unit: item.unit,
-        original_amount: item.total,
-        payment_method: paymentMethod === "card" ? "card" : paymentMethod === "wallet" ? "wallet" : "credit_terms",
+  // Step 2 entry for the card method: allocate the PaymentIntent so the
+  // PaymentElement has a clientSecret to mount against. Skips when stripe
+  // isn't configured (UI degrades to a fallback message), when we already
+  // have a clientSecret, or when the user is on a non-card method.
+  useEffect(() => {
+    if (step !== 2 || paymentMethod !== "card") return;
+    if (!stripeReady) return;
+    if (!effectiveTax || !item || !user?.userId) return;
+    if (clientSecret || allocLoading) return;
+    let cancelled = false;
+    (async () => {
+      setAllocLoading(true);
+      setAllocError("");
+      const id = await ensureOrder();
+      if (cancelled) return;
+      if (!id) {
+        setAllocLoading(false);
+        return;
+      }
+      const res = await callTool("payments.create_payment_intent", {
+        user_id: user.userId,
+        actor_id: user.userId,
+        order_id: id,
+        amount: grandTotal,
+        currency: "CAD",
       });
-      if (!orderRes.success) {
-        setProcessing(false);
-        setItemError(orderRes.error?.message ?? "Could not create order.");
+      if (cancelled) return;
+      if (!res.success) {
+        setAllocError(res.error?.message ?? "Could not start card payment.");
+        setAllocLoading(false);
         return;
       }
-      orderId = extractId(orderRes, "order_id") || "";
-      if (!orderId) {
-        setProcessing(false);
-        setItemError("Order created but no order_id returned.");
+      const data = res.data as Record<string, unknown> | undefined;
+      const cs = String(data?.client_secret ?? "");
+      const tx = String(data?.transaction_id ?? "");
+      if (!cs || !tx) {
+        setAllocError("Payment service did not return a client secret.");
+        setAllocLoading(false);
         return;
       }
-    }
+      setClientSecret(cs);
+      setTransactionId(tx);
+      setAllocLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, paymentMethod, stripeReady, grandTotal, effectiveTax?.grand_total]);
 
-    const paymentRes = await callTool("payments.process_payment", {
-      user_id: user.userId,
-      actor_id: user.userId,
-      amount: grandTotal,
-      payment_method: paymentMethod,
-      order_id: orderId,
+  // Going back to step 1 invalidates any allocated PI (the user might switch
+  // amounts or methods). We don't actively cancel the PI on Stripe — it
+  // expires in 24h or is reaped by the reconciliation cron in PR 6.
+  useEffect(() => {
+    if (step === 1 && clientSecret) {
+      setClientSecret("");
+      setTransactionId("");
+      setAllocError("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // Post-payment finalisation: invoice + escrow + step 3. Used by every
+  // payment method. The card flow calls this after stripe.confirmPayment
+  // succeeds; wallet/credit/interac call it after process_payment.
+  async function finalizeAfterPayment(orderIdToUse: string): Promise<void> {
+    if (!item || !effectiveTax || !user?.userId) return;
+    const invoiceRes = await callTool("tax.generate_invoice", {
+      order_id: orderIdToUse,
+      seller_id: item.seller_id,
+      buyer_id: user.userId,
+      seller_province: effectiveTax.province_seller,
+      buyer_province: effectiveTax.province_buyer,
+      subtotal: effectiveTax.subtotal,
+      commission_amount: effectiveTax.commission,
     });
-    if (!paymentRes.success) {
-      setProcessing(false);
-      setItemError(paymentRes.error?.message ?? "Payment failed. Please try again.");
+    if (!invoiceRes.success) {
+      setItemError(invoiceRes.error?.message ?? "Could not issue invoice.");
       return;
     }
-
-    const invoiceRes = await callTool("tax.generate_invoice", {
-      order_id: orderId,
-      amount: effectiveTax.subtotal,
-      tax_amount: effectiveTax.total_tax,
-      province_buyer: effectiveTax.province_buyer,
-      province_seller: effectiveTax.province_seller,
-    });
-    const inv =
-      extractId(invoiceRes, "invoice_number") ||
-      generateInvoiceNumber(
-        new Date().getFullYear(),
-        Math.floor(Math.random() * 999) + 1
-      );
+    const inv = extractId(invoiceRes, "invoice_number");
+    if (!inv) {
+      setItemError("Invoice was created but no invoice number was returned.");
+      return;
+    }
 
     const escrowRes = await callTool("escrow.create_escrow", {
-      order_id: orderId,
+      order_id: orderIdToUse,
       buyer_id: user.userId,
       seller_id: item.seller_id,
       amount: grandTotal,
@@ -248,6 +303,43 @@ export default function CheckoutPage() {
     setInvoiceNumber(inv);
     setEscrowId(esc);
     setStep(3);
+  }
+
+  // Non-card path (wallet / credit / interac). Card goes through the
+  // PaymentElement form and calls finalizeAfterPayment in its onSuccess.
+  async function handleNonCardPayment(): Promise<void> {
+    if (!item || !effectiveTax) return;
+    if (!user?.userId) {
+      setItemError("Sign in to complete checkout.");
+      return;
+    }
+    if (!item.seller_id) {
+      setItemError("Listing is missing seller information. Cannot create order.");
+      return;
+    }
+    setProcessing(true);
+    setItemError("");
+
+    const id = await ensureOrder();
+    if (!id) {
+      setProcessing(false);
+      return;
+    }
+
+    const paymentRes = await callTool("payments.process_payment", {
+      user_id: user.userId,
+      actor_id: user.userId,
+      amount: grandTotal,
+      payment_method: paymentMethod,
+      order_id: id,
+    });
+    if (!paymentRes.success) {
+      setProcessing(false);
+      setItemError(paymentRes.error?.message ?? "Payment failed. Please try again.");
+      return;
+    }
+
+    await finalizeAfterPayment(id);
     setProcessing(false);
   }
 
@@ -294,7 +386,7 @@ export default function CheckoutPage() {
       />
 
       {itemError && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {itemError}
         </div>
       )}
@@ -310,12 +402,12 @@ export default function CheckoutPage() {
               <div className="flex flex-col items-center">
                 <div
                   className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold shrink-0 ${
-                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-night-700 text-fg-subtle"
+                    done ? "bg-emerald-500 text-white" : active ? "bg-blue-600 text-white" : "bg-night-700 text-night-300"
                   }`}
                 >
                   {done ? "✓" : s}
                 </div>
-                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-brand-400" : done ? "text-emerald-600" : "text-fg-subtle"}`}>
+                <p className={`mt-1 text-xs font-medium whitespace-nowrap ${active ? "text-brand-400" : done ? "text-emerald-600" : "text-night-300"}`}>
                   {label}
                 </p>
               </div>
@@ -329,24 +421,35 @@ export default function CheckoutPage() {
       {step === 1 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Order Details</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Order Details</h2>
             <div className="flex items-start gap-4 mb-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
                 <Image src="/grphs/Icons/cart-i-cart.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" aria-hidden />
               </div>
               <div>
-                <p className="font-semibold text-fg">{item.title}</p>
-                <p className="text-sm text-fg-subtle">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
+                <p className="font-semibold text-night-100">{item.title}</p>
+                <p className="text-sm text-night-300">{item.quantity} {item.unit} @ {formatCAD(item.unit_price)}/{item.unit}</p>
                 <Badge variant="gray" className="mt-1">{item.material_category}</Badge>
               </div>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Price Breakdown</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Price Breakdown</h2>
             {taxLoading ? (
               <div className="flex justify-center py-6">
                 <Spinner className="h-6 w-6 text-blue-500" />
+              </div>
+            ) : !effectiveTax ? (
+              <div className="space-y-3 rounded-xl border border-danger-500/30 bg-danger-500/10 p-4 text-sm text-danger-400">
+                <p>{taxError || "Could not calculate tax for this order."}</p>
+                <button
+                  type="button"
+                  onClick={() => setTaxRetryKey((k) => k + 1)}
+                  className="font-semibold text-brand-400 underline-offset-2 hover:underline"
+                >
+                  Retry tax calculation
+                </button>
               </div>
             ) : (
               <div className="space-y-2">
@@ -362,7 +465,7 @@ export default function CheckoutPage() {
                 {effectiveTax.gst > 0 && <TaxLine label="GST (5%)" value={formatCAD(effectiveTax.gst)} sub />}
                 {effectiveTax.pst > 0 && <TaxLine label="PST (7%)" value={formatCAD(effectiveTax.pst)} sub />}
                 <TaxLine label="Est. shipping (Day & Ross)" value={formatCAD(shippingEstimate)} sub />
-                <div className="flex justify-between border-t border-line pt-3 font-bold text-fg text-base">
+                <div className="flex justify-between border-t border-night-700 pt-3 font-bold text-night-100 text-base">
                   <span>Total</span>
                   <span className="text-blue-600">{formatCAD(grandTotal)}</span>
                 </div>
@@ -370,7 +473,12 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          <Button size="lg" className="w-full" onClick={() => setStep(2)}>
+          <Button
+            size="lg"
+            className="w-full"
+            onClick={() => setStep(2)}
+            disabled={!canCheckout}
+          >
             Continue to Payment <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -380,8 +488,26 @@ export default function CheckoutPage() {
       {step === 2 && (
         <div className="space-y-5">
           <div className="marketplace-card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-fg-subtle">Select Payment Method</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-night-300">Select Payment Method</h2>
             <div className="space-y-3">
+              <PaymentOption
+                id="interac"
+                icon={<Wallet className="h-5 w-5" />}
+                label="Interac e-Transfer"
+                description="Instant Canadian bank-to-bank transfer — most common for B2B scrap"
+                selected={paymentMethod === "interac"}
+                onSelect={() => setPaymentMethod("interac")}
+              />
+              {paymentMethod === "interac" && (
+                <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4 space-y-2 text-sm">
+                  <p className="font-semibold text-night-100">Send Interac e-Transfer to:</p>
+                  <p className="font-mono text-brand-400">payments@matex.ca</p>
+                  <p className="text-night-300 text-xs">
+                    Use your order number as the message/memo. Matex will confirm receipt and release escrow within 1
+                    business hour. Funds are held in escrow until delivery is confirmed.
+                  </p>
+                </div>
+              )}
               <PaymentOption
                 id="card"
                 icon={<CreditCard className="h-5 w-5" />}
@@ -391,20 +517,46 @@ export default function CheckoutPage() {
                 onSelect={() => setPaymentMethod("card")}
               />
               {paymentMethod === "card" && (
-                <div className="ml-9 rounded-lg border border-line bg-canvas p-4">
-                  <div className="space-y-3">
-                    <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
-                      Stripe Elements — Card Number (placeholder)
+                <div className="ml-9 rounded-lg border border-night-700 bg-night-900 p-4">
+                  {!stripeReady ? (
+                    <p className="text-xs text-night-300">
+                      Card payments are not configured for this environment. Set
+                      <code className="mx-1 rounded bg-night-850 px-1.5 py-0.5 font-mono text-[11px] text-brand-400">NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>
+                      or pick a different payment method.
+                    </p>
+                  ) : allocLoading ? (
+                    <div className="flex items-center gap-3 py-2 text-sm text-night-300">
+                      <Spinner className="h-4 w-4 text-blue-500" />
+                      Preparing secure card form…
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
-                        Expiry
-                      </div>
-                      <div className="h-10 rounded border-2 border-dashed border-line-strong bg-surfaceBg flex items-center justify-center text-xs text-fg-subtle">
-                        CVC
-                      </div>
+                  ) : allocError ? (
+                    <div className="space-y-2 text-sm">
+                      <p className="text-danger-400">{allocError}</p>
+                      <button
+                        type="button"
+                        onClick={() => { setClientSecret(""); setAllocError(""); }}
+                        className="text-xs font-semibold text-brand-400 underline-offset-2 hover:underline"
+                      >
+                        Try again
+                      </button>
                     </div>
-                  </div>
+                  ) : clientSecret ? (
+                    <StripeProvider clientSecret={clientSecret}>
+                      <CardPaymentForm
+                        amount={grandTotal}
+                        disabled={!canCheckout}
+                        onSuccess={async () => {
+                          if (!orderId) return;
+                          setProcessing(true);
+                          setItemError("");
+                          await finalizeAfterPayment(orderId);
+                          setProcessing(false);
+                        }}
+                      />
+                    </StripeProvider>
+                  ) : (
+                    <p className="text-xs text-night-300">Continue to start the card flow.</p>
+                  )}
                 </div>
               )}
               <PaymentOption
@@ -431,10 +583,22 @@ export default function CheckoutPage() {
             <Button size="lg" variant="secondary" className="flex-1" onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button size="lg" className="flex-1" loading={processing} onClick={handleConfirm}>
-              <Shield className="h-4 w-4" />
-              Pay {formatCAD(grandTotal)}
-            </Button>
+            {paymentMethod !== "card" && (
+              // Card flow uses CardPaymentForm's submit button (above) which
+              // confirms the PaymentIntent via stripe.confirmPayment before
+              // running finalizeAfterPayment. Wallet / credit / interac use
+              // this synchronous path through process_payment.
+              <Button
+                size="lg"
+                className="flex-1"
+                loading={processing}
+                disabled={!canCheckout}
+                onClick={handleNonCardPayment}
+              >
+                <Shield className="h-4 w-4" />
+                Pay {formatCAD(grandTotal)}
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -451,38 +615,40 @@ export default function CheckoutPage() {
               height={80}
               className="mx-auto -mb-2 h-auto w-auto max-w-full opacity-90"
             />
-            <div
+            <Image
+              src="/grphs/Platform%20Domains/payments-d-payments.png"
+              alt=""
               aria-hidden
-              className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-success-500/40 bg-success-500/15 text-success-400"
-            >
-              <Wallet size={32} />
-            </div>
+              width={220}
+              height={140}
+              className="mx-auto mb-3 h-auto w-auto max-w-full"
+            />
             <h2 className="text-xl font-bold text-success-400">Order Confirmed!</h2>
             <p className="mt-1 text-sm text-success-400">Payment processed. Funds are now in escrow.</p>
           </div>
 
           <div className="marketplace-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-fg-subtle">Invoice Number</span>
+              <span className="text-sm text-night-300">Invoice Number</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-fg">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
+                <span className="font-mono text-sm font-semibold text-night-100">{invoiceNumber || `MTX-${new Date().getFullYear()}-000001`}</span>
                 <button onClick={() => { navigator.clipboard.writeText(invoiceNumber); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-fg-subtle" />}
+                  {copied ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4 text-night-300" />}
                 </button>
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-fg-subtle">Escrow Status</span>
+              <span className="text-sm text-night-300">Escrow Status</span>
               <Badge variant="info">Funds Held</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-fg-subtle">Amount</span>
-              <span className="font-bold text-fg">{formatCAD(grandTotal)}</span>
+              <span className="text-sm text-night-300">Amount</span>
+              <span className="font-bold text-night-100">{formatCAD(grandTotal)}</span>
             </div>
           </div>
 
           <div className="marketplace-card p-5">
-            <h3 className="text-sm font-semibold text-fg-muted mb-4">Next Steps</h3>
+            <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>
             <ol className="space-y-3">
               {[
                 { label: "Book inspection", href: "/inspections", cta: "Schedule" },
@@ -494,7 +660,7 @@ export default function CheckoutPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="text-sm text-fg-muted">{s.label}</span>
+                    <span className="text-sm text-night-200">{s.label}</span>
                   </div>
                   <a href={s.href} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
                     {s.cta} <ArrowRight className="h-3 w-3" />
@@ -513,9 +679,88 @@ export default function CheckoutPage() {
   );
 }
 
+/**
+ * Card-payment form. Mounted under <StripeProvider> so useStripe() and
+ * useElements() resolve. The submit handler calls stripe.confirmPayment
+ * with the clientSecret already on the Elements provider; we don't need
+ * elements.submit() because we're using the immediate-PI pattern (PI was
+ * created server-side before this form mounted).
+ *
+ * `redirect: "if_required"` lets Stripe.js auto-handle 3DS in an iframe
+ * when needed and only return here on terminal status. On `succeeded` we
+ * call onSuccess(); the durable transaction status flips to `completed`
+ * via the Stripe webhook (existing /api/stripe/webhook handler) — the
+ * Stripe.js result is a hint, the webhook is the source of truth.
+ */
+function CardPaymentForm({
+  amount,
+  disabled,
+  onSuccess,
+}: {
+  amount: number;
+  disabled: boolean;
+  onSuccess: () => Promise<void>;
+}): JSX.Element {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        // If Stripe needs to redirect for 3DS the user comes back here.
+        return_url: `${window.location.origin}/checkout?return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    // Defensive: if Stripe returned without an error but the PI isn't
+    // succeeded (e.g. requires_action under non-redirect scenarios), surface
+    // a friendly message and stay on this step.
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    await onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement options={{ layout: "tabs" }} />
+      {error && (
+        <div className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-xs text-danger-400">
+          {error}
+        </div>
+      )}
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full"
+        loading={submitting}
+        disabled={disabled || !stripe || !elements || submitting}
+      >
+        <Shield className="h-4 w-4" />
+        Pay {new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount)}
+      </Button>
+    </form>
+  );
+}
+
 function TaxLine({ label, value, sub = false }: { label: string; value: string; sub?: boolean }) {
   return (
-    <div className={`flex justify-between text-sm ${sub ? "text-fg-subtle" : "text-fg-muted font-medium"}`}>
+    <div className={`flex justify-between text-sm ${sub ? "text-night-300" : "text-night-200 font-medium"}`}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
@@ -542,14 +787,14 @@ function PaymentOption({
   return (
     <label
       className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
-        selected ? "border-blue-500 bg-brand-500/10" : "border-line hover:border-line-strong"
+        selected ? "border-blue-500 bg-brand-500/10" : "border-night-700 hover:border-night-600"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input type="radio" name="checkout-payment" value={id} checked={selected} onChange={onSelect} disabled={disabled} className="sr-only" />
-      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-fg-subtle"}`}>{icon}</div>
+      <div className={`shrink-0 ${selected ? "text-blue-600" : "text-night-300"}`}>{icon}</div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${selected ? "text-blue-900" : "text-fg-muted"}`}>{label}</p>
-        <p className="text-xs text-fg-subtle">{description}</p>
+        <p className={`text-sm font-medium ${selected ? "text-info-400" : "text-night-200"}`}>{label}</p>
+        <p className="text-xs text-night-300">{description}</p>
       </div>
       {selected && <CheckCircle className="h-5 w-5 text-blue-600 shrink-0" />}
     </label>

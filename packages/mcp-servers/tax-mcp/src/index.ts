@@ -77,10 +77,6 @@ function calculateProvincialTax(buyerProvince: string, amount: number): TaxBreak
   return { gst, hst, pst, qst, total_tax, tax_type: rates.type };
 }
 
-function generateInvoiceNumber(year: number, seq: number): string {
-  return `MTX-${year}-${String(seq).padStart(6, "0")}`;
-}
-
 const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -129,23 +125,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const commissionTax = commissionAmount > 0 ? calculateProvincialTax(buyerProvince, commissionAmount) : { gst: 0, hst: 0, pst: 0, qst: 0, total_tax: 0 };
     const totalAmount = Number((subtotal + taxBreakdown.total_tax).toFixed(2));
 
-    const currentYear = new Date().getFullYear();
     const issueDate = now();
     const dueDate = new Date(Date.now() + 30 * 86400000).toISOString();
 
-    // Use PostgreSQL sequence for collision-free invoice numbering.
-    let nextSeq: number;
-    const seqResult = await supabase.rpc("next_invoice_seq");
-    if (seqResult.error || seqResult.data == null) {
-      // Fallback: COUNT + 1 (acceptable only when sequence RPC is unavailable).
-      const countResult = await supabase.schema("tax_mcp").from("invoices")
-        .select("invoice_number", { count: "exact" })
-        .like("invoice_number", `MTX-${currentYear}-%`);
-      nextSeq = (countResult.count ?? 0) + 1;
-    } else {
-      nextSeq = Number(seqResult.data);
+    // Atomic, year-aware MTX-YYYY-NNNNNN allocation. The previous code paired
+    // a sequence RPC with a COUNT(*) fallback that races under concurrent
+    // checkouts and a sequence that never reset by year. See migration
+    // 20260510000000_invoice_number_year_atomic.sql and audit P0-7.
+    const seqResult = await supabase.rpc("next_invoice_number");
+    if (seqResult.error || typeof seqResult.data !== "string" || !seqResult.data) {
+      return fail("DB_ERROR", "Could not allocate invoice number.");
     }
-    const invoiceNumber = generateInvoiceNumber(currentYear, nextSeq);
+    const invoiceNumber = seqResult.data;
 
     const lineItems = Array.isArray(args.line_items) && args.line_items.length > 0
       ? args.line_items

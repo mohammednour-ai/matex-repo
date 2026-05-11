@@ -147,6 +147,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       inputSchema: { type: "object", properties: {} },
     },
     {
+      name: "get_retention_status",
+      description: "Compute the FINTRAC / PCMLTFA record-retention checklist for a user. Replaces the hardcoded list in /compliance with real DB counts. Refs: docs/audit/2026-05-10/report.md §2.3 P1-5.",
+      inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] },
+    },
+    {
       name: "ping",
       description: "Health check",
       inputSchema: { type: "object", properties: {} },
@@ -207,6 +212,128 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return {
       content: [{ type: "text", text: JSON.stringify({ success: true, valid, broken_at: brokenAt }) }],
     };
+  }
+
+  if (tool === "get_retention_status") {
+    // Replaces the hardcoded RETENTION_CHECKS in apps/web-v2's compliance
+    // page. Five of six checks now come from live DB counts (transaction
+    // records, KYC docs, beneficial ownership, LCTR-eligible transactions,
+    // STR filings); catalytic-converter serial coverage stays as a static
+    // "see Listings > Create" prompt because cross-tenant resolution
+    // through yardops_mcp.cat_converters needs more design.
+    const userId = String(args.user_id ?? "");
+    if (!userId) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: JSON.stringify({ success: false, error: { code: "VALIDATION_ERROR", message: "user_id is required." } }) }],
+      };
+    }
+    if (!supabase) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: JSON.stringify({ success: false, error: { code: "CONFIG_ERROR", message: "Supabase service role is required for get_retention_status." } }) }],
+      };
+    }
+
+    const [txs, kycDocs, companies, lctrEligible, strs] = await Promise.all([
+      supabase
+        .schema("payments_mcp")
+        .from("transactions")
+        .select("transaction_id", { count: "exact", head: true })
+        .eq("payer_id", userId),
+      supabase
+        .schema("kyc_mcp")
+        .from("documents")
+        .select("document_id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .schema("profile_mcp")
+        .from("companies")
+        .select("company_id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .schema("payments_mcp")
+        .from("transactions")
+        .select("transaction_id", { count: "exact", head: true })
+        .eq("payer_id", userId)
+        .gte("amount", 10000),
+      supabase
+        .schema("log_mcp")
+        .from("audit_log")
+        .select("log_id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .or("action.eq.compliance.str_filed,event_name.eq.compliance.str_filed"),
+    ]);
+
+    const txCount = txs.count ?? 0;
+    const kycCount = kycDocs.count ?? 0;
+    const companyCount = companies.count ?? 0;
+    const lctrCount = lctrEligible.count ?? 0;
+    const strCount = strs.count ?? 0;
+
+    const checks = [
+      {
+        id: "transaction_records",
+        label: "Transaction records (5 years)",
+        description: "All payment and order records are stored in the Matex audit log with tamper-evident hashing.",
+        count: txCount,
+        ok: true,
+        // Even with zero transactions the retention obligation is "ok" — there's
+        // nothing to retain yet. We surface the count so operators see the gauge.
+        action: txCount === 0 ? "No transactions yet — records will accrue as you trade." : "",
+      },
+      {
+        id: "client_identification",
+        label: "Client identification records",
+        description: "KYC Level 1 documents (government-issued ID) retained for 5 years from end of relationship.",
+        count: kycCount,
+        ok: kycCount > 0,
+        action: kycCount === 0 ? "Upload your government-issued ID via Settings → KYC & Verification." : "",
+      },
+      {
+        id: "beneficial_ownership",
+        label: "Beneficial ownership (corporate accounts)",
+        description: "Articles of incorporation and corporate structure for KYC Level 3 corporate accounts.",
+        count: companyCount,
+        // Only applicable when the user is corporate. If no company is on file
+        // the requirement doesn't apply, so we mark it "ok" by convention.
+        ok: companyCount === 0,
+        action: companyCount > 0 ? "Required for corporate accounts — collect via KYC Level 3 verification in Settings." : "",
+      },
+      {
+        id: "catalytic_serials",
+        label: "Catalytic converter serial records",
+        description: "Serial number, VIN, and photo documentation for all catalytic converter transactions.",
+        count: 0,
+        // Static reminder — catalytic listings live in yardops_mcp.cat_converters
+        // under a tenant scope that we don't resolve from the user_id here.
+        // Tracked as a follow-up in docs/audit/2026-05-10/p1-p2-plan.md.
+        ok: false,
+        action: "Catalytic converter compliance fields are required on listings — see Listings > Create.",
+      },
+      {
+        id: "str_filings",
+        label: "Suspicious transaction logs",
+        description: "STR filings are retained in the compliance audit trail for 5 years.",
+        count: strCount,
+        // STR filings are exception-driven; zero is normal and acceptable.
+        ok: true,
+        action: "",
+      },
+      {
+        id: "lctr_reports",
+        label: "FINTRAC reports (LCTRs)",
+        description: "Filed Large Cash Transaction Reports archived in the compliance record.",
+        count: lctrCount,
+        // Count here is LCTR-eligible transactions (≥ CAD $10,000).
+        // The actual filed-or-not distinction would require a column on
+        // payments_mcp.transactions that we don't have today.
+        ok: true,
+        action: lctrCount > 0 ? "Confirm all CAD $10,000+ transactions are filed with FINTRAC within 15 days." : "",
+      },
+    ];
+
+    return { content: [{ type: "text", text: JSON.stringify({ success: true, data: { checks } }) }] };
   }
 
   return {

@@ -129,7 +129,7 @@ export function CopilotPanel() {
           // On narrow viewports (e.g. iPhone SE @ 375px) the original 380px width
           // would overflow the right edge; cap to the viewport with a 1rem inset.
           "w-[min(380px,calc(100vw-2rem))] h-[min(500px,calc(100vh-6rem))]",
-          "rounded-2xl bg-surfaceBg shadow-2xl ring-1 ring-night-700",
+          "rounded-2xl bg-night-850 shadow-2xl ring-1 ring-night-700",
           "transition-all duration-200 origin-bottom-right",
           open
             ? "opacity-100 scale-100 pointer-events-auto"
@@ -137,14 +137,14 @@ export function CopilotPanel() {
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-line/60 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-night-700/60 shrink-0">
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
               <Bot className="h-4 w-4 text-white" />
             </div>
-            <span className="text-sm font-semibold text-fg">Matex AI</span>
+            <span className="text-sm font-semibold text-night-100">Matex AI</span>
             {userId && (
-              <span className="text-[10px] text-fg-subtle bg-elevated rounded-full px-2 py-0.5">
+              <span className="text-[10px] text-night-300 bg-night-800 rounded-full px-2 py-0.5">
                 {userId.slice(0, 8)}…
               </span>
             )}
@@ -152,19 +152,19 @@ export function CopilotPanel() {
           <button
             onClick={() => setOpen(false)}
             aria-label="Close AI panel"
-            className="rounded-md p-1 text-fg-subtle hover:bg-elevated hover:text-fg-muted transition-colors"
+            className="rounded-md p-1 text-night-300 hover:bg-night-800 hover:text-night-200 transition-colors"
           >
             <ChevronDown className="h-4 w-4" />
           </button>
         </div>
 
         {/* Quick chips */}
-        <div className="flex gap-1.5 px-4 py-2 overflow-x-auto shrink-0 border-b border-line/60">
+        <div className="flex gap-1.5 px-4 py-2 overflow-x-auto shrink-0 border-b border-night-700/60">
           {QUICK_CHIPS.map((chip) => (
             <button
               key={chip}
               onClick={() => sendMessage(chip)}
-              className="shrink-0 rounded-full border border-line px-3 py-1 text-xs text-fg-muted hover:bg-brand-500/10 hover:border-blue-300 hover:text-brand-400 transition-colors whitespace-nowrap"
+              className="shrink-0 rounded-full border border-night-700 px-3 py-1 text-xs text-night-200 hover:bg-brand-500/10 hover:border-info-500/40 hover:text-brand-400 transition-colors whitespace-nowrap"
             >
               {chip}
             </button>
@@ -174,7 +174,7 @@ export function CopilotPanel() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {messages.length === 0 && !loading && (
-            <p className="text-xs text-fg-subtle text-center mt-8">
+            <p className="text-xs text-night-300 text-center mt-8">
               Ask me anything about Matex — listings, prices, your wallet, and more.
             </p>
           )}
@@ -192,7 +192,7 @@ export function CopilotPanel() {
                   "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
                   msg.role === "user"
                     ? "bg-blue-600 text-white rounded-br-sm"
-                    : "bg-elevated text-fg rounded-bl-sm"
+                    : "bg-night-800 text-night-100 rounded-bl-sm"
                 )}
               >
                 {msg.content}
@@ -207,9 +207,9 @@ export function CopilotPanel() {
 
           {loading && (
             <div className="flex items-start gap-2">
-              <div className="bg-elevated rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-2">
-                <Spinner className="w-3.5 h-3.5 text-fg-subtle" />
-                <span className="text-xs text-fg-subtle">Thinking…</span>
+              <div className="bg-night-800 rounded-2xl rounded-bl-sm px-3.5 py-2 flex items-center gap-2">
+                <Spinner className="w-3.5 h-3.5 text-night-300" />
+                <span className="text-xs text-night-300">Thinking…</span>
               </div>
             </div>
           )}
@@ -218,7 +218,7 @@ export function CopilotPanel() {
         </div>
 
         {/* Input */}
-        <div className="shrink-0 border-t border-line/60 px-3 py-2.5">
+        <div className="shrink-0 border-t border-night-700/60 px-3 py-2.5">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -232,7 +232,7 @@ export function CopilotPanel() {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask anything…"
               disabled={loading}
-              className="flex-1 rounded-xl border border-line bg-canvas px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-colors disabled:opacity-60"
+              className="flex-1 rounded-xl border border-night-700 bg-night-900 px-3 py-2 text-sm text-night-100 placeholder:text-night-300 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-colors disabled:opacity-60"
             />
             <button
               type="submit"

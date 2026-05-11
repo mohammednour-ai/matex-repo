@@ -56,10 +56,16 @@ const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
 
 function statusBadge(status: InspectionStatus, result?: string) {
   const ICON_CLASS = "mr-1 h-3 w-3";
+  // inspection_mcp.complete_inspection sets status='completed' regardless of
+  // result, so a failed inspection has status='completed' + result='fail'.
+  // The standalone status==='failed' branch below is kept as a safety net
+  // for legacy rows that may have been written with that status directly.
   if (status === "completed" && result === "pass")
     return <Badge variant="success"><CheckCircle className={ICON_CLASS} aria-hidden />Passed</Badge>;
   if (status === "completed" && result === "conditional")
     return <Badge variant="warning"><AlertTriangle className={ICON_CLASS} aria-hidden />Conditional</Badge>;
+  if (status === "completed" && result === "fail")
+    return <Badge variant="danger"><XCircle className={ICON_CLASS} aria-hidden />Failed</Badge>;
   if (status === "failed")
     return <Badge variant="danger"><XCircle className={ICON_CLASS} aria-hidden />Failed</Badge>;
   if (status === "in_progress")
@@ -146,12 +152,27 @@ export default function InspectionsPage() {
     };
   }, []);
 
-  async function handleComplete(inspectionId: string): Promise<void> {
-    setActionLoading(inspectionId + "complete");
-    await callTool("inspection.complete_inspection", { inspection_id: inspectionId, result: "pass" });
-    setInspections((prev) =>
-      prev.map((i) => i.inspection_id === inspectionId ? { ...i, status: "completed", result: "pass" } : i)
-    );
+  // The inspection_mcp.complete_inspection tool accepts any result string,
+  // but the UI used to hardcode "pass" — meaning every completed inspection
+  // was recorded as passing regardless of what the inspector actually
+  // observed. Now the caller passes the chosen result; the row's three
+  // buttons (Pass / Conditional / Fail) each call this with their own value.
+  async function handleComplete(
+    inspectionId: string,
+    result: "pass" | "conditional" | "fail",
+  ): Promise<void> {
+    setActionLoading(`${inspectionId}-${result}`);
+    const res = await callTool("inspection.complete_inspection", {
+      inspection_id: inspectionId,
+      result,
+    });
+    if (res.success) {
+      setInspections((prev) =>
+        prev.map((i) =>
+          i.inspection_id === inspectionId ? { ...i, status: "completed", result } : i,
+        ),
+      );
+    }
     setActionLoading(null);
   }
 
@@ -217,7 +238,7 @@ export default function InspectionsPage() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {error}
         </div>
       )}
@@ -268,7 +289,7 @@ function InspectionRow({
   expanded: boolean;
   onToggle: () => void;
   actionLoading: string | null;
-  onComplete: (id: string) => Promise<void>;
+  onComplete: (id: string, result: "pass" | "conditional" | "fail") => Promise<void>;
   onFlagDiscrepancy: (id: string) => Promise<void>;
 }) {
   const discrepancy = weightDiscrepancy(insp.weights);
@@ -352,15 +373,43 @@ function InspectionRow({
           )}
 
           <div className="flex flex-wrap gap-2">
-            {insp.status === "scheduled" || insp.status === "in_progress" ? (
-              <Button
-                size="sm"
-                loading={actionLoading === insp.inspection_id + "complete"}
-                onClick={(e) => { e.stopPropagation(); onComplete(insp.inspection_id); }}
-              >
-                <CheckCircle className="h-3.5 w-3.5" /> Mark Complete
-              </Button>
-            ) : null}
+            {(insp.status === "scheduled" || insp.status === "in_progress") && (
+              <>
+                {/* Three result options instead of the old single "Mark
+                    Complete" that hardcoded result='pass'. Conditional and
+                    Fail are styled to discourage accidental clicks; the
+                    inspector picks the one that matches what they observed.
+                    Inspector notes / weight / deduction land in a future
+                    follow-up that adds a per-result detail dialog. */}
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={actionLoading === `${insp.inspection_id}-pass`}
+                  disabled={actionLoading?.startsWith(insp.inspection_id) ?? false}
+                  onClick={(e) => { e.stopPropagation(); onComplete(insp.inspection_id, "pass"); }}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" /> Pass
+                </Button>
+                <Button
+                  size="sm"
+                  variant="accent"
+                  loading={actionLoading === `${insp.inspection_id}-conditional`}
+                  disabled={actionLoading?.startsWith(insp.inspection_id) ?? false}
+                  onClick={(e) => { e.stopPropagation(); onComplete(insp.inspection_id, "conditional"); }}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" /> Conditional
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={actionLoading === `${insp.inspection_id}-fail`}
+                  disabled={actionLoading?.startsWith(insp.inspection_id) ?? false}
+                  onClick={(e) => { e.stopPropagation(); onComplete(insp.inspection_id, "fail"); }}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" /> Fail
+                </Button>
+              </>
+            )}
             {hasDiscrepancy && (
               <Button
                 size="sm"

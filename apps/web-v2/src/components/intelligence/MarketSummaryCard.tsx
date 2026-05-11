@@ -29,11 +29,11 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
   const unit = material?.unit ?? "mt";
   const series = (history ?? []).map((h) => h.lme_price ?? h.matex_avg_price ?? 0).filter((n) => n > 0);
   return (
-    <div className="rounded-2xl border border-line bg-surfaceBg p-5 shadow-sm transition-colors hover:border-brand-200">
+    <div className="rounded-2xl border border-night-700 bg-night-850 p-5 shadow-sm transition-colors hover:border-brand-500/30">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {material?.image ? (
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line/60 bg-canvas/60">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-night-700/60 bg-night-900/60">
               <Image
                 src={material.image}
                 alt=""
@@ -45,17 +45,17 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
             </span>
           ) : null}
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-fg-subtle">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-night-300">
               {material?.category === "ferrous"
                 ? "Ferrous"
                 : material?.category === "specialty"
                   ? "Specialty"
                   : "Non-ferrous"}
             </p>
-            <h3 className="mt-1 truncate text-base font-black tracking-tight text-fg">
+            <h3 className="mt-1 truncate text-base font-black tracking-tight text-night-100">
               {snapshot.material_label}
             </h3>
-            <p className="text-xs text-fg-subtle">Updated {formatRelativeAgo(snapshot.updated_at)}</p>
+            <p className="text-xs text-night-300">Updated {formatRelativeAgo(snapshot.updated_at)}</p>
           </div>
         </div>
         <TrendBadge trend={snapshot.trend} changePct={snapshot.lme_change_pct} />
@@ -116,7 +116,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
       <div className="mt-4 flex items-center justify-between gap-2">
         <Link
           href={`/market/${snapshot.material_key}`}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-900"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-400 hover:text-brand-300"
         >
           Open detail <ExternalLink className="h-3 w-3" />
         </Link>
@@ -124,7 +124,7 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
           <button
             type="button"
             onClick={() => onSetAlert(snapshot.material_key)}
-            className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs font-semibold text-fg-muted transition-colors hover:border-brand-400 hover:text-brand-700"
+            className="inline-flex items-center gap-1 rounded-full border border-night-700 px-3 py-1 text-xs font-semibold text-night-200 transition-colors hover:border-brand-400 hover:text-brand-400"
           >
             <Bell className="h-3 w-3" /> Set alert
           </button>
@@ -137,9 +137,9 @@ export function MarketSummaryCard({ snapshot, history, onSetAlert, compact = fal
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-fg-subtle">{label}</p>
-      <p className="mt-0.5 text-sm font-semibold text-fg">{value}</p>
-      {sub && <p className="text-[10px] text-fg-subtle">{sub}</p>}
+      <p className="text-[10px] font-bold uppercase tracking-wider text-night-300">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold text-night-100">{value}</p>
+      {sub && <p className="text-[10px] text-night-300">{sub}</p>}
     </div>
   );
 }

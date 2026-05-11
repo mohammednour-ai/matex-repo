@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <main className="mx-auto max-w-3xl px-6 py-16 text-fg">
       <Link
         href="/"
-        className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700 hover:text-brand-900"
+        className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-400 hover:text-brand-300"
       >
         ← Back to Matex
       </Link>
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
           Matex respects the privacy of every member of the marketplace. This
           policy explains what information we collect, how we use it, and the
           choices you have. If you have questions, please contact{" "}
-          <a className="text-brand-700 underline" href="mailto:privacy@matex.app">
+          <a className="text-brand-400 underline" href="mailto:privacy@matex.app">
             privacy@matex.app
           </a>
           .
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
           You can request access to or deletion of your personal data,
           subject to record-keeping requirements imposed on regulated
           marketplaces. Email{" "}
-          <a className="text-brand-700 underline" href="mailto:privacy@matex.app">
+          <a className="text-brand-400 underline" href="mailto:privacy@matex.app">
             privacy@matex.app
           </a>{" "}
           to make a request.

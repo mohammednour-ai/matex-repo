@@ -279,7 +279,7 @@ export default function ContractsPage() {
       </div>
 
       {contractsError && (
-        <div className="rounded-2xl border border-red-200 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+        <div className="rounded-2xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
           {contractsError}
         </div>
       )}
@@ -417,7 +417,7 @@ export default function ContractsPage() {
                     { label: "Jun", pct: 0 },
                   ].map((m) => (
                     <div key={m.label} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="w-full rounded-t bg-blue-200 transition-all" style={{ height: `${m.pct}%` }}>
+                      <div className="w-full rounded-t bg-info-500/30 transition-all" style={{ height: `${m.pct}%` }}>
                         {m.pct > 0 && <div className="h-full rounded-t bg-blue-600" style={{ height: `${Math.min(m.pct, 100)}%` }} />}
                       </div>
                       <p className="text-[10px] text-fg-subtle">{m.label}</p>
@@ -466,7 +466,7 @@ export default function ContractsPage() {
             )}
 
             {/* AI Contract Assistant */}
-            <div className="rounded-xl border border-blue-200 bg-brand-500/10 p-4">
+            <div className="rounded-xl border border-info-500/30 bg-brand-500/10 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
                   <Bot className="h-3.5 w-3.5" />

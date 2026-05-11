@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import clsx from "clsx";
@@ -23,7 +23,6 @@ import { MediaUploader } from "@/components/ui/MediaUploader";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
-import { ListingCreateOverview } from "@/components/listings/ListingCreateOverview";
 import { PriceRecommendation } from "@/components/intelligence/PriceRecommendation";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -130,6 +129,7 @@ const CATEGORIES: { name: string; icon: string | null }[] = [
   { name: "Ferrous Metals", icon: "/grphs/Materials/steel-coil-s-coil.png" },
   { name: "Non-Ferrous Metals", icon: "/grphs/Materials/aluminum-extrusion-s-alu.png" },
   { name: "Precious Metals", icon: "/grphs/Materials/copper-wire-spool-s-copper.png" },
+  { name: "Catalytic Converters", icon: null },
   { name: "Plastics", icon: "/grphs/Materials/plastics-s-plastics.png" },
   { name: "Electronics", icon: "/grphs/Materials/e-waste-electronics-s-ewaste.png" },
   { name: "Paper & Cardboard", icon: "/grphs/Materials/paper-cardboard-s-paper.png" },
@@ -158,6 +158,7 @@ const HAZMAT_CLASSES = [
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const PAYMENT_METHOD_OPTIONS = [
+  { value: "interac", label: "Interac e-Transfer (Canada)" },
   { value: "stripe", label: "Stripe (credit / debit card)" },
   { value: "bank_transfer", label: "Bank transfer (EFT/wire)" },
   { value: "wallet", label: "Matex wallet balance" },
@@ -199,7 +200,7 @@ function calcCommission(amount: number, mode: SaleMode): number {
 
 function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
-    <label className="block text-sm font-medium text-fg-muted mb-1.5">
+    <label className="block text-sm font-medium text-night-200 mb-1.5">
       {children}
       {required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
@@ -207,14 +208,14 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
 }
 
 function FieldHint({ children }: { children: React.ReactNode }) {
-  return <p className="mt-1 text-xs text-fg-subtle">{children}</p>;
+  return <p className="mt-1 text-xs text-night-300">{children}</p>;
 }
 
 const inputCls =
-  "w-full rounded-lg border border-line-strong px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors";
+  "w-full rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 placeholder:text-night-300 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors";
 
 const selectCls =
-  "w-full rounded-lg border border-line-strong px-3 py-2 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors bg-surfaceBg";
+  "w-full rounded-lg border border-night-600 px-3 py-2 text-sm text-night-100 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-500 transition-colors bg-night-850";
 
 function Slider({
   label,
@@ -231,7 +232,7 @@ function Slider({
     <div>
       <div className="flex justify-between items-center mb-1.5">
         <FieldLabel>{label}</FieldLabel>
-        <span className="text-sm font-semibold text-fg">{value}%</span>
+        <span className="text-sm font-semibold text-night-100">{value}%</span>
       </div>
       <input
         type="range"
@@ -250,7 +251,7 @@ function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex gap-2 rounded-lg bg-brand-500/10 border border-brand-100 px-3 py-2.5">
       <Info className="w-4 h-4 text-brand-500 mt-0.5 shrink-0" />
-      <p className="text-xs text-brand-700">{children}</p>
+      <p className="text-xs text-brand-400">{children}</p>
     </div>
   );
 }
@@ -264,50 +265,128 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+function AutoSaveBadge({
+  status,
+}: {
+  status: "idle" | "saving" | "saved" | "error";
+}) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-night-300">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        Auto-saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-success-400">
+        <Check className="w-3 h-3" />
+        Draft saved
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-warning-400">
+      <AlertCircle className="w-3 h-3" />
+      Auto-save failed (use Save & Continue)
+    </span>
+  );
+}
+
 // ─── Step progress bar ───────────────────────────────────────────────────────
 
 function StepBar({ current }: { current: number }) {
+  const totalSteps = STEPS.length;
   return (
-    <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-1">
-      {STEPS.map((s, idx) => {
-        const done = s.n < current;
-        const active = s.n === current;
-        const Icon = s.icon;
-        return (
-          <div key={s.n} className="flex items-center">
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className={clsx(
-                  "w-9 h-9 rounded-full flex items-center justify-center border-2 transition-colors shrink-0",
-                  done
-                    ? "bg-brand-600 border-brand-600 text-white"
-                    : active
-                    ? "bg-surfaceBg border-brand-600 text-brand-600"
-                    : "bg-surfaceBg border-line text-fg-subtle"
-                )}
-              >
-                {done ? <Check className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
+    <div className="step-bar relative mb-10 overflow-x-auto pb-2 pt-1">
+      <div className="flex items-start justify-between gap-1 min-w-max sm:min-w-0 px-1">
+        {STEPS.map((s, idx) => {
+          const done = s.n < current;
+          const active = s.n === current;
+          const Icon = s.icon;
+          const isLast = idx === STEPS.length - 1;
+          return (
+            <div key={s.n} className="flex flex-1 items-start" style={{ minWidth: 0 }}>
+              {/* Step block: circle + labels stacked vertically */}
+              <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+                <div className="relative flex items-center justify-center">
+                  {/* Pulsing glow ring on active step */}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="step-bar__pulse absolute inset-0 -m-2 rounded-full bg-brand-500/25"
+                    />
+                  )}
+                  <div
+                    className={clsx(
+                      "relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-[3px] shrink-0 transition-all duration-300",
+                      done &&
+                        "bg-brand-500 border-brand-500 text-white shadow-[0_8px_24px_-8px_rgba(232,119,34,0.55)]",
+                      active &&
+                        "bg-night-900 border-brand-500 text-brand-400 shadow-[0_0_0_4px_rgba(232,119,34,0.18),0_12px_28px_-12px_rgba(232,119,34,0.55)] scale-110",
+                      !done && !active && "bg-night-900 border-night-700 text-night-300",
+                    )}
+                  >
+                    {done ? (
+                      <Check className="w-6 h-6" strokeWidth={3} />
+                    ) : (
+                      <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                    )}
+                  </div>
+                </div>
+                {/* Step number */}
+                <span
+                  className={clsx(
+                    "text-[10px] font-black uppercase tracking-[0.18em] leading-none",
+                    active ? "text-brand-400" : done ? "text-brand-500/80" : "text-night-400",
+                  )}
+                >
+                  Step {s.n}
+                </span>
+                {/* Label */}
+                <span
+                  className={clsx(
+                    "text-sm sm:text-base font-bold whitespace-nowrap leading-tight transition-colors",
+                    active && "text-night-100",
+                    done && "text-night-200",
+                    !done && !active && "text-night-300",
+                  )}
+                >
+                  {s.label}
+                </span>
               </div>
-              <span
-                className={clsx(
-                  "text-[10px] font-medium whitespace-nowrap",
-                  active ? "text-brand-600" : done ? "text-fg-muted" : "text-fg-subtle"
-                )}
-              >
-                {s.label}
-              </span>
+              {/* Connector line between this step and next */}
+              {!isLast && (
+                <div className="relative mt-7 sm:mt-8 h-1 flex-1 mx-1 sm:mx-2 rounded-full bg-night-700 overflow-hidden">
+                  {/* Filled portion: brand if step is done, partial if step is active */}
+                  <div
+                    aria-hidden
+                    className={clsx(
+                      "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-brand-400 transition-all duration-500",
+                      done ? "w-full" : active ? "w-1/2" : "w-0",
+                    )}
+                  />
+                </div>
+              )}
             </div>
-            {idx < STEPS.length - 1 && (
-              <div
-                className={clsx(
-                  "h-0.5 w-8 sm:w-12 mx-1 mt-[-12px] transition-colors",
-                  done ? "bg-brand-600" : "bg-night-700"
-                )}
-              />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {/* Page-level progress meter (subtle, under the row) */}
+      <div className="mt-4 flex items-center gap-3 px-1">
+        <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-night-800">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 via-brand-400 to-brand-500 transition-all duration-500"
+            style={{ width: `${(current / totalSteps) * 100}%` }}
+            aria-hidden
+          />
+        </div>
+        <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.18em] text-night-300">
+          {current}/{totalSteps}
+        </span>
+      </div>
     </div>
   );
 }
@@ -364,12 +443,12 @@ function Step1({
                   className={clsx(
                     "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-medium transition-colors",
                     active
-                      ? "border-brand-500 bg-brand-500/10 text-brand-800 ring-2 ring-brand-200"
-                      : "border-line bg-surfaceBg text-fg-muted hover:border-brand-300 hover:bg-brand-500/40",
+                      ? "border-brand-500 bg-brand-500/10 text-brand-300 ring-2 ring-brand-200"
+                      : "border-night-700 bg-night-850 text-night-200 hover:border-brand-500/40 hover:bg-brand-500/40",
                   )}
                 >
                   {c.icon ? (
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-canvas overflow-hidden">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-night-900 overflow-hidden">
                       <Image src={c.icon} alt="" width={28} height={28} className="object-contain" />
                     </span>
                   ) : null}
@@ -392,7 +471,7 @@ function Step1({
                   "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                   data.materialType === t
                     ? "bg-brand-600 border-brand-600 text-white"
-                    : "bg-surfaceBg border-line text-fg-muted hover:border-line-strong hover:bg-canvas"
+                    : "bg-night-850 border-night-700 text-night-200 hover:border-night-600 hover:bg-night-900"
                 )}
               >
                 {t}
@@ -401,6 +480,71 @@ function Step1({
           </div>
         </div>
       </div>
+
+      {/* Catalytic converter regulatory fields — required by Bill C-36 and provincial regs */}
+      {data.category === "Catalytic Converters" && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-4">
+          <div className="flex items-start gap-2">
+            <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12A9 9 0 113 12a9 9 0 0118 0z" /></svg>
+            <div>
+              <p className="text-sm font-semibold text-amber-300">Regulatory compliance required</p>
+              <p className="text-xs text-amber-200/70 mt-0.5">
+                Catalytic converter listings require serial number documentation and seller identity verification under Bill C-36
+                (Combating Auto Theft Act) and provincial regulations.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <FieldLabel required>Converter serial number(s)</FieldLabel>
+              <input
+                className={inputCls}
+                placeholder="e.g. TOY-3S-001, FORD-F150-2019"
+                value={(data as unknown as Record<string, string>).catSerialNumbers ?? ""}
+                onChange={(e) => onChange({ catSerialNumbers: e.target.value } as Partial<FormData>)}
+              />
+              <FieldHint>Comma-separate multiple serial numbers. Visible on converter body.</FieldHint>
+            </div>
+            <div>
+              <FieldLabel>Vehicle VIN (if applicable)</FieldLabel>
+              <input
+                className={inputCls}
+                placeholder="17-character VIN"
+                maxLength={17}
+                value={(data as unknown as Record<string, string>).catVin ?? ""}
+                onChange={(e) => onChange({ catVin: e.target.value.toUpperCase() } as Partial<FormData>)}
+              />
+              <FieldHint>Required if converters came from a specific vehicle.</FieldHint>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-amber-600 bg-night-850 text-amber-500 focus:ring-amber-500 focus:ring-offset-0"
+                checked={Boolean((data as unknown as Record<string, boolean>).catIdVerified)}
+                onChange={(e) => onChange({ catIdVerified: e.target.checked } as Partial<FormData>)}
+              />
+              <span className="text-sm text-night-200">
+                <span className="font-semibold text-amber-300">Seller ID verified</span> — I have collected and retained
+                a copy of the seller&apos;s government-issued photo ID as required by applicable regulations.
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 rounded border-amber-600 bg-night-850 text-amber-500 focus:ring-amber-500 focus:ring-offset-0"
+                checked={Boolean((data as unknown as Record<string, boolean>).catPhotoUploaded)}
+                onChange={(e) => onChange({ catPhotoUploaded: e.target.checked } as Partial<FormData>)}
+              />
+              <span className="text-sm text-night-200">
+                <span className="font-semibold text-amber-300">Converter photos uploaded</span> — Photos showing the
+                serial number clearly are included in the listing media above.
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
 
       <div>
         <FieldLabel>Quality grade / ISRI code</FieldLabel>
@@ -455,16 +599,16 @@ function Step1({
         </div>
       </div>
 
-      <div className="rounded-xl border border-line p-4 space-y-3">
-        <p className="text-sm font-medium text-fg-muted">Environmental permits</p>
+      <div className="rounded-xl border border-night-700 p-4 space-y-3">
+        <p className="text-sm font-medium text-night-200">Environmental permits</p>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={data.hasPermit}
             onChange={(e) => onChange({ hasPermit: e.target.checked })}
-            className="rounded border-line-strong text-brand-600 focus:ring-brand-200"
+            className="rounded border-night-600 text-brand-400 focus:ring-brand-200"
           />
-          <span className="text-sm text-fg-muted">Has provincial transport permit</span>
+          <span className="text-sm text-night-200">Has provincial transport permit</span>
         </label>
         {data.hasPermit && (
           <input
@@ -497,7 +641,7 @@ function Step1({
           Save as draft
         </Button>
         {listingId && (
-          <span className="text-xs text-fg-subtle">Draft saved · ID: {listingId.slice(0, 8)}…</span>
+          <span className="text-xs text-night-300">Draft saved · ID: {listingId.slice(0, 8)}…</span>
         )}
       </div>
     </div>
@@ -565,31 +709,31 @@ function SaleModeCard({
         "w-full rounded-xl border-2 p-4 text-left transition-all",
         selected
           ? "border-brand-600 bg-brand-500/50 ring-1 ring-brand-200"
-          : "border-line bg-surfaceBg hover:border-line-strong hover:bg-canvas"
+          : "border-night-700 bg-night-850 hover:border-night-600 hover:bg-night-900"
       )}
     >
       <div className="flex items-start gap-3">
         <div
           className={clsx(
             "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-            selected ? "bg-brand-600 text-white" : "bg-elevated text-fg-subtle"
+            selected ? "bg-brand-600 text-white" : "bg-night-800 text-night-300"
           )}
         >
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <p className={clsx("font-semibold text-sm", selected ? "text-brand-700" : "text-fg")}>
+          <p className={clsx("font-semibold text-sm", selected ? "text-brand-400" : "text-night-100")}>
             {title}
           </p>
-          <p className="text-xs text-fg-subtle mt-0.5">{description}</p>
+          <p className="text-xs text-night-300 mt-0.5">{description}</p>
         </div>
         <div
           className={clsx(
             "w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center",
-            selected ? "border-brand-600 bg-brand-600" : "border-line-strong bg-surfaceBg"
+            selected ? "border-brand-600 bg-brand-600" : "border-night-600 bg-night-850"
           )}
         >
-          {selected && <div className="w-1.5 h-1.5 rounded-full bg-surfaceBg" />}
+          {selected && <div className="w-1.5 h-1.5 rounded-full bg-night-850" />}
         </div>
       </div>
     </button>
@@ -668,13 +812,13 @@ function Step3({
 
       {/* Mode-specific fields */}
       {data.saleMode === "fixed" && (
-        <div className="rounded-xl border border-line p-4 space-y-4">
-          <p className="text-sm font-semibold text-fg-muted">Fixed price settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Fixed price settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required>Asking price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number"
                   min={0}
@@ -689,7 +833,7 @@ function Step3({
             <div>
               <FieldLabel>Buy-now price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number"
                   min={0}
@@ -715,13 +859,13 @@ function Step3({
       )}
 
       {data.saleMode === "bidding" && (
-        <div className="rounded-xl border border-line p-4 space-y-4">
-          <p className="text-sm font-semibold text-fg-muted">Bidding settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Bidding settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel required>Starting bid (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -734,7 +878,7 @@ function Step3({
             <div>
               <FieldLabel>Reserve price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -749,7 +893,7 @@ function Step3({
             <div>
               <FieldLabel>Bid increment (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -773,13 +917,13 @@ function Step3({
       )}
 
       {data.saleMode === "auction" && (
-        <div className="rounded-xl border border-line p-4 space-y-4">
-          <p className="text-sm font-semibold text-fg-muted">Live auction settings</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-4">
+          <p className="text-sm font-semibold text-night-200">Live auction settings</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel>Reserve price (CAD)</FieldLabel>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-night-300 text-sm">$</span>
                 <input
                   type="number" min={0} step={0.01}
                   className={clsx(inputCls, "pl-7")}
@@ -803,7 +947,7 @@ function Step3({
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <FieldLabel>Deposit / downpayment %</FieldLabel>
-                <span className="text-sm font-semibold text-fg">{data.depositPct}%</span>
+                <span className="text-sm font-semibold text-night-100">{data.depositPct}%</span>
               </div>
               <input
                 type="range" min={0} max={50}
@@ -837,8 +981,8 @@ function Step3({
 
       {/* Publish schedule */}
       {data.saleMode !== "" && (
-        <div className="rounded-xl border border-line p-4 space-y-3">
-          <p className="text-sm font-semibold text-fg-muted">Publish schedule</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-3">
+          <p className="text-sm font-semibold text-night-200">Publish schedule</p>
           <div className="flex gap-2">
             {(["immediate", "scheduled"] as PublishMode[]).map((m) => (
               <button
@@ -849,7 +993,7 @@ function Step3({
                   "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                   data.publishMode === m
                     ? "bg-brand-600 border-brand-600 text-white"
-                    : "bg-surfaceBg border-line text-fg-muted hover:border-line-strong"
+                    : "bg-night-850 border-night-700 text-night-200 hover:border-night-600"
                 )}
               >
                 {m === "immediate" ? "Publish immediately" : "Schedule for later"}
@@ -965,11 +1109,11 @@ function Step4({
   return (
     <div className="space-y-5">
       {/* Inspection toggle */}
-      <div className="rounded-xl border border-line p-4 space-y-4">
+      <div className="rounded-xl border border-night-700 p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-fg">Inspection required</p>
-            <p className="text-xs text-fg-subtle mt-0.5">Buyers must schedule an inspection before purchase</p>
+            <p className="text-sm font-semibold text-night-100">Inspection required</p>
+            <p className="text-xs text-night-300 mt-0.5">Buyers must schedule an inspection before purchase</p>
           </div>
           <button
             type="button"
@@ -981,7 +1125,7 @@ function Step4({
           >
             <span
               className={clsx(
-                "inline-block h-4 w-4 transform rounded-full bg-surfaceBg transition-transform shadow",
+                "inline-block h-4 w-4 transform rounded-full bg-night-850 transition-transform shadow",
                 data.inspectionRequired ? "translate-x-6" : "translate-x-1"
               )}
             />
@@ -989,7 +1133,7 @@ function Step4({
         </div>
 
         {data.inspectionRequired && (
-          <div className="space-y-4 border-t border-line/60 pt-4">
+          <div className="space-y-4 border-t border-night-700/60 pt-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <FieldLabel>Inspection window</FieldLabel>
@@ -1028,7 +1172,7 @@ function Step4({
                       "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
                       data.inspectionDays.includes(day)
                         ? "bg-brand-600 border-brand-600 text-white"
-                        : "bg-surfaceBg border-line text-fg-muted hover:border-line-strong"
+                        : "bg-night-850 border-night-700 text-night-200 hover:border-night-600"
                     )}
                   >
                     {day}
@@ -1058,7 +1202,7 @@ function Step4({
 
       {/* Pickup address */}
       <div className="space-y-3">
-        <p className="text-sm font-semibold text-fg-muted">Pickup address</p>
+        <p className="text-sm font-semibold text-night-200">Pickup address</p>
         <input
           className={inputCls}
           placeholder="Street address"
@@ -1130,7 +1274,7 @@ function Step4({
       {/* Shipping estimates */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-fg-muted">Shipping estimates</p>
+          <p className="text-sm font-semibold text-night-200">Shipping estimates</p>
           <Button
             variant="secondary"
             size="sm"
@@ -1146,13 +1290,13 @@ function Step4({
             {quotes.map((q, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-lg border border-line px-4 py-3"
+                className="flex items-center justify-between rounded-lg border border-night-700 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-fg">{q.carrier}</p>
-                  <p className="text-xs text-fg-subtle">{q.transit}</p>
+                  <p className="text-sm font-medium text-night-100">{q.carrier}</p>
+                  <p className="text-xs text-night-300">{q.transit}</p>
                 </div>
-                <span className="font-semibold text-fg text-sm">
+                <span className="font-semibold text-night-100 text-sm">
                   ${q.price.toLocaleString("en-CA", { minimumFractionDigits: 2 })} CAD
                 </span>
               </div>
@@ -1221,11 +1365,11 @@ function Step5({
   return (
     <div className="space-y-5">
       {/* Escrow toggle */}
-      <div className="rounded-xl border border-line p-4">
+      <div className="rounded-xl border border-night-700 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-fg">Require escrow</p>
-            <p className="text-xs text-fg-subtle mt-0.5">
+            <p className="text-sm font-semibold text-night-100">Require escrow</p>
+            <p className="text-xs text-night-300 mt-0.5">
               Funds are held by Matex until delivery is confirmed
               {price >= 5000 && " — mandatory for orders ≥ $5,000 CAD"}
             </p>
@@ -1244,7 +1388,7 @@ function Step5({
           >
             <span
               className={clsx(
-                "inline-block h-4 w-4 transform rounded-full bg-surfaceBg transition-transform shadow",
+                "inline-block h-4 w-4 transform rounded-full bg-night-850 transition-transform shadow",
                 data.requireEscrow || price >= 5000 ? "translate-x-6" : "translate-x-1"
               )}
             />
@@ -1259,15 +1403,15 @@ function Step5({
           {PAYMENT_METHOD_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className="flex items-center gap-3 rounded-lg border border-line px-4 py-3 cursor-pointer hover:bg-canvas transition-colors"
+              className="flex items-center gap-3 rounded-lg border border-night-700 px-4 py-3 cursor-pointer hover:bg-night-900 transition-colors"
             >
               <input
                 type="checkbox"
                 checked={data.paymentMethods.includes(opt.value)}
                 onChange={() => togglePayment(opt.value)}
-                className="rounded border-line-strong text-brand-600 focus:ring-brand-200"
+                className="rounded border-night-600 text-brand-400 focus:ring-brand-200"
               />
-              <span className="text-sm text-fg-muted">{opt.label}</span>
+              <span className="text-sm text-night-200">{opt.label}</span>
             </label>
           ))}
         </div>
@@ -1278,7 +1422,7 @@ function Step5({
         <div>
           <div className="flex justify-between items-center mb-1.5">
             <FieldLabel>Down payment %</FieldLabel>
-            <span className="text-sm font-semibold text-fg">{data.downPaymentPct}%</span>
+            <span className="text-sm font-semibold text-night-100">{data.downPaymentPct}%</span>
           </div>
           <input
             type="range"
@@ -1323,35 +1467,35 @@ function Step5({
       </div>
 
       {taxPreview && (
-        <div className="rounded-xl border border-line p-4 space-y-2">
-          <p className="text-sm font-semibold text-fg-muted">Tax breakdown (estimated)</p>
+        <div className="rounded-xl border border-night-700 p-4 space-y-2">
+          <p className="text-sm font-semibold text-night-200">Tax breakdown (estimated)</p>
           {(taxPreview.gst_amount ?? taxPreview.gst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-fg-subtle">GST (5%)</span>
-              <span className="text-fg font-medium">${(Number(taxPreview.gst_amount ?? taxPreview.gst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">GST (5%)</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.gst_amount ?? taxPreview.gst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.hst_amount ?? taxPreview.hst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-fg-subtle">HST</span>
-              <span className="text-fg font-medium">${(Number(taxPreview.hst_amount ?? taxPreview.hst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">HST</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.hst_amount ?? taxPreview.hst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.pst_amount ?? taxPreview.pst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-fg-subtle">PST</span>
-              <span className="text-fg font-medium">${(Number(taxPreview.pst_amount ?? taxPreview.pst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">PST</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.pst_amount ?? taxPreview.pst ?? 0)).toFixed(2)}</span>
             </div>
           )}
           {(taxPreview.qst_amount ?? taxPreview.qst ?? 0) > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-fg-subtle">QST (9.975%)</span>
-              <span className="text-fg font-medium">${(Number(taxPreview.qst_amount ?? taxPreview.qst ?? 0)).toFixed(2)}</span>
+              <span className="text-night-300">QST (9.975%)</span>
+              <span className="text-night-100 font-medium">${(Number(taxPreview.qst_amount ?? taxPreview.qst ?? 0)).toFixed(2)}</span>
             </div>
           )}
-          <div className="border-t border-line/60 pt-2 flex justify-between text-sm font-semibold">
-            <span className="text-fg-muted">Total tax</span>
-            <span className="text-fg">${(Number(taxPreview.total_tax ?? taxPreview.total ?? 0)).toFixed(2)}</span>
+          <div className="border-t border-night-700/60 pt-2 flex justify-between text-sm font-semibold">
+            <span className="text-night-200">Total tax</span>
+            <span className="text-night-100">${(Number(taxPreview.total_tax ?? taxPreview.total ?? 0)).toFixed(2)}</span>
           </div>
           <FieldHint>Final tax calculated at checkout based on buyer province.</FieldHint>
         </div>
@@ -1359,11 +1503,11 @@ function Step5({
 
       {/* Commission summary */}
       {price > 0 && (
-        <div className="rounded-lg bg-canvas border border-line px-4 py-3 flex justify-between items-center">
-          <span className="text-sm text-fg-muted">
+        <div className="rounded-lg bg-night-900 border border-night-700 px-4 py-3 flex justify-between items-center">
+          <span className="text-sm text-night-200">
             Matex commission ({data.saleMode === "auction" ? "4.0%" : "3.5%"})
           </span>
-          <span className="font-bold text-fg">
+          <span className="font-bold text-night-100">
             ${commission.toLocaleString("en-CA", { minimumFractionDigits: 2 })} CAD
           </span>
         </div>
@@ -1376,9 +1520,9 @@ function Step5({
 
 function ReviewRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between items-start gap-3 py-2 border-b border-line/60 last:border-0">
-      <span className="text-xs text-fg-subtle shrink-0 w-36">{label}</span>
-      <span className="text-sm text-fg text-right">{value || <span className="text-fg-subtle italic">Not set</span>}</span>
+    <div className="flex justify-between items-start gap-3 py-2 border-b border-night-700/60 last:border-0">
+      <span className="text-xs text-night-300 shrink-0 w-36">{label}</span>
+      <span className="text-sm text-night-100 text-right">{value || <span className="text-night-300 italic">Not set</span>}</span>
     </div>
   );
 }
@@ -1395,13 +1539,13 @@ function ReviewSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-line p-4">
+    <div className="rounded-xl border border-night-700 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-fg-muted">{title}</p>
+        <p className="text-sm font-semibold text-night-200">{title}</p>
         <button
           type="button"
           onClick={() => onEdit(step)}
-          className="text-xs text-brand-600 hover:underline font-medium"
+          className="text-xs text-brand-400 hover:underline font-medium"
         >
           Edit
         </button>
@@ -1601,15 +1745,15 @@ function SuccessModal({
   const router = useRouter();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-surfaceBg rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+      <div className="bg-night-850 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center">
+        <div className="w-16 h-16 rounded-full bg-success-500/15 flex items-center justify-center mx-auto mb-5">
           <Check className="w-8 h-8 text-emerald-600" />
         </div>
-        <h2 className="text-xl font-bold text-fg mb-2">Listing published!</h2>
-        <p className="text-sm text-fg-subtle mb-2">
+        <h2 className="text-xl font-bold text-night-100 mb-2">Listing published!</h2>
+        <p className="text-sm text-night-300 mb-2">
           Your listing is now live on the Matex marketplace.
         </p>
-        <p className="text-xs text-fg-subtle font-mono bg-canvas rounded px-3 py-1.5 mb-6 border border-line inline-block">
+        <p className="text-xs text-night-300 font-mono bg-night-900 rounded px-3 py-1.5 mb-6 border border-night-700 inline-block">
           ID: {listingId}
         </p>
         <div className="flex flex-col gap-3">
@@ -1628,7 +1772,7 @@ function SuccessModal({
           </Button>
           <button
             onClick={onClose}
-            className="text-sm text-fg-subtle hover:text-fg-muted transition-colors"
+            className="text-sm text-night-300 hover:text-night-200 transition-colors"
           >
             Go to My Listings
           </button>
@@ -1639,6 +1783,8 @@ function SuccessModal({
 }
 
 // ─── Main wizard page ─────────────────────────────────────────────────────────
+
+type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
 
 export default function CreateListingPage() {
   const router = useRouter();
@@ -1652,6 +1798,13 @@ export default function CreateListingPage() {
   const [publishError, setPublishError] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [stepError, setStepError] = useState("");
+
+  // Auto-save state — separate from the manual `saving` flag so it doesn't
+  // dim the explicit Save & Continue button.
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedSnapshotRef = useRef<string>("");
+  const manualSaveInFlightRef = useRef(false);
 
   const patch = useCallback(
     (update: Partial<FormData>) => setFormData((prev) => ({ ...prev, ...update })),
@@ -1678,6 +1831,7 @@ export default function CreateListingPage() {
 
   const handleSaveDraft = async (): Promise<SaveDraftResult> => {
     setSaving(true);
+    manualSaveInFlightRef.current = true;
     setStepError("");
     try {
       const user = getUser();
@@ -1745,8 +1899,63 @@ export default function CreateListingPage() {
       return { ok: false, message: msg };
     } finally {
       setSaving(false);
+      manualSaveInFlightRef.current = false;
+      // After any manual save, snapshot what's saved so the auto-save
+      // effect doesn't immediately re-fire on the same content.
+      lastSavedSnapshotRef.current = JSON.stringify(formData);
+      setAutoSaveStatus("saved");
     }
   };
+
+  // ── Auto-save: silent debounced save once a draft listing exists ─────────
+  // Saves on any formData change after a 1500ms debounce. Won't run on step 1
+  // (no listingId yet) or step 6 (review only) or while a manual save is in
+  // flight. Errors are silenced — surfaced only in the status indicator.
+  useEffect(() => {
+    if (!listingId) return;                 // no draft to update yet
+    if (currentStep === 6) return;          // review step doesn't edit form
+    if (manualSaveInFlightRef.current) return;
+
+    const snapshot = JSON.stringify(formData);
+    if (snapshot === lastSavedSnapshotRef.current) return;
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (manualSaveInFlightRef.current) return;
+      setAutoSaveStatus("saving");
+      try {
+        const imageUrls = [
+          ...new Set([...formData.uploadedUrls, ...formData.auctionTermsUrls]),
+        ].filter(Boolean);
+        const res = await callTool("listing.update_listing", {
+          listing_id: listingId,
+          title: formData.title,
+          description: formData.description,
+          category: formData.category,
+          material_type: formData.materialType,
+          quality_grade: formData.qualityGrade,
+          contamination_pct: formData.contaminationPct,
+          moisture_pct: formData.moisturePct,
+          quantity: formData.quantity,
+          unit: formData.unit,
+          status: "draft",
+          ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
+        });
+        if (res.success) {
+          lastSavedSnapshotRef.current = snapshot;
+          setAutoSaveStatus("saved");
+        } else {
+          setAutoSaveStatus("error");
+        }
+      } catch {
+        setAutoSaveStatus("error");
+      }
+    }, 1500);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [formData, listingId, currentStep]);
 
   const canProceed = (): boolean => {
     if (currentStep === 1) return !!formData.title && !!formData.category;
@@ -1847,7 +2056,7 @@ export default function CreateListingPage() {
           <button
             type="button"
             onClick={() => router.push("/listings")}
-            className="mb-3 flex items-center gap-1.5 text-sm text-fg-subtle transition-colors hover:text-fg"
+            className="mb-3 flex items-center gap-1.5 text-sm text-night-300 transition-colors hover:text-night-100"
           >
             <ChevronLeft className="h-4 w-4" />
             My Listings
@@ -1859,14 +2068,12 @@ export default function CreateListingPage() {
           />
         </div>
 
-        <ListingCreateOverview />
-
         {/* Step progress */}
         <StepBar current={currentStep} />
 
         {/* Step card */}
         <div className="marketplace-card p-6 sm:p-8">
-          <h2 className="text-lg font-semibold text-fg mb-5">
+          <h2 className="text-lg font-semibold text-night-100 mb-5">
             {STEPS[currentStep - 1].label === "Material" && "Material Information"}
             {STEPS[currentStep - 1].label === "Photos" && "Photos & Videos"}
             {STEPS[currentStep - 1].label === "Sale Mode" && "Choose Sale Mode"}
@@ -1911,7 +2118,7 @@ export default function CreateListingPage() {
 
           {/* Navigation */}
           {currentStep < 6 && (
-            <div className="flex items-center justify-between mt-8 pt-5 border-t border-line/60">
+            <div className="flex items-center justify-between mt-8 pt-5 border-t border-night-700/60">
               <Button
                 variant="ghost"
                 onClick={handleBack}
@@ -1922,12 +2129,14 @@ export default function CreateListingPage() {
                 Back
               </Button>
               <div className="flex items-center gap-2">
-                {saving && (
-                  <span className="flex items-center gap-1.5 text-xs text-fg-subtle">
+                {saving ? (
+                  <span className="flex items-center gap-1.5 text-xs text-night-300">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Saving…
                   </span>
-                )}
+                ) : listingId && currentStep < 6 ? (
+                  <AutoSaveBadge status={autoSaveStatus} />
+                ) : null}
                 <Button onClick={handleNext} className="gap-1">
                   {currentStep === 5 ? "Review" : "Next"}
                   <ChevronRight className="w-4 h-4" />
@@ -1938,7 +2147,7 @@ export default function CreateListingPage() {
         </div>
 
         {/* Step indicator (text) */}
-        <p className="text-center text-xs text-fg-subtle mt-4">
+        <p className="text-center text-xs text-night-300 mt-4">
           Step {currentStep} of {STEPS.length}
         </p>
       </div>

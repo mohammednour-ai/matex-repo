@@ -1,0 +1,136 @@
+id,area,function,entry_point,ui_design,ui_biz_compliance,mcp_works,edge_works,transport_called,e2e_wired,db_ready,keys_ready,status,confidence
+1,Shell,Authed app gate,(app)/layout.tsx:95-129,green_mostly,verified,n/a,n/a,client_only,verified,n/a,n/a,partial,High
+2,Shell,Sidebar nav,(app)/layout.tsx:50-243,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+3,Shell,Sign out,(app)/layout.tsx:364-369,green_mostly,verified,n/a,n/a,api_route,verified,n/a,jwt,verified,High
+4,Shell,Open Copilot FAB,components/layout/MatexCopilot.tsx,green_mostly,inferred,n/a,n/a,api_route_chat,inferred,n/a,anthropic,partial,Medium
+5,Dashboard,View dashboard overview,dashboard/page.tsx:218-315,verified,verified,verified,verified,edge,verified,verified,supabase+jwt,verified,High
+6,Dashboard,Quick-action launcher,dashboard/page.tsx:69-142,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+7,Dashboard,Mark notification read,dashboard/page.tsx:333-343,green_mostly,verified,verified,verified,edge,verified,notifications_mcp.notifications,jwt,verified,High
+8,Dashboard,Live-auctions strip,dashboard/page.tsx:479-504,green_mostly,verified,verified,verified,edge,verified,auction_mcp.auctions,jwt,verified,High
+9,Dashboard,Embedded market summary,components/intelligence/DashboardMarketSummary,partial,inferred,partial,partial,api_route_intel,partial,intelligence schema,anthropic,partial,Medium
+10,Admin,Platform overview KPIs,admin/page.tsx:129-133,verified,verified,verified,verified,edge,verified,multiple,jwt,verified,High
+11,Admin,List & manage users,admin/page.tsx:135-139,verified,verified,verified,verified,edge,verified,profile_mcp.users,jwt,verified,High
+12,Admin,Grant platform admin,admin/page.tsx:343-354,green_mostly,verified,verified,verified,edge,verified,public.matex_admin_operators,jwt,verified,High
+13,Admin,Suspend user,admin/page.tsx:386-398,green_mostly,verified,verified,verified,edge,verified,profile_mcp.users,jwt,verified,High
+14,Admin,Unsuspend user,admin/page.tsx:399-413,green_mostly,verified,verified,verified,edge,verified,profile_mcp.users,jwt,verified,High
+15,Admin,List & moderate listings,admin/page.tsx:141-145,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+16,Admin,Cancel/remove listing,admin/page.tsx:451-465,green_mostly,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+17,Admin,Flag listing,admin/page.tsx:469-482,green_mostly,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+18,Admin,List orders,admin/page.tsx:147-151,green_mostly,verified,verified,verified,edge,verified,orders_mcp.orders,jwt,verified,High
+19,Admin,Update order status,admin/page.tsx:514-527,green_mostly,verified,verified,verified,edge,verified,orders_mcp.orders,jwt,verified,High
+20,Admin,List escrows,admin/page.tsx:153-157,green_mostly,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+21,Admin,Hold escrow funds (admin),admin/page.tsx:567-595,partial,partial,verified,verified,edge,partial,escrow_mcp.escrows,jwt,partial,Medium
+22,Admin,Release escrow funds (admin),admin/page.tsx:568-595,partial,partial,verified,verified,edge,partial,escrow_mcp.escrows,jwt,partial,Medium
+23,Admin,Freeze escrow (admin),admin/page.tsx:569-595,partial,partial,verified,verified,edge,partial,escrow_mcp.escrows,jwt,partial,Medium
+24,Admin,Refund escrow (admin),admin/page.tsx:570-595,partial,partial,verified,verified,edge,partial,escrow_mcp.escrows,jwt,partial,Medium
+25,Admin,List auctions & lots,admin/page.tsx:159-172,green_mostly,verified,verified,verified,edge,verified,auction_mcp.auctions,jwt,verified,High
+26,Admin,Start auction,admin/page.tsx:633-639,green_mostly,verified,verified,verified,edge,verified,auction_mcp.auctions,jwt,verified,High
+27,Admin,Close auction lot,admin/page.tsx:661-667,green_mostly,verified,verified,verified,edge,verified,auction_mcp.lots,jwt,verified,High
+28,Admin,List bids,admin/page.tsx:174-178,partial,verified,verified,verified,edge,verified,bidding_mcp.bids,jwt,partial,Medium
+29,Admin,List transactions,admin/page.tsx:180-184,partial,verified,verified,verified,edge,verified,payments_mcp.transactions,jwt,partial,Medium
+30,Admin,Record manual purchase,admin/page.tsx:694-710,broken,broken,verified,verified,edge,broken,payments_mcp.transactions,jwt+stripe,broken,Medium
+31,Admin,List & edit platform config,admin/page.tsx:186-190,verified,verified,verified,verified,edge,verified,public.platform_config,jwt,verified,High
+32,Admin,View audit trail,admin/page.tsx:192-196,partial,verified,verified,verified,edge,verified,log_mcp.audit_log,jwt,verified,Medium
+33,Analytics,Platform KPIs,analytics/page.tsx:212-230,verified,verified,verified,verified,edge,verified,multiple,jwt,verified,High
+34,Analytics,Revenue report,analytics/page.tsx:142-203,verified,verified,verified,verified,edge,verified,payments+orders,jwt,verified,High
+35,Analytics,Conversion funnel,analytics/page.tsx:101-132,verified,verified,verified,verified,edge,verified,multiple,jwt,verified,High
+36,Analytics,Refresh analytics,analytics/page.tsx:268-278,verified,verified,n/a,n/a,n/a,verified,n/a,n/a,verified,High
+37,Auctions,View auctions list,auctions/page.tsx:80-204,verified,verified,verified,verified,edge,verified,auction_mcp.auctions,jwt,verified,High
+38,Auctions,View auction detail,auctions/[id]/page.tsx:140-184,verified,verified,verified,verified,edge,verified,auction_mcp.auctions+lots,jwt,verified,High
+39,Auctions,Register for auction (lobby),auctions/[id]/page.tsx:556-565,broken,broken,verified,verified,client_only,broken,auction_mcp.registrations,jwt,broken,High
+40,Auctions,Place bid in live auction,auctions/[id]/page.tsx:192-222,green_mostly,verified,verified,verified,edge,verified,bidding_mcp+auction_mcp,jwt,partial,Medium
+41,Auctions,Toggle proxy/max bidding,auctions/[id]/page.tsx:111-432,partial,partial,verified,verified,edge,partial,auction_mcp.bids,jwt,partial,Medium
+42,Auctions,Switch active lot,auctions/[id]/page.tsx:464-485,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+43,Auctions,Live bid stream,components/auctions/useBidStream.ts,green_mostly,verified,verified,verified,edge,verified,auction_mcp.bids,jwt,verified,Medium
+44,Auctions,Download auction terms PDF,auctions/[id]/page.tsx:548-554,broken,broken,n/a,n/a,no_handler,broken,n/a,n/a,broken,High
+45,Chat,Send message to AI Copilot,chat/page.tsx:373-438,verified,verified,n/a,n/a,api_route_chat,verified,n/a,anthropic+jwt,partial,High
+46,Chat,Trigger quick-action prompt,chat/page.tsx:177-201,verified,verified,n/a,n/a,api_route_chat,verified,n/a,anthropic+jwt,verified,High
+47,Chat,Click follow-up suggestion,chat/page.tsx:303-315,verified,verified,n/a,n/a,api_route_chat,verified,n/a,anthropic+jwt,verified,High
+48,Chat,Clear conversation,chat/page.tsx:456-458,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+49,Chat,Open onboarding modal,chat/page.tsx:478-484,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+50,Checkout,Load order item from listing,checkout/page.tsx:96-130,green_mostly,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+51,Checkout,Compute tax/commission,checkout/page.tsx:144-170,green_mostly,verified,verified,verified,edge,verified,tax_mcp.invoices,jwt,verified,High
+52,Checkout,Load wallet balance for option enable,checkout/page.tsx:132-142,green_mostly,verified,verified,verified,edge,verified,payments_mcp.wallets,jwt,verified,High
+53,Checkout,Select payment method,checkout/page.tsx:381-445,broken,broken,n/a,n/a,client_only,broken,n/a,stripe(missing),broken,High
+54,Checkout,Confirm purchase,checkout/page.tsx:175-251,broken,broken,verified,verified,edge,broken,multiple,stripe(missing),broken,High
+55,Checkout,Copy invoice number,checkout/page.tsx:488-490,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+56,Compliance,Transaction monitor,compliance/page.tsx:91-131,broken,broken,verified,verified,edge,broken,payments_mcp.transactions,jwt,broken,High
+57,Compliance,Expand transaction detail,compliance/page.tsx:272-308,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+58,Compliance,LCTR records view,compliance/page.tsx:317-387,broken,broken,partial,partial,client_only,broken,payments_mcp.transactions,jwt,broken,Medium
+59,Compliance,File STR,compliance/page.tsx:137-161,partial,partial,verified,verified,edge,partial,log_mcp.audit_log,jwt,partial,Medium
+60,Compliance,Record-retention checklist,compliance/page.tsx:496-542,broken,broken,n/a,n/a,client_only,broken,n/a,n/a,broken,High
+61,Contracts,Contracts list + LME prices,contracts/page.tsx:151-172,green_mostly,verified,verified,verified,edge,verified,contracts_mcp+pricing_mcp,jwt+lme,partial,High
+62,Contracts,Open contract drawer,contracts/page.tsx:351-353,broken,broken,verified,verified,client_only,broken,contracts_mcp.contracts,jwt,broken,High
+63,Contracts,Request signature,contracts/page.tsx:174-186,green_mostly,verified,verified,verified,edge,verified,esign_mcp.documents,docusign,verified,Medium
+64,Contracts,Activate contract,contracts/page.tsx:188-195,green_mostly,verified,verified,verified,edge,verified,contracts_mcp.contracts,jwt,verified,Medium
+65,Contracts,AI Contract Assistant,contracts/page.tsx:197-211,green_mostly,verified,n/a,n/a,api_route_chat,partial,n/a,anthropic,partial,Medium
+66,Contracts,Refresh LME prices,contracts/page.tsx:164-172,green_mostly,verified,verified,verified,edge,verified,pricing_mcp.market_prices,lme,partial,Medium
+67,Contracts,New contract page,contracts/create/page.tsx:9-32,broken,missing,verified,verified,n/a,broken,contracts_mcp.contracts,jwt,broken,High
+68,Escrow,View escrows by tab,escrow/page.tsx:230-407,verified,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+69,Escrow,Expand escrow timeline,escrow/page.tsx:410-497,broken,partial,verified,verified,edge,partial,escrow_mcp.escrow_timeline,jwt,partial,Medium
+70,Escrow,Hold funds (user),escrow/page.tsx:284-306,green_mostly,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+71,Escrow,Release funds (user),escrow/page.tsx:284-306,green_mostly,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+72,Escrow,Freeze escrow (user),escrow/page.tsx:277-283,green_mostly,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+73,Escrow,Refund escrow (user),escrow/page.tsx:284-306,green_mostly,verified,verified,verified,edge,verified,escrow_mcp.escrows,jwt,verified,High
+74,Escrow,File dispute,escrow/page.tsx:151-228,green_mostly,verified,verified,verified,edge,verified,dispute_mcp.disputes,jwt,verified,High
+75,Escrow,Fund new escrow (manual),escrow/create/page.tsx:67-93,broken,broken,verified,verified,edge,broken,escrow+orders+payments,jwt+stripe,broken,High
+76,Escrow,Copy new escrow ID,escrow/create/page.tsx:95-99,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+77,Inspections,View inspections list,inspections/page.tsx:116-137,verified,verified,verified,verified,edge,verified,inspection_mcp.inspections,jwt,verified,High
+78,Inspections,Week-calendar view,inspections/page.tsx:165-186,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+79,Inspections,Expand weight chain,inspections/page.tsx:293-342,verified,verified,verified,verified,edge,verified,inspection_mcp.inspections,jwt,verified,High
+80,Inspections,Mark inspection complete,inspections/page.tsx:139-146,green_mostly,partial,verified,verified,edge,verified,inspection_mcp.inspections,jwt,partial,Medium
+81,Inspections,Flag weight discrepancy,inspections/page.tsx:148-152,green_mostly,verified,verified,verified,edge,verified,inspection_mcp.inspections,jwt,verified,Medium
+82,Listings,View my listings,listings/page.tsx:436-531,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+83,Listings,Toggle cards/table view,listings/page.tsx:437-440,verified,verified,n/a,n/a,client_only,verified,n/a,flag,verified,High
+84,Listings,Archive listing,listings/page.tsx:468-485,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+85,Listings,Card menu,listings/page.tsx:122-189,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+86,Listings,View public listing detail,listings/[id]/page.tsx:932-1059,verified,verified,verified,verified,edge,verified,multiple,jwt,verified,High
+87,Listings,Place bid (modal),listings/[id]/page.tsx:323-420,verified,verified,verified,verified,edge,verified,bidding_mcp.bids,jwt,verified,High
+88,Listings,Register for auction (deposit),listings/[id]/page.tsx:425-533,green_mostly,verified,verified,verified,edge,verified,auction_mcp.registrations,jwt,verified,Medium
+89,Listings,Buy now (modal),listings/[id]/page.tsx:538-602,green_mostly,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+90,Listings,Message seller from listing,listings/[id]/page.tsx:1015-1025,verified,verified,verified,verified,edge,verified,messaging_mcp.threads,jwt,verified,High
+91,Listings,Save listing to favorites,listings/[id]/page.tsx:1027-1030,broken,broken,verified,verified,edge,broken,listing_mcp.favorites,jwt,broken,High
+92,Listings,Book inspection slot,listings/[id]/page.tsx:607-711,green_mostly,verified,verified,verified,edge,verified,booking_mcp.bookings,jwt,verified,High
+93,Listings,Open photo lightbox,listings/[id]/page.tsx:161-318,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+94,Listings,Share listing,listings/[id]/page.tsx:1105-1107,broken,broken,n/a,n/a,no_handler,broken,n/a,n/a,broken,High
+95,Listings,Report listing,listings/[id]/page.tsx:1108-1110,broken,broken,n/a,n/a,no_handler,broken,n/a,n/a,broken,High
+96,Listings,Multi-step listing wizard,listings/create/page.tsx,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+97,Listings,Save draft listing,listings/create/page.tsx:1845-1866,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+98,Listings,Publish listing,listings/create/page.tsx:2009,verified,verified,verified,verified,edge,verified,listing_mcp.listings,jwt,verified,High
+99,Listings,Set inspection availability,listings/create/page.tsx:1074,green_mostly,verified,verified,verified,edge,verified,booking_mcp.availability,jwt,verified,Medium
+100,Listings,Estimate logistics in wizard,listings/create/page.tsx:1091,green_mostly,verified,verified,verified,edge,verified,logistics_mcp.quotes,carriers,verified,Medium
+101,Listings,Estimate tax in wizard,listings/create/page.tsx:1350,green_mostly,verified,verified,verified,edge,verified,tax_mcp.invoices,jwt,verified,Medium
+102,Logistics,Active shipments + CO2,logistics/page.tsx:127-147,verified,verified,verified,verified,edge,verified,logistics_mcp.shipments,jwt,verified,High
+103,Logistics,Get carrier quotes,logistics/page.tsx:149-190,verified,verified,verified,verified,edge,verified,logistics_mcp.quotes,carriers,partial,High
+104,Logistics,Book carrier shipment,logistics/page.tsx:192-226,green_mostly,verified,verified,verified,edge,verified,logistics_mcp.shipments,carriers,partial,High
+105,Logistics,Track shipment timeline,logistics/page.tsx:234-239,green_mostly,partial,verified,verified,edge,partial,logistics_mcp.shipments,carriers,partial,Medium
+106,Logistics,Generate Bill of Lading,logistics/page.tsx:228-232,broken,broken,verified,verified,edge,broken,logistics_mcp.shipments,carriers,broken,High
+107,Market,Market intelligence dashboard,market/page.tsx:9-11,verified,verified,n/a,n/a,api_route_intel,verified,intelligence schema,anthropic,verified,Medium
+108,Market,Refresh market snapshots,MarketIntelligenceDashboard.tsx:67,verified,verified,n/a,n/a,api_route_intel,verified,intelligence schema,anthropic,verified,High
+109,Market,Open price-alert dialog (global),MarketIntelligenceDashboard.tsx:74,verified,verified,n/a,n/a,api_route_intel,verified,intelligence.price_alerts,anthropic,verified,High
+110,Market,Material detail + 30d history,market/[material]/page.tsx:25-113,verified,verified,n/a,n/a,api_route_intel,verified,intelligence schema,anthropic,verified,High
+111,Market,Set price alert (per-material),PriceAlertDialog.tsx:69,verified,verified,n/a,n/a,api_route_intel,verified,intelligence.price_alerts,anthropic,verified,High
+112,Messages,Thread list,messages/page.tsx:118,verified,verified,verified,verified,edge,verified,messaging_mcp.threads,jwt,verified,High
+113,Messages,Open a thread,messages/page.tsx:137-179,verified,verified,verified,verified,edge,verified,messaging_mcp.messages,jwt,verified,High
+114,Messages,Send message in thread,messages/page.tsx:207-476,verified,verified,verified,verified,edge,verified,messaging_mcp.messages,jwt,verified,High
+115,Messages,Start a new thread,messages/page.tsx:243-312,verified,verified,verified,verified,edge,verified,messaging_mcp.threads,jwt,verified,High
+116,Notifications,Notifications list,notifications/page.tsx:256-353,verified,verified,verified,verified,edge,verified,notifications_mcp.notifications,jwt,verified,High
+117,Notifications,Mark single read,notifications/page.tsx:271-444,verified,verified,verified,verified,edge,verified,notifications_mcp.notifications,jwt,verified,High
+118,Notifications,Mark all read,notifications/page.tsx:283-333,green_mostly,verified,verified,verified,edge,verified,notifications_mcp.notifications,jwt,verified,High
+119,Notifications,Refresh notifications,notifications/page.tsx:324-391,verified,verified,n/a,n/a,n/a,verified,n/a,n/a,verified,High
+120,Search,Search materials with filters,search/page.tsx:805-619,verified,verified,verified,verified,edge,verified,search_mcp.index,jwt,verified,High
+121,Search,Toggle category filter,search/page.tsx:430,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+122,Search,Toggle inspection-only filter,search/page.tsx:577,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+123,Search,Save current search,search/page.tsx:625-851,green_mostly,verified,verified,verified,edge,verified,search_mcp.saved_searches,jwt,verified,High
+124,Search,Load saved search,search/page.tsx:671-775,green_mostly,verified,verified,verified,edge,verified,search_mcp.saved_searches,jwt,verified,High
+125,Search,Save listing to favorites (card),search/page.tsx:174-843,broken,broken,verified,verified,edge,broken,listing_mcp.favorites,jwt,broken,High
+126,Search,Message seller from card,search/page.tsx:306-832,verified,verified,verified,verified,edge,verified,messaging_mcp.threads,jwt,verified,High
+127,Search,Search-suggestion chip,search/page.tsx:725,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+128,Search,Open mobile filter sheet,search/page.tsx:905,verified,verified,n/a,n/a,client_only,verified,n/a,n/a,verified,High
+129,Settings,View KYC level,settings/page.tsx:481-806,green_mostly,partial,verified,verified,edge,verified,kyc_mcp.verifications,jwt,verified,High
+130,Settings,Upload avatar image,settings/page.tsx:78-170,broken,broken,verified,verified,edge,broken,wrong_table,jwt,broken,High
+131,Settings,Save profile,settings/page.tsx:121-245,verified,verified,verified,verified,edge,verified,profile_mcp.profiles,jwt,verified,High
+132,Settings,Save company,settings/page.tsx:301-393,verified,verified,verified,verified,edge,verified,profile_mcp.companies,jwt,verified,High
+133,Settings,Start KYC verification,settings/page.tsx:494,green_mostly,verified,verified,verified,edge,verified,kyc_mcp.verifications,onfido,partial,Medium
+134,Settings,Submit KYC document,settings/page.tsx:504,green_mostly,verified,verified,verified,edge,verified,kyc_mcp.documents,onfido,partial,Medium
+135,Settings,Save notification preferences,settings/page.tsx:731-775,verified,verified,verified,verified,edge,verified,notifications_mcp.preferences,jwt,verified,High

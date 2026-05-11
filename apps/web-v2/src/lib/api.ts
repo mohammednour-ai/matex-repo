@@ -33,9 +33,26 @@ export function normalizeError(err: { code?: string; message?: string; requestId
   return { code: err.code ?? "UNKNOWN_ERROR", message: safe, requestId: err.requestId };
 }
 
+const TOKEN_KEY = "matex_token";
+const USER_KEY = "matex_user";
+
 export function getToken(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("matex_token") ?? "";
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+/**
+ * Persist the auth token to localStorage.
+ *
+ * Server-side route protection is handled separately by an HttpOnly
+ * matex_session cookie set via POST /api/auth/session (read by the
+ * middleware at apps/web-v2/src/middleware.ts). Callers should also
+ * await that fetch after calling setToken to ensure the cookie is in
+ * place before the user navigates to a protected route.
+ */
+export function setToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export type MatexUser = {
@@ -61,10 +78,15 @@ export function setUser(user: MatexUser) {
   if (typeof window !== "undefined") localStorage.setItem("matex_user", JSON.stringify(user));
 }
 
+/**
+ * Clear localStorage auth state. Callers signing the user out should
+ * also fire DELETE /api/auth/session to clear the HttpOnly matex_session
+ * cookie that backs the middleware gate, then await it before navigating.
+ */
 export function clearSession() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("matex_token");
-    localStorage.removeItem("matex_user");
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   }
 }
 
@@ -132,6 +154,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "orders.cancel_order",
   "orders.ping",
   "payments.process_payment",
+  "payments.create_payment_intent",
   "payments.get_wallet_balance",
   "payments.top_up_wallet",
   "payments.manage_payment_methods",
@@ -145,6 +168,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "log.log_external_api",
   "log.search_logs",
   "log.verify_integrity",
+  "log.get_retention_status",
   "log.ping",
   "profile.get_profile",
   "profile.update_profile",
@@ -300,9 +324,20 @@ async function callViaEdge<T>(
       body: JSON.stringify({ tool: toolName, args }),
     });
     const text = await res.text();
-    const parsed = JSON.parse(text) as MCPResponse<T>;
+    const parsed = JSON.parse(text) as Partial<MCPResponse<T>> & { code?: string; message?: string; msg?: string };
+    // Supabase platform-level rejections (verify_jwt failure, gateway-timeouts,
+    // etc) come back as a flat {code, message} envelope, not our {success,error}
+    // shape. Normalize them so the UI sees a consistent error.
+    if (parsed && typeof parsed === "object" && parsed.success === undefined && (parsed.code || parsed.message)) {
+      const code = String(parsed.code ?? `EDGE_${res.status}`);
+      const msg = String(parsed.message ?? parsed.msg ?? GENERIC_ERROR_MESSAGE);
+      const friendly = code.includes("JWT") || res.status === 401
+        ? "Your session is invalid. Please sign out and sign in again."
+        : msg;
+      return { success: false, error: { code, message: friendly } };
+    }
     if (!parsed.success) return { success: false, error: normalizeError(parsed.error) };
-    return parsed;
+    return parsed as MCPResponse<T>;
   } catch {
     return { success: false, error: { code: "NETWORK_ERROR", message: GENERIC_ERROR_MESSAGE } };
   }

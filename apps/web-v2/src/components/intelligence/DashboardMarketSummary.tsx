@@ -70,13 +70,13 @@ export function DashboardMarketSummary() {
 
   if (loading) {
     return (
-      <section className="rounded-3xl border border-line bg-surfaceBg/85 p-4">
+      <section className="rounded-3xl border border-night-700 bg-night-850/85 p-4">
         <div className="flex items-center justify-between">
           <SectionHeading />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl bg-elevated/70" />
+            <div key={i} className="h-28 animate-pulse rounded-2xl bg-night-800/70" />
           ))}
         </div>
       </section>
@@ -85,7 +85,7 @@ export function DashboardMarketSummary() {
   if (snapshots.length === 0) return null;
 
   return (
-    <section className="rounded-3xl border border-line bg-surfaceBg/85 p-4 shadow-sm">
+    <section className="rounded-3xl border border-night-700 bg-night-850/85 p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading />
         <div className="flex items-center gap-2">
@@ -101,7 +101,7 @@ export function DashboardMarketSummary() {
             aria-expanded={!collapsed}
             aria-controls="dashboard-intelligence-grid"
             aria-label={collapsed ? "Expand Matex Intelligence" : "Collapse Matex Intelligence"}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line bg-elevated/60 text-fg-muted transition-colors hover:border-brand-500/40 hover:bg-elevated hover:text-fg"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-night-700 bg-night-800/60 text-night-200 transition-colors hover:border-brand-500/40 hover:bg-night-800 hover:text-night-100"
           >
             <ChevronDown
               size={16}
@@ -132,14 +132,14 @@ export function DashboardMarketSummary() {
 function SectionHeading() {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-brand-500/30 bg-elevated/70 text-brand-400 shadow-sm">
+      <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-brand-500/30 bg-night-800/70 text-brand-400 shadow-sm">
         <Sparkles className="h-3.5 w-3.5" />
       </span>
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
           Matex Intelligence
         </p>
-        <p className="text-sm font-semibold text-fg">Today&apos;s market signal</p>
+        <p className="text-sm font-semibold text-night-100">Today&apos;s market signal</p>
       </div>
     </div>
   );
@@ -151,17 +151,17 @@ function MiniSummary({ snapshot }: { snapshot: MarketIntelligenceRow }) {
   return (
     <Link
       href={`/market/${snapshot.material_key}`}
-      className="group rounded-2xl border border-line bg-surfaceBg/90 p-4 transition-colors hover:border-brand-300 hover:bg-surfaceBg"
+      className="group rounded-2xl border border-night-700 bg-night-850/90 p-4 transition-colors hover:border-brand-500/40 hover:bg-night-850"
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+          <p className="text-xs font-semibold uppercase tracking-wider text-night-300">
             {snapshot.material_label}
           </p>
-          <p className="mt-1 text-base font-bold text-fg">
+          <p className="mt-1 text-base font-bold text-night-100">
             {formatPrice(snapshot.lme_price, unit)}
           </p>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-[11px] text-night-300">
             LME {formatPct(snapshot.lme_change_pct)} · {snapshot.matex_auction_count} auctions / 30d
           </p>
         </div>

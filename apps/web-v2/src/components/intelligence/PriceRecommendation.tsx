@@ -79,14 +79,14 @@ export function PriceRecommendation({ material, quantity, unit, sellerRegion, on
   const resolvedUnit = unit ?? matMeta?.unit ?? "mt";
 
   return (
-    <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2">
           <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm">
             <Sparkles className="h-3.5 w-3.5" />
           </span>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-700">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-400">
               Matex price intelligence
             </p>
             <p className="text-sm font-semibold text-fg">

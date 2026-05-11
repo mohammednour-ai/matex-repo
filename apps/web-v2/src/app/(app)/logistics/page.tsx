@@ -36,7 +36,7 @@ type Shipment = {
   status: ShipmentStatus;
   eta: string;
   co2_kg: number;
-  bol_url?: string;
+  bol_number?: string;
 };
 
 type CarrierQuote = {
@@ -75,7 +75,7 @@ function normalizeShipment(raw: RawShipment): Shipment {
     status: ((raw.status as ShipmentStatus) ?? "pending"),
     eta: raw.eta ?? new Date().toISOString(),
     co2_kg: Number(raw.co2_kg ?? 0),
-    bol_url: raw.bol_url,
+    bol_number: raw.bol_number,
   };
 }
 
@@ -121,6 +121,8 @@ export default function LogisticsPage() {
   const [bookingLoading, setBookingLoading] = useState<string | null>(null);
   const [trackLoading, setTrackLoading] = useState<string | null>(null);
   const [bolLoading, setBolLoading] = useState<string | null>(null);
+  const [bolError, setBolError] = useState<string>("");
+  const [trackError, setTrackError] = useState<string>("");
   const [expandedShipment, setExpandedShipment] = useState<string | null>(null);
   const [bookedId, setBookedId] = useState<string | null>(null);
 
@@ -227,15 +229,67 @@ export default function LogisticsPage() {
 
   async function handleGenerateBOL(shipmentId: string): Promise<void> {
     setBolLoading(shipmentId);
-    await callTool("logistics.generate_bol", { shipment_id: shipmentId });
+    setBolError("");
+    const res = await callTool("logistics.generate_bol", { shipment_id: shipmentId });
     setBolLoading(null);
+    if (!res.success) {
+      setBolError(res.error?.message ?? "Could not generate Bill of Lading.");
+      return;
+    }
+    // The tool returns { shipment_id, bol_number }. Read it through both
+    // the flat-edge shape and the gateway upstream_response shape, same
+    // pattern as everywhere else.
+    const data = res.data as Record<string, unknown> | undefined;
+    const up = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+      | Record<string, unknown>
+      | undefined;
+    const bolNumber = String((up?.bol_number ?? data?.bol_number) ?? "");
+    if (!bolNumber) {
+      setBolError("BoL was generated but no reference number was returned.");
+      return;
+    }
+    setShipments((prev) =>
+      prev.map((sh) => (sh.shipment_id === shipmentId ? { ...sh, bol_number: bolNumber } : sh)),
+    );
   }
 
   async function handleTrack(shipmentId: string): Promise<void> {
     setTrackLoading(shipmentId);
-    await callTool("logistics.get_shipment", { shipment_id: shipmentId });
-    setExpandedShipment((p) => (p === shipmentId ? null : shipmentId));
+    setTrackError("");
+    const res = await callTool("logistics.get_shipment", { shipment_id: shipmentId });
     setTrackLoading(null);
+    if (!res.success) {
+      setTrackError(res.error?.message ?? "Could not refresh shipment tracking.");
+      // Still toggle the timeline open — it's safe; we just won't have
+      // the freshest server-side fields.
+      setExpandedShipment((p) => (p === shipmentId ? null : shipmentId));
+      return;
+    }
+    // Merge the freshest server-side fields (status / tracking_number /
+    // bol_number / estimated_delivery → eta) into the local row so the
+    // timeline reflects reality. The Shipment row's origin / destination /
+    // weight are local representations that don't map 1:1 to the DB row
+    // (which uses JSONB addresses); leave those alone.
+    const data = res.data as Record<string, unknown> | undefined;
+    const up = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+      | Record<string, unknown>
+      | undefined;
+    const fresh = ((up?.shipment ?? data?.shipment) as Record<string, unknown> | undefined) ?? undefined;
+    if (fresh) {
+      setShipments((prev) =>
+        prev.map((sh) => {
+          if (sh.shipment_id !== shipmentId) return sh;
+          return {
+            ...sh,
+            status: ((String(fresh.status ?? sh.status)) as ShipmentStatus),
+            tracking_number: String(fresh.tracking_number ?? sh.tracking_number),
+            bol_number: fresh.bol_number ? String(fresh.bol_number) : sh.bol_number,
+            eta: fresh.estimated_delivery ? String(fresh.estimated_delivery) : sh.eta,
+          };
+        }),
+      );
+    }
+    setExpandedShipment((p) => (p === shipmentId ? null : shipmentId));
   }
 
   const totalCO2 = shipments.reduce((s, sh) => s + sh.co2_kg, 0);
@@ -246,7 +300,7 @@ export default function LogisticsPage() {
         title="Logistics"
         description="Manage shipments, get multi-carrier quotes, and track deliveries."
         actions={
-          <div className="flex items-center gap-2 rounded-2xl border border-emerald-200/90 bg-success-500/90 px-4 py-2 shadow-sm">
+          <div className="flex items-center gap-2 rounded-2xl border border-success-500/30/90 bg-success-500/90 px-4 py-2 shadow-sm">
             <Leaf className="h-4 w-4 text-emerald-600" />
             <div className="text-sm">
               <span className="font-semibold text-success-400">{totalCO2.toFixed(1)} kg CO₂</span>
@@ -255,6 +309,12 @@ export default function LogisticsPage() {
           </div>
         }
       />
+
+      {(bolError || trackError) && (
+        <div className="rounded-xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+          {bolError || trackError}
+        </div>
+      )}
 
       {/* Active shipments */}
       <div className="marketplace-card overflow-hidden">
@@ -290,6 +350,11 @@ export default function LogisticsPage() {
                     <p className="text-xs text-fg-subtle mt-0.5">
                       {sh.carrier} · {sh.origin} → {sh.destination} · {sh.tracking_number}
                     </p>
+                    {sh.bol_number && (
+                      <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-night-800 px-2 py-0.5 font-mono text-[11px] text-brand-300">
+                        <FileText className="h-3 w-3" /> {sh.bol_number}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right text-xs text-fg-subtle shrink-0">
                     <p>ETA: {formatDate(sh.eta)}</p>

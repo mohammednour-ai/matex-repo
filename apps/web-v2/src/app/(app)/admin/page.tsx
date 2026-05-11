@@ -94,6 +94,7 @@ export default function AdminPage() {
   const [payAmount, setPayAmount] = useState("");
   const [escrowIdInput, setEscrowIdInput] = useState("");
   const [escrowAmt, setEscrowAmt] = useState("100");
+  const [escrowReason, setEscrowReason] = useState("");
   const [auctionIdFilter, setAuctionIdFilter] = useState("");
   const [orderIdStatus, setOrderIdStatus] = useState("");
   const [orderNewStatus, setOrderNewStatus] = useState("confirmed");
@@ -290,7 +291,7 @@ export default function AdminPage() {
       />
 
       {msg && (
-        <div className="rounded-lg border border-emerald-200 bg-success-500/10 text-emerald-900 text-sm px-4 py-2">{msg}</div>
+        <div className="rounded-lg border border-success-500/30 bg-success-500/10 text-success-400 text-sm px-4 py-2">{msg}</div>
       )}
       {err && (
         <div className="rounded-lg border border-danger-200 bg-danger-500/15 text-danger-400 text-sm px-4 py-2">{err}</div>
@@ -562,6 +563,13 @@ export default function AdminPage() {
             <div className="flex flex-wrap gap-3 items-end">
               <Input label="Escrow ID" value={escrowIdInput} onChange={(e) => setEscrowIdInput(e.target.value)} className="max-w-md" />
               <Input label="Amount" value={escrowAmt} onChange={(e) => setEscrowAmt(e.target.value)} className="w-28" />
+              <Input
+                label="Reason (required for Freeze/Refund)"
+                value={escrowReason}
+                onChange={(e) => setEscrowReason(e.target.value)}
+                className="max-w-md flex-1"
+                placeholder="Why is this action being taken?"
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               {(
@@ -581,10 +589,32 @@ export default function AdminPage() {
                       const id = escrowIdInput.trim();
                       if (!id) throw new Error("Enter escrow ID");
                       const amount = Number(escrowAmt);
-                      const args: Record<string, unknown> =
-                        tool === "escrow.freeze_escrow"
-                          ? { escrow_id: id, reason: "admin_console" }
-                          : { escrow_id: id, amount };
+                      const performedBy = getUser()?.userId ?? "";
+                      if (!performedBy) throw new Error("Sign in as a platform admin first.");
+                      const reason = escrowReason.trim();
+                      // Per packages/mcp-servers/escrow-mcp/src/index.ts:166-170
+                      // and the matching edge handler, every state-changing
+                      // tool requires performed_by; freeze/refund additionally
+                      // require reason. The previous admin form omitted
+                      // performed_by entirely (so every action 422'd) and
+                      // hardcoded reason="admin_console" for Freeze (losing
+                      // the actual operator rationale).
+                      let args: Record<string, unknown>;
+                      if (tool === "escrow.freeze_escrow") {
+                        if (!reason) throw new Error("Reason is required to freeze an escrow.");
+                        args = { escrow_id: id, reason, performed_by: performedBy };
+                      } else if (tool === "escrow.refund_escrow") {
+                        if (!reason) throw new Error("Reason is required to refund an escrow.");
+                        if (!(amount > 0)) throw new Error("Amount must be > 0 for refund.");
+                        args = { escrow_id: id, amount, reason, performed_by: performedBy };
+                      } else if (tool === "escrow.release_funds") {
+                        if (!(amount > 0)) throw new Error("Amount must be > 0 for release.");
+                        args = { escrow_id: id, amount, performed_by: performedBy };
+                      } else {
+                        // hold_funds
+                        if (!(amount > 0)) throw new Error("Amount must be > 0 for hold.");
+                        args = { escrow_id: id, amount, performed_by: performedBy };
+                      }
                       const r = await callTool(tool, args);
                       if (!r.success) throw new Error(r.error?.message ?? "Failed");
                       await loadEscrows();
