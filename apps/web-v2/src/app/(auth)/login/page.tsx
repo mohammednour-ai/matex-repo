@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Eye, Loader2, EyeOff, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { identify, track } from "@/lib/analytics";
+import { setToken } from "@/lib/api";
 
 // ── types ──────────────────────────────────────────────────────────────
 type Tab = "login" | "register";
@@ -208,17 +209,29 @@ function LoginForm({ onSwitchToRegister }: { onSwitchToRegister: () => void }) {
       if (!token) throw new Error("Login failed: no token returned.");
       const accountType = String(data.account_type ?? "individual");
       const isPlatformAdmin = Boolean(data.is_platform_admin);
-      localStorage.setItem("matex_token", token);
+      setToken(token);
       localStorage.setItem(
         "matex_user",
         JSON.stringify({ userId, email, accountType, isPlatformAdmin }),
       );
-      // Set HTTP-only session cookie for server-side route protection
-      fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      }).catch(() => {});
+      // Set the HttpOnly matex_session cookie that the middleware reads
+      // (apps/web-v2/src/middleware.ts). MUST complete before router.push:
+      // without the cookie the middleware redirects /dashboard back to
+      // /login, producing a confusing loop where the user appears to be
+      // "kicked out" immediately after logging in. The previous code
+      // fired this as fire-and-forget which is the bug.
+      try {
+        const sessionRes = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        });
+        if (!sessionRes.ok) throw new Error(`session setup ${sessionRes.status}`);
+      } catch {
+        // Cookie set failed — surface so the user knows to retry rather
+        // than seeing the post-login bounce-back to /login.
+        throw new Error("Login succeeded but session setup failed. Please retry.");
+      }
       identify(userId, { account_type: accountType, is_platform_admin: isPlatformAdmin });
       router.push("/dashboard");
     } catch (err) {
@@ -565,7 +578,7 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       const loginAccountType = String(loginData.account_type ?? accountType ?? "individual");
       const loginIsAdmin = Boolean(loginData.is_platform_admin);
 
-      localStorage.setItem("matex_token", loginToken);
+      setToken(loginToken);
       localStorage.setItem(
         "matex_user",
         JSON.stringify({ userId: loginUserId, email, accountType: loginAccountType, isPlatformAdmin: loginIsAdmin })
@@ -614,6 +627,19 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
         }
       }
 
+      // Set the HttpOnly matex_session cookie before navigating, same as
+      // the login flow above. Without this the middleware redirects the
+      // freshly-registered user back to /login.
+      try {
+        const sessionRes = await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: loginToken }),
+        });
+        if (!sessionRes.ok) throw new Error(`session setup ${sessionRes.status}`);
+      } catch {
+        throw new Error("Registration succeeded but session setup failed. Please retry signing in.");
+      }
       router.push("/dashboard");
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : "Verification failed. Please try again.");

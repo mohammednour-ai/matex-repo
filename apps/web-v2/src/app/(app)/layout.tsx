@@ -27,7 +27,7 @@ import {
   HelpCircle,
   FileSearch,
 } from "lucide-react";
-import { getUser } from "@/lib/api";
+import { clearSession, getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
 import clsx from "clsx";
 
@@ -362,9 +362,20 @@ function UserMenu() {
   }, [pathname]);
 
   async function handleSignOut() {
-    await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
-    localStorage.removeItem("matex_token");
-    localStorage.removeItem("matex_user");
+    // Awaiting the DELETE matters: it clears the HttpOnly matex_session
+    // cookie that the middleware checks. If we kicked router.replace
+    // before this resolved, a quick back-button navigation could land
+    // the user back on a protected page because the cookie is still
+    // valid for a few hundred ms after sign-out. The original .catch(() => {})
+    // swallowed errors silently; we keep that since sign-out should
+    // succeed locally even when the server-side clear fails.
+    try {
+      await fetch("/api/auth/session", { method: "DELETE" });
+    } catch {
+      // Network drop on sign-out — local state is still cleared below
+      // and the cookie has a short Max-Age. Surface nothing to the user.
+    }
+    clearSession();
     router.replace("/login");
   }
 
