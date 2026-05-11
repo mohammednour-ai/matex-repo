@@ -500,16 +500,30 @@ const kycLevelLabels: Record<KycLevelNum, string> = {
   3: "Level 3 — Corporate",
 };
 
-function KycTab() {
-  const [kycLevel, setKycLevel] = useState<KycLevelNum>(0);
+function KycTab({ initialLevel }: { initialLevel: number | null }) {
+  // initialLevel is provided by the parent SettingsPage so we don't
+  // round-trip kyc.get_kyc_level a second time. If a caller renders
+  // KycTab outside SettingsPage (or before the parent's fetch has
+  // resolved), initialLevel is null and we fall back to fetching here.
+  const [kycLevel, setKycLevel] = useState<KycLevelNum>(
+    initialLevel != null ? toKycLevelNum(initialLevel) : 0,
+  );
   const [uploading, setUploading] = useState<string | null>(null);
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialLevel == null);
   const [pendingDoc, setPendingDoc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (initialLevel != null) {
+      // Parent already has the level; mirror into local state and skip
+      // the redundant fetch. Re-runs only if the parent's value changes
+      // (e.g. after the user advances levels in another tab).
+      setKycLevel(toKycLevelNum(initialLevel));
+      setLoading(false);
+      return;
+    }
     callTool("kyc.get_kyc_level", {}).then((res) => {
       if (res.success) {
         const d = res.data as unknown as { current_level?: unknown; level?: unknown };
@@ -517,7 +531,7 @@ function KycTab() {
       }
       setLoading(false);
     });
-  }, []);
+  }, [initialLevel]);
 
   const handleUploadDoc = async (docType: string, file: File): Promise<void> => {
     setUploading(docType);
@@ -894,7 +908,7 @@ export default function SettingsPage() {
         <div className="marketplace-card min-h-96 flex-1 p-6">
           {activeTab === "profile" && <ProfileTab />}
           {activeTab === "company" && <CompanyTab />}
-          {activeTab === "kyc" && <KycTab />}
+          {activeTab === "kyc" && <KycTab initialLevel={pageKycLevel} />}
           {activeTab === "notifications" && <NotificationsTab />}
         </div>
       </div>
