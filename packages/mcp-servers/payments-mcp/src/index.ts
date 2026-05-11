@@ -327,17 +327,66 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const hstRate = await getPlatformConfigNumber(supabase, "tax_rate_hst", DEFAULT_HST_RATE, (n) => n >= 0 && n < 1);
     const commission = calculateCommission(amount, { rate: commissionRate, minimum: 25, cap: 5000 });
     const taxAmount = roundToTwoDecimals(commission * hstRate);
+
+    // Status is now method-aware. Previously every method wrote
+    // 'pending_capture', but the Stripe webhook only completes
+    // stripe_card transactions — wallet/credit/interac rows were
+    // stranded in pending_capture forever.
+    //
+    //   stripe_card  → pending_capture (Stripe webhook flips to completed)
+    //   wallet       → completed       (debits wallet balance atomically)
+    //   credit_terms → completed       (records the obligation; credit-mcp
+    //                                   tracks the actual net-30 ledger)
+    //   credit       → completed       (alias of credit_terms in this code)
+    //   interac      → pending         (awaits manual ops confirmation; the
+    //                                   UI already tells the buyer to send
+    //                                   to payments@matex.ca with the order
+    //                                   number as memo)
+    let resolvedStatus: string;
+    const extraMetadata: Record<string, unknown> = {};
+    if (method === "wallet") {
+      // Atomic debit via the SQL function added in
+      // 20260513000000_payments_debit_wallet_function.sql. Returns null
+      // when the wallet is missing OR the balance is insufficient —
+      // either way, refuse to record a transaction we can't honour.
+      // Requires supabase configured; the in-memory dev fallback does
+      // not back the wallets table.
+      if (!supabase) return fail("CONFIG_ERROR", "Supabase service role is required for wallet payments.");
+      const debitRes = await supabase.rpc("debit_wallet", { p_user_id: userId, p_amount: amount });
+      if (debitRes.error) return fail("DB_ERROR", "Could not debit wallet.");
+      if (debitRes.data === null || debitRes.data === undefined) {
+        return fail("INSUFFICIENT_BALANCE", "Wallet balance is insufficient for this payment.");
+      }
+      resolvedStatus = "completed";
+      extraMetadata.wallet_balance_after = Number(debitRes.data);
+    } else if (method === "credit_terms" || method === "credit") {
+      resolvedStatus = "completed";
+      extraMetadata.payment_terms = "net_30_credit";
+    } else if (method === "interac") {
+      resolvedStatus = "pending";
+      extraMetadata.awaiting_interac_confirmation = true;
+      extraMetadata.deposit_email = "payments@matex.ca";
+    } else if (method === "stripe_card") {
+      resolvedStatus = "pending_capture";
+    } else {
+      // Unknown / new method: default to pending so the order machine
+      // can't advance on a guess.
+      resolvedStatus = "pending";
+    }
+
+    const transactionId = generateId();
+    const createdAt = now();
     const transaction = {
-      transaction_id: generateId(),
+      transaction_id: transactionId,
       order_id: orderId,
       payer_id: userId,
       amount,
       payment_method: method,
       transaction_type: "purchase",
-      status: "completed",
+      status: resolvedStatus,
       commission_amount: commission,
       tax_amount: taxAmount,
-      created_at: now(),
+      created_at: createdAt,
       escrow_reference: {
         order_id: orderId ?? null,
         escrow_state: "pending_funding",
@@ -346,7 +395,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (supabase) {
       const { error } = await supabase.schema("payments_mcp").from("transactions").insert({
-        transaction_id: transaction.transaction_id,
+        transaction_id: transactionId,
         order_id: orderId ?? null,
         payer_id: userId,
         amount,
@@ -354,23 +403,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         currency: "CAD",
         payment_method: method,
         transaction_type: "purchase",
-        status: "pending_capture",
+        status: resolvedStatus,
         commission_amount: commission,
         tax_amount: taxAmount,
-        metadata: { escrow_reference: transaction.escrow_reference, hst_rate: hstRate, commission_rate: commissionRate },
-        created_at: transaction.created_at,
-        updated_at: transaction.created_at,
+        completed_at: resolvedStatus === "completed" ? createdAt : null,
+        metadata: {
+          escrow_reference: transaction.escrow_reference,
+          hst_rate: hstRate,
+          commission_rate: commissionRate,
+          ...extraMetadata,
+        },
+        created_at: createdAt,
+        updated_at: createdAt,
       });
       if (error) return fail("DB_ERROR", "Database operation failed");
-      const pendingTx = { ...transaction, status: "pending_capture" };
-      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-      return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
+      await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transactionId, order_id: orderId ?? null, amount, status: resolvedStatus, method });
+      return { content: [{ type: "text", text: ok({ transaction }) }] };
     }
 
-    const pendingTx = { ...transaction, status: "pending_capture" };
-    transactions.push(pendingTx);
-    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transaction.transaction_id, order_id: orderId ?? null, amount });
-    return { content: [{ type: "text", text: ok({ transaction: pendingTx }) }] };
+    transactions.push({ ...transaction });
+    await emitEvent("payments.payment.initiated", { user_id: userId, transaction_id: transactionId, order_id: orderId ?? null, amount, status: resolvedStatus, method });
+    return { content: [{ type: "text", text: ok({ transaction }) }] };
   }
 
   if (tool === "create_payment_intent") {
