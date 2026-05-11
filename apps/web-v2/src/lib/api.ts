@@ -134,6 +134,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "listing.add_favorite",
   "listing.remove_favorite",
   "listing.list_favorites",
+  "listing.flag_listing",
   "listing.create_category",
   "listing.update_category",
   "listing.list_categories",

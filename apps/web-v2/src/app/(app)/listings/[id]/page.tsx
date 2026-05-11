@@ -33,6 +33,7 @@ import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { showError } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
+import { Button } from "@/components/ui/shadcn/button";
 import { Modal } from "@/components/ui/shadcn/modal";
 import {
   Dialog,
@@ -967,6 +968,17 @@ export default function ListingDetailPage() {
   const [auctionModal, setAuctionModal] = useState(false);
   const [buyModal, setBuyModal] = useState(false);
 
+  // Share / Report state (P1-4). Share uses navigator.share when
+  // available, falls back to clipboard. Report opens a dialog backed by
+  // listing.flag_listing.
+  type ReportReason = "" | "inappropriate" | "duplicate" | "misleading" | "spam" | "illegal_material" | "other";
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason>("");
+  const [reportNotes, setReportNotes] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [reportError, setReportError] = useState("");
+
   const lowestShipping = quotes.length > 0 ? Math.min(...quotes.map((q) => q.price)) : 0;
 
   const loadData = useCallback(async () => {
@@ -1076,6 +1088,69 @@ export default function ListingDetailPage() {
     }
   }
 
+  async function handleShareListing(): Promise<void> {
+    // Share button. Prefer the native Web Share API on mobile / supported
+    // browsers; fall back to clipboard so desktop users still get the URL
+    // copied. Either way, surface a brief confirmation via showError's
+    // success-style toast (using the existing toast util).
+    if (typeof window === "undefined") return;
+    const url = window.location.href;
+    const title = listing?.title ?? "Matex listing";
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch {
+        // User dismissed the share sheet — silent. Don't fall through
+        // to clipboard because they actively cancelled.
+        return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showError(null, "Link copied to clipboard.");
+    } catch {
+      // Clipboard refused (often: insecure context, permission denied).
+      // Surface so the user knows nothing happened.
+      showError({ code: "CLIPBOARD_DENIED", message: "Could not copy the link. Try selecting the URL bar manually." });
+    }
+  }
+
+  function openReportDialog(): void {
+    setReportReason("");
+    setReportNotes("");
+    setReportSubmitted(false);
+    setReportError("");
+    setReportOpen(true);
+  }
+
+  async function handleSubmitReport(): Promise<void> {
+    const user = getUser();
+    if (!user) {
+      setReportError("Sign in to report a listing.");
+      return;
+    }
+    if (!reportReason) {
+      setReportError("Pick a reason before submitting.");
+      return;
+    }
+    setReportSubmitting(true);
+    setReportError("");
+    const res = await callTool("listing.flag_listing", {
+      listing_id: listingId,
+      reporter_id: user.userId,
+      reason: reportReason,
+      notes: reportNotes.trim() || undefined,
+    });
+    if (!res.success) {
+      setReportError(res.error?.message ?? "Could not submit report. Please try again.");
+      setReportSubmitting(false);
+      return;
+    }
+    setReportSubmitted(true);
+    setReportSubmitting(false);
+  }
+
   if (loading) {
     return (
       <div>
@@ -1149,10 +1224,20 @@ export default function ListingDetailPage() {
 
               {/* Share / Report */}
               <div className="flex items-center gap-2">
-                <button className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors" aria-label="Share">
+                <button
+                  type="button"
+                  onClick={handleShareListing}
+                  className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors"
+                  aria-label="Share listing"
+                >
                   <Share2 size={15} />
                 </button>
-                <button className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors" aria-label="Report">
+                <button
+                  type="button"
+                  onClick={openReportDialog}
+                  className="p-2 rounded-lg border border-line text-fg-subtle hover:bg-canvas transition-colors"
+                  aria-label="Report listing"
+                >
                   <Flag size={15} />
                 </button>
               </div>
@@ -1463,6 +1548,83 @@ export default function ListingDetailPage() {
           shippingEstimate={lowestShipping}
         />
       )}
+
+      {/* Report listing dialog (P1-4). Submits via listing.flag_listing
+          and shows a small confirmation step instead of immediately
+          closing — moderators don't act in real-time, so we set the
+          user's expectation clearly. */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent size="md" className="bg-night-900 ring-1 ring-night-700 max-w-md p-6">
+          <DialogTitle className="text-lg font-semibold text-night-100 mb-1">
+            {reportSubmitted ? "Report submitted" : "Report this listing"}
+          </DialogTitle>
+          {reportSubmitted ? (
+            <div className="space-y-4">
+              <p className="text-sm text-night-300">
+                Thanks — our moderators will review this listing. Repeat offenders are removed and
+                their accounts reviewed. You won&apos;t hear back on individual reports unless we need more
+                details from you.
+              </p>
+              <div className="flex justify-end">
+                <Button onClick={() => setReportOpen(false)}>Close</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-night-300">
+                Help us keep the marketplace clean. Pick the closest reason — moderators will see
+                the full listing and your optional notes.
+              </p>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-night-200">Reason</label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
+                  className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="">— pick a reason —</option>
+                  <option value="inappropriate">Inappropriate or offensive content</option>
+                  <option value="illegal_material">Prohibited / illegal material</option>
+                  <option value="misleading">Misleading description or photos</option>
+                  <option value="spam">Spam or self-promotion</option>
+                  <option value="duplicate">Duplicate of an existing listing</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-night-200">
+                  Notes <span className="text-night-300 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  value={reportNotes}
+                  onChange={(e) => setReportNotes(e.target.value.slice(0, 2000))}
+                  rows={4}
+                  placeholder="What specifically is wrong with this listing?"
+                  className="w-full rounded-lg border border-night-600 bg-night-850 px-3 py-2 text-sm text-night-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                />
+                <p className="mt-1 text-xs text-night-300">{reportNotes.length}/2000</p>
+              </div>
+              {reportError && (
+                <div className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-xs text-danger-400">
+                  {reportError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setReportOpen(false)} disabled={reportSubmitting}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitReport}
+                  loading={reportSubmitting}
+                  disabled={reportSubmitting || !reportReason}
+                >
+                  <Flag className="h-4 w-4" /> Submit report
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

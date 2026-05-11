@@ -91,6 +91,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "add_favorite", description: "Save a listing to favorites", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, user_id: { type: "string" } }, required: ["listing_id", "user_id"] } },
     { name: "remove_favorite", description: "Remove a listing from favorites", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, user_id: { type: "string" } }, required: ["listing_id", "user_id"] } },
     { name: "list_favorites", description: "List a user's saved listings", inputSchema: { type: "object", properties: { user_id: { type: "string" }, limit: { type: "number" }, offset: { type: "number" } }, required: ["user_id"] } },
+    { name: "flag_listing", description: "Submit a moderation flag against a listing. Inserts into listing_mcp.listing_flags with status='pending' for moderator review.", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, reporter_id: { type: "string" }, reason: { type: "string", enum: ["inappropriate", "duplicate", "misleading", "spam", "illegal_material", "other"] }, notes: { type: "string" } }, required: ["listing_id", "reporter_id", "reason"] } },
     { name: "create_category", description: "Create a listing category (admin-only)", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, name: { type: "string" }, slug: { type: "string" }, parent_id: { type: "string" }, default_unit: { type: "string" }, weight_tolerance: { type: "number" }, sort_order: { type: "number" } }, required: ["actor_id", "name"] } },
     { name: "update_category", description: "Update a category (admin-only)", inputSchema: { type: "object", properties: { actor_id: { type: "string" }, category_id: { type: "string" }, fields: { type: "object" } }, required: ["actor_id", "category_id", "fields"] } },
     { name: "list_categories", description: "List all active categories", inputSchema: { type: "object", properties: { include_inactive: { type: "boolean" }, parent_id: { type: "string" } } } },
@@ -525,6 +526,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     const ids = Array.from(favoritesStore.get(userId) ?? []);
     return { content: [{ type: "text", text: ok({ favorites: ids.map((id) => ({ listing_id: id })), total: ids.length, limit, offset }) }] };
+  }
+
+  if (tool === "flag_listing") {
+    // Buyer-facing "report this listing" flow. Validates the reason against
+    // the same allow-list used by the listing_flags CHECK constraint so a
+    // bad client payload fails fast with VALIDATION_ERROR rather than as a
+    // DB_ERROR.
+    const listingId = String(args.listing_id ?? "");
+    const reporterId = String(args.reporter_id ?? "");
+    const reason = String(args.reason ?? "");
+    const allowedReasons = ["inappropriate", "duplicate", "misleading", "spam", "illegal_material", "other"];
+    if (!listingId) return fail("VALIDATION_ERROR", "listing_id is required.");
+    if (!reporterId) return fail("VALIDATION_ERROR", "reporter_id is required.");
+    if (!reason) return fail("VALIDATION_ERROR", "reason is required.");
+    if (!allowedReasons.includes(reason)) {
+      return fail("VALIDATION_ERROR", `reason must be one of ${allowedReasons.join(", ")}.`);
+    }
+    const notes = args.notes ? String(args.notes).slice(0, 2000) : null;
+
+    if (!supabase) {
+      // In-memory dev fallback: pretend it succeeded so the UI flow works
+      // without the DB. Production always hits the DB branch below.
+      const flagId = generateId();
+      return { content: [{ type: "text", text: ok({ flag_id: flagId, status: "pending" }) }] };
+    }
+
+    const flagId = generateId();
+    const insertResult = await supabase
+      .schema("listing_mcp")
+      .from("listing_flags")
+      .insert({
+        flag_id: flagId,
+        listing_id: listingId,
+        reporter_id: reporterId,
+        reason,
+        notes,
+        status: "pending",
+        created_at: now(),
+        updated_at: now(),
+      });
+    if (insertResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    await emitEvent("listing.flag.created", {
+      flag_id: flagId,
+      listing_id: listingId,
+      reporter_id: reporterId,
+      reason,
+    });
+    return { content: [{ type: "text", text: ok({ flag_id: flagId, status: "pending" }) }] };
   }
 
   // ========================================================================

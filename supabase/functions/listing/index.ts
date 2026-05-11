@@ -381,6 +381,49 @@ async function listFavorites({ args, caller }: ToolRequest) {
   return okEnvelope({ favorites: data ?? [], total: count ?? 0, limit, offset });
 }
 
+async function flagListing({ args }: ToolRequest) {
+  // Edge counterpart of listing-mcp's flag_listing. Same validation +
+  // insert shape; the CHECK constraint on listing_flags.reason is the
+  // backstop but we mirror the allow-list here for friendlier errors.
+  const listingId = String(args.listing_id ?? "");
+  const reporterId = String(args.reporter_id ?? "");
+  const reason = String(args.reason ?? "");
+  const allowedReasons = ["inappropriate", "duplicate", "misleading", "spam", "illegal_material", "other"];
+  if (!listingId) return failEnvelope("VALIDATION_ERROR", "listing_id is required.");
+  if (!reporterId) return failEnvelope("VALIDATION_ERROR", "reporter_id is required.");
+  if (!reason) return failEnvelope("VALIDATION_ERROR", "reason is required.");
+  if (!allowedReasons.includes(reason)) {
+    return failEnvelope("VALIDATION_ERROR", `reason must be one of ${allowedReasons.join(", ")}.`);
+  }
+  const notes = args.notes ? String(args.notes).slice(0, 2000) : null;
+
+  const supabase = serviceClient();
+  const flagId = generateId();
+  const ts = now();
+  const { error } = await supabase
+    .schema("listing_mcp")
+    .from("listing_flags")
+    .insert({
+      flag_id: flagId,
+      listing_id: listingId,
+      reporter_id: reporterId,
+      reason,
+      notes,
+      status: "pending",
+      created_at: ts,
+      updated_at: ts,
+    });
+  if (error) return failEnvelope("DB_ERROR", "Database operation failed");
+
+  await emitEvent(supabase, SOURCE, "listing.flag.created", {
+    flag_id: flagId,
+    listing_id: listingId,
+    reporter_id: reporterId,
+    reason,
+  });
+  return okEnvelope({ flag_id: flagId, status: "pending" });
+}
+
 async function createCategory({ args, caller }: ToolRequest) {
   const supabase = serviceClient();
   const actorId = String(args.actor_id ?? caller.userId);
@@ -471,6 +514,7 @@ Deno.serve(serveDomain({
   add_favorite: addFavorite,
   remove_favorite: removeFavorite,
   list_favorites: listFavorites,
+  flag_listing: flagListing,
   create_category: createCategory,
   update_category: updateCategory,
   list_categories: listCategories,

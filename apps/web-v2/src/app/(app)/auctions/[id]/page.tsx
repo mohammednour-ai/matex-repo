@@ -111,7 +111,44 @@ export default function AuctionRoomPage() {
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyMax, setProxyMax] = useState("");
   const [isRegistered, setIsRegistered] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState("");
   const [wonLots] = useState<Lot[]>([]);
+
+  // Wire up the Register CTA on both lobby + watch-only fallback. Was a
+  // local setIsRegistered(true) with no server call — clicks didn't
+  // persist anywhere. register_bidder is idempotent (returns the
+  // existing record on re-register), so calling it from a returning
+  // user is safe even if they were already registered server-side.
+  async function handleRegister(): Promise<void> {
+    setRegisterError("");
+    if (!auction?.auction_id) {
+      setRegisterError("Auction not loaded yet.");
+      return;
+    }
+    const user = getUser();
+    if (!user?.userId) {
+      setRegisterError("Sign in to register for this auction.");
+      return;
+    }
+    setRegistering(true);
+    const res = await callTool("auction.register_bidder", {
+      auction_id: auction.auction_id,
+      user_id: user.userId,
+    });
+    setRegistering(false);
+    if (!res.success) {
+      setRegisterError(res.error?.message ?? "Could not register for this auction.");
+      return;
+    }
+    setIsRegistered(true);
+    // Bump the visible participant count so the lobby header reflects
+    // the new total without waiting for a fresh get_auction. The
+    // canonical count stays on the server.
+    setAuction((prev) =>
+      prev ? { ...prev, participant_count: (prev.participant_count ?? 0) + 1 } : prev,
+    );
+  }
 
   // Real-time bid feed. Polls `auction.list_bids` (when shipped) every 5s,
   // merges new entries by id, and keeps `current_bid` / `bid_count` in sync
@@ -255,7 +292,15 @@ export default function AuctionRoomPage() {
   }
 
   if (auction.status === "scheduled") {
-    return <LobbyView auction={auction} isRegistered={isRegistered} onRegister={() => setIsRegistered(true)} />;
+    return (
+      <LobbyView
+        auction={auction}
+        isRegistered={isRegistered}
+        onRegister={handleRegister}
+        registering={registering}
+        registerError={registerError}
+      />
+    );
   }
 
   if (auction.status === "completed") {
@@ -435,9 +480,18 @@ export default function AuctionRoomPage() {
             <div className="rounded-xl border border-night-700 bg-night-900 p-4 text-center">
               <AlertCircle className="mx-auto mb-2 h-6 w-6 text-night-300" />
               <p className="text-sm text-night-300">You are in <strong>watch-only</strong> mode.</p>
-              <Button size="sm" variant="secondary" className="mt-3" onClick={() => setIsRegistered(true)}>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                loading={registering}
+                onClick={handleRegister}
+              >
                 Register to Bid
               </Button>
+              {registerError && (
+                <p className="mt-2 text-xs text-danger-400">{registerError}</p>
+              )}
             </div>
           )}
 
@@ -506,10 +560,14 @@ function LobbyView({
   auction,
   isRegistered,
   onRegister,
+  registering,
+  registerError,
 }: {
   auction: AuctionDetail;
   isRegistered: boolean;
-  onRegister: () => void;
+  onRegister: () => void | Promise<void>;
+  registering: boolean;
+  registerError: string;
 }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -550,7 +608,22 @@ function LobbyView({
           <FileText className="h-5 w-5 text-night-300" />
           <span className="text-sm font-medium text-night-200">Auction Terms & Conditions</span>
         </div>
-        <Button size="sm" variant="secondary">Download PDF</Button>
+        {auction.terms_url ? (
+          // Open in a new tab. Most browsers honour `rel="noopener noreferrer"`
+          // here without breaking the PDF render in the new tab.
+          <Button size="sm" variant="secondary" asChild>
+            <a href={auction.terms_url} target="_blank" rel="noopener noreferrer">
+              Download PDF
+            </a>
+          </Button>
+        ) : (
+          // The auction record carries no terms_url. Disable rather than
+          // hide so the requirement is visible to the seller / organizer
+          // and to future moderators (it's the contract scaffolding).
+          <Button size="sm" variant="secondary" disabled title="Terms document not yet uploaded">
+            Not available
+          </Button>
+        )}
       </div>
 
       {isRegistered ? (
@@ -559,9 +632,21 @@ function LobbyView({
           <p className="text-sm font-medium text-success-400">You&apos;re registered for this auction.</p>
         </div>
       ) : (
-        <Button size="lg" className="w-full" onClick={onRegister}>
-          Register Now <ChevronRight className="h-4 w-4" />
-        </Button>
+        <>
+          {registerError && (
+            <div className="rounded-xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+              {registerError}
+            </div>
+          )}
+          <Button
+            size="lg"
+            className="w-full"
+            loading={registering}
+            onClick={onRegister}
+          >
+            Register Now <ChevronRight className="h-4 w-4" />
+          </Button>
+        </>
       )}
     </div>
   );
