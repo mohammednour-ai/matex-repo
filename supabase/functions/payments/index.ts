@@ -264,6 +264,34 @@ async function processPayment({ args }: ToolRequest) {
   const createdAt = now();
   const escrowReference = { order_id: orderId ?? null, escrow_state: "pending_funding" };
 
+  // Status is now method-aware. Previously every method wrote
+  // 'pending_capture', but the Stripe webhook only completes stripe_card
+  // transactions — wallet/credit/interac rows were stranded forever.
+  // See packages/mcp-servers/payments-mcp/src/index.ts for the matching
+  // logic and the migration 20260513000000 for the debit_wallet RPC.
+  let resolvedStatus: string;
+  const extraMetadata: Record<string, unknown> = {};
+  if (method === "wallet") {
+    const debitRes = await supabase.rpc("debit_wallet", { p_user_id: userId, p_amount: amount });
+    if (debitRes.error) return failEnvelope("DB_ERROR", "Could not debit wallet.");
+    if (debitRes.data === null || debitRes.data === undefined) {
+      return failEnvelope("INSUFFICIENT_BALANCE", "Wallet balance is insufficient for this payment.");
+    }
+    resolvedStatus = "completed";
+    extraMetadata.wallet_balance_after = Number(debitRes.data);
+  } else if (method === "credit_terms" || method === "credit") {
+    resolvedStatus = "completed";
+    extraMetadata.payment_terms = "net_30_credit";
+  } else if (method === "interac") {
+    resolvedStatus = "pending";
+    extraMetadata.awaiting_interac_confirmation = true;
+    extraMetadata.deposit_email = "payments@matex.ca";
+  } else if (method === "stripe_card") {
+    resolvedStatus = "pending_capture";
+  } else {
+    resolvedStatus = "pending";
+  }
+
   const { error } = await supabase.schema("payments_mcp").from("transactions").insert({
     transaction_id: transactionId,
     order_id: orderId ?? null,
@@ -273,10 +301,16 @@ async function processPayment({ args }: ToolRequest) {
     currency: "CAD",
     payment_method: method,
     transaction_type: "purchase",
-    status: "pending_capture",
+    status: resolvedStatus,
     commission_amount: commission,
     tax_amount: taxAmount,
-    metadata: { escrow_reference: escrowReference, hst_rate: hstRate, commission_rate: commissionRate },
+    completed_at: resolvedStatus === "completed" ? createdAt : null,
+    metadata: {
+      escrow_reference: escrowReference,
+      hst_rate: hstRate,
+      commission_rate: commissionRate,
+      ...extraMetadata,
+    },
     created_at: createdAt,
     updated_at: createdAt,
   });
@@ -287,6 +321,8 @@ async function processPayment({ args }: ToolRequest) {
     transaction_id: transactionId,
     order_id: orderId ?? null,
     amount,
+    status: resolvedStatus,
+    method,
   });
   return okEnvelope({
     transaction: {
@@ -296,7 +332,7 @@ async function processPayment({ args }: ToolRequest) {
       amount,
       payment_method: method,
       transaction_type: "purchase",
-      status: "pending_capture",
+      status: resolvedStatus,
       commission_amount: commission,
       tax_amount: taxAmount,
       created_at: createdAt,
