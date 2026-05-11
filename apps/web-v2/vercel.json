@@ -6,5 +6,11 @@
   "env": {
     "NEXT_PUBLIC_GATEWAY_URL": "https://api.matexhub.ca",
     "NEXT_PUBLIC_APP_URL": "https://app.matexhub.ca"
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/reconcile-payments",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
