@@ -33,9 +33,26 @@ export function normalizeError(err: { code?: string; message?: string; requestId
   return { code: err.code ?? "UNKNOWN_ERROR", message: safe, requestId: err.requestId };
 }
 
+const TOKEN_KEY = "matex_token";
+const USER_KEY = "matex_user";
+
 export function getToken(): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem("matex_token") ?? "";
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+/**
+ * Persist the auth token to localStorage.
+ *
+ * Server-side route protection is handled separately by an HttpOnly
+ * matex_session cookie set via POST /api/auth/session (read by the
+ * middleware at apps/web-v2/src/middleware.ts). Callers should also
+ * await that fetch after calling setToken to ensure the cookie is in
+ * place before the user navigates to a protected route.
+ */
+export function setToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 export type MatexUser = {
@@ -61,10 +78,15 @@ export function setUser(user: MatexUser) {
   if (typeof window !== "undefined") localStorage.setItem("matex_user", JSON.stringify(user));
 }
 
+/**
+ * Clear localStorage auth state. Callers signing the user out should
+ * also fire DELETE /api/auth/session to clear the HttpOnly matex_session
+ * cookie that backs the middleware gate, then await it before navigating.
+ */
 export function clearSession() {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("matex_token");
-    localStorage.removeItem("matex_user");
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
   }
 }
 
