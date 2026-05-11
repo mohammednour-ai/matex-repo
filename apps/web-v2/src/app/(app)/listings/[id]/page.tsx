@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -187,18 +188,31 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           <button
             type="button"
             onClick={() => setLightboxOpen(true)}
-            className="block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            className="relative block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Open photo in lightbox"
           >
-            <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
+            {/* unoptimized: media URLs come from Supabase Storage and are
+                not yet listed in next.config remotePatterns. Switching to
+                next/image still gains us lazy loading + layout stability;
+                CDN-resize comes in a follow-up that adds the domain. */}
+            <Image
+              src={media[activeIdx]}
+              alt={`${title} — photo ${activeIdx + 1}`}
+              fill
+              sizes="(max-width: 1024px) 100vw, 60vw"
+              className="object-cover cursor-zoom-in"
+              unoptimized
+            />
           </button>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
-            <img
+          <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
+            <Image
               src="/grphs/Materials/scrap-metal-pile-s-scrap.png"
               alt=""
               aria-hidden
-              className="h-full w-full object-cover opacity-50"
+              fill
+              sizes="(max-width: 1024px) 100vw, 60vw"
+              className="object-cover opacity-50"
             />
           </div>
         )}
@@ -254,7 +268,14 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
                 i === activeIdx && !showVideo ? "border-brand-600" : "border-transparent hover:border-night-600"
               )}
             >
-              <img src={src} alt="" className="w-full h-full object-cover" />
+              <Image
+                src={src}
+                alt=""
+                width={64}
+                height={64}
+                className="w-full h-full object-cover"
+                unoptimized
+              />
             </button>
           ))}
           {videoUrl && (
@@ -280,10 +301,14 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
           <DialogTitle className="sr-only">{`${title} — photo ${activeIdx + 1} of ${media.length}`}</DialogTitle>
           <div className="relative aspect-[16/10] w-full">
             {media[activeIdx] && (
-              <img
+              <Image
                 src={media[activeIdx]}
                 alt={`${title} — photo ${activeIdx + 1}`}
-                className="w-full h-full object-contain"
+                fill
+                sizes="100vw"
+                className="object-contain"
+                priority
+                unoptimized
               />
             )}
             {media.length > 1 && (
