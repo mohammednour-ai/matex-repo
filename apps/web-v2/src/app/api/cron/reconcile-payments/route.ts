@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Pool } from "pg";
+import * as Sentry from "@sentry/nextjs";
+
+function cronBreadcrumb(message: string, data?: Record<string, unknown>, level: Sentry.SeverityLevel = "info"): void {
+  try {
+    Sentry.addBreadcrumb({ category: "stripe.reconcile", message, level, data });
+  } catch {
+    /* Sentry not loaded — no-op. */
+  }
+}
 
 /**
  * Stripe payment reconciliation cron.
@@ -117,6 +126,7 @@ export async function GET(req: NextRequest) {
     );
 
     summary.scanned = stale.rows.length;
+    cronBreadcrumb("scan", { scanned: summary.scanned, batch_limit: BATCH_LIMIT });
 
     for (const raw of stale.rows) {
       const row = raw as PendingTransactionRow;
@@ -153,8 +163,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    cronBreadcrumb("done", { ...summary }, summary.errors > 0 ? "warning" : "info");
     return NextResponse.json({ ok: true, ...summary });
   } catch (e) {
+    cronBreadcrumb(
+      "fatal",
+      { error: e instanceof Error ? e.message : String(e) },
+      "error",
+    );
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "reconcile_error" },
       { status: 500 },
