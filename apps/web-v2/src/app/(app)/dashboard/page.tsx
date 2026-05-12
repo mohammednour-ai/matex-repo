@@ -36,6 +36,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ActivityTimeline } from "@/components/dashboard/ActivityTimeline";
 import { MiniSparkBars } from "@/components/dashboard/MiniSparkBars";
 import { DashboardIdentityBar } from "@/components/dashboard/DashboardIdentityBar";
+import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { DashboardPulseStrip } from "@/components/dashboard/DashboardPulseStrip";
 import { MATEXUI_TO_WEB_V2_ROUTES } from "@/data/matexui-route-map";
 import { DashboardMarketSummary } from "@/components/intelligence/DashboardMarketSummary";
@@ -430,6 +431,7 @@ export default function DashboardPage() {
       className="dashboard-page"
       data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
     >
+      <OnboardingTour />
       <DashboardIdentityBar
         email={user?.email}
         accountType={user?.accountType}
