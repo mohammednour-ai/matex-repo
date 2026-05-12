@@ -23,6 +23,18 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { StripeProvider } from "@/components/payments/StripeProvider";
 import { isStripeConfigured } from "@/lib/stripe";
 import Image from "next/image";
+import * as Sentry from "@sentry/nextjs";
+
+// PaymentElement lifecycle breadcrumbs — surfaced alongside the per-domain
+// mcp.payments crumbs emitted by callTool() so a captured exception on
+// /checkout carries the Stripe step that failed.
+function piBreadcrumb(message: string, data?: Record<string, unknown>, level: Sentry.SeverityLevel = "info"): void {
+  try {
+    Sentry.addBreadcrumb({ category: "stripe.pi", message, level, data });
+  } catch {
+    /* Sentry not loaded — no-op. */
+  }
+}
 
 type Step = 1 | 2 | 3;
 type PaymentMethod = "card" | "wallet" | "credit" | "interac";
@@ -711,6 +723,7 @@ function CardPaymentForm({
     if (!stripe || !elements) return;
     setSubmitting(true);
     setError("");
+    piBreadcrumb("confirmPayment start");
     const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: "if_required",
@@ -720,6 +733,11 @@ function CardPaymentForm({
       },
     });
     if (confirmError) {
+      piBreadcrumb(
+        "confirmPayment declined",
+        { code: confirmError.code, type: confirmError.type },
+        "warning",
+      );
       setError(confirmError.message ?? "Card was declined.");
       setSubmitting(false);
       return;
@@ -728,10 +746,16 @@ function CardPaymentForm({
     // succeeded (e.g. requires_action under non-redirect scenarios), surface
     // a friendly message and stay on this step.
     if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      piBreadcrumb(
+        `confirmPayment ${paymentIntent.status}`,
+        { pi_id: paymentIntent.id, status: paymentIntent.status },
+        "warning",
+      );
       setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
       setSubmitting(false);
       return;
     }
+    piBreadcrumb("confirmPayment ok", { pi_id: paymentIntent?.id, status: paymentIntent?.status });
     await onSuccess();
     setSubmitting(false);
   }

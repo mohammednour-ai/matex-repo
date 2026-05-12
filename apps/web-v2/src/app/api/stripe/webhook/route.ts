@@ -1,4 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
+
+// Per-checkpoint Sentry breadcrumb so a captured error elsewhere in the
+// request lifetime gets a trail of "what Stripe was doing just before this".
+// Category mirrors the mcp.<domain> convention used by callTool's helper.
+function stripeBreadcrumb(message: string, data?: Record<string, unknown>, level: Sentry.SeverityLevel = "info"): void {
+  try {
+    Sentry.addBreadcrumb({ category: "stripe.webhook", message, level, data });
+  } catch {
+    /* Sentry not loaded — no-op. */
+  }
+}
 
 /**
  * Stripe webhook endpoint.
@@ -62,6 +74,8 @@ export async function POST(req: NextRequest) {
   // (canceled, processing, requires_action) are observed via the UI / cron
   // reconciliation; recording them here would create a second source of
   // truth competing with the database.
+  stripeBreadcrumb(`event ${event.type}`, { event_id: event.id, pi_id: event.data.object.id });
+
   if (event.type !== "payment_intent.succeeded" && event.type !== "payment_intent.payment_failed") {
     return NextResponse.json({ received: true, ignored: event.type });
   }
@@ -198,6 +212,7 @@ export async function POST(req: NextRequest) {
     }
 
     await client.query("COMMIT");
+    stripeBreadcrumb(`${event.type} applied`, { event_id: event.id, transaction_id: txId });
     return NextResponse.json({ received: true });
   } catch (e) {
     try {
@@ -205,6 +220,11 @@ export async function POST(req: NextRequest) {
     } catch {
       /* connection already broken; nothing to roll back */
     }
+    stripeBreadcrumb(
+      `${event.type} rollback`,
+      { event_id: event.id, transaction_id: txId, error: e instanceof Error ? e.message : String(e) },
+      "error",
+    );
     // 5xx so Stripe retries with backoff. Webhook delivery has at-least-once
     // semantics; a failed apply is recoverable on the next attempt.
     return NextResponse.json(
