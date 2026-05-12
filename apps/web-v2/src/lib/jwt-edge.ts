@@ -1,11 +1,12 @@
 /**
- * Edge-runtime-safe JWT verification for the matex_session cookie (P1-10b).
+ * Edge-runtime-safe JWT verification for the matex_session cookie.
  *
  * The MCP gateway signs HS256 tokens with `MATEX_JWT_SECRET` (mirrored from
- * apps/mcp-gateway's JWT_SECRET). The middleware previously only checked the
- * cookie's presence; this helper verifies the signature and the standard
- * `exp` claim so a forged or expired cookie is rejected at the edge rather
- * than waiting for the API layer to 401.
+ * apps/mcp-gateway's JWT_SECRET). Used by the middleware (P1-10b) and by
+ * self-authenticated API routes like /api/auctions/[id]/bid-stream (P1-7b).
+ * Verifies the signature and the standard `exp` claim so a forged or
+ * expired cookie is rejected at the edge rather than waiting for the API
+ * layer to 401.
  *
  * Uses `jose` because `jsonwebtoken` depends on Node's crypto module and
  * doesn't run in the Edge Runtime where Next middleware executes.
@@ -42,13 +43,9 @@ export async function verifyMatexJwt(token: string): Promise<MatexJwtClaims | nu
   if (!token) return null;
   const key = secretKey();
   if (!key) {
-    // Dev / preview without a secret configured. We refuse to authenticate
-    // rather than treating any token as valid — same posture as the gateway,
-    // which logs FATAL when the dev secret is in use under NODE_ENV=production.
-    if (process.env.NODE_ENV === "production") return null;
-    // In non-prod we still verify the structure (three base64 segments) so
-    // tests with a fake token can opt into the unverified path explicitly
-    // via env, but signature is required.
+    // No secret configured — fail closed regardless of environment rather
+    // than treat any token as valid. Same posture as the gateway, which
+    // logs FATAL when the dev secret is in use under NODE_ENV=production.
     return null;
   }
   try {
