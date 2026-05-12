@@ -52,7 +52,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 
 | ID | What | Status | Notes |
 |---|---|---|---|
-| P1-2 | Replace static Jan–Jun contract fulfillment chart with real history | ⬜ | Needs a `contracts.get_fulfillment_history` tool or a SELECT against `contracts_mcp.contract_orders` |
+| P1-2 | Replace static Jan–Jun contract fulfillment chart with real history | ✅ shipped | New `contracts.get_fulfillment_history` tool on both transports; chart on `/contracts` lazy-fetches per selected contract |
 | P1-3 | Auction lobby Register CTA + download terms PDF | ⬜ | Both have empty handlers today |
 | P1-4 | Listing share + report buttons (currently no-op) | ⬜ | Share = native Web Share API + clipboard fallback; report = new `listing.flag_listing` tool |
 | P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | ⬜ | Each row is a one-line `SELECT count(*) FROM ...` |
