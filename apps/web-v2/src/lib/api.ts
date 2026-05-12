@@ -204,6 +204,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "auction.get_auction",
   "auction.register_bidder",
   "auction.list_bids",
+  "auction.get_winning_bids",
   "auction.ping",
   "booking.set_availability",
   "booking.create_booking",
