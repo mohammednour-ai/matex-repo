@@ -67,7 +67,21 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 
 | ID | What | Status | Why |
 |---|---|---|---|
-| P1-13 | Checkout 4-tool transaction boundary | ⏸ | Partly covered by recent Stripe work (#41 atomic webhook, #43 race fix, #44 reconciliation cron). Needs to be re-scoped against the current shape — the original "5 sequential tool calls can drift" framing is mostly addressed; remaining failure modes are narrow and need fresh design before a tight PR |
+| P1-13 | Checkout 4-tool transaction boundary | ✅ closed | Closed without code — see "P1-13 — closed without code" below. The original concern is covered end-to-end by recent Stripe work (#41 atomic webhook, #43 race fix, #44 reconciliation cron); the narrow remaining drift case is tracked as P1-13b |
+
+### P1-13 — closed without code
+
+The audit framed this as "Add transaction boundary to checkout 4-tool flow". Survey after the Stripe work concluded the original concern is now covered end-to-end:
+
+| Original concern | Where it's addressed |
+|---|---|
+| Order created, payment fails halfway | `payments.create_payment_intent` (PR #39) inserts the transaction row before calling Stripe, so a Stripe failure leaves an auditable `failed` transaction. The original order stays in the matching status. |
+| Payment confirmed, escrow not transitioned | Stripe webhook (PR #41) atomically updates both `transactions.status='completed'` AND `escrows.status='funds_held'` inside a single Postgres transaction with idempotent guards. |
+| Escrow created AFTER webhook (race) | `escrow.create_escrow` (PR #43) reads any settled transaction for the order and auto-opens `status='funds_held'` instead of `'created'`. |
+| Lost webhook | Reconciliation cron (PR #44) runs every 15 minutes against stuck `pending_capture` rows and resolves them from Stripe. |
+| Wallet/credit/interac never completed | `payments.process_payment` (PR #46) is now method-aware and writes the right terminal status per method, with atomic wallet debit. |
+
+The narrow remaining drift case — **invoice generation fails AFTER payment confirmed** — is tracked as P1-13b (detection shipped in PR #74) and P1-13c (full retry once `tax.generate_invoice` accepts `{order_id}` alone).
 
 ### Deferred follow-ups I created during the P0 / P1-1 work
 
@@ -97,8 +111,7 @@ Easy wins to keep momentum, then design-heavier items:
 9. **P1-2 contract fulfillment chart** — needs the contracts surface that PR #47–#49 already shipped.
 10. **P1-6 won-lots filter** — small but depends on knowing what `auction.get_winning_bids` returns; survey first.
 11. **P2 items** — polish; pick after P1 is clean.
-12. **P1-13 checkout transaction boundary** — open the re-scoping conversation once everything around it is settled.
-13. **The three deferred follow-ups (5b / 1d / 10b)** — pick when convenient; none blocking.
+12. **The deferred follow-ups (5b / 1d / 7b / 10b / 13b / 13c)** — pick when convenient; none blocking.
 
 Stop after every PR. Re-confirm direction if any survey turns up a bigger problem than expected (the P1-1 split was the model — survey, report, propose split, then code).
 
