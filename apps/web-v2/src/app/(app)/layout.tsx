@@ -383,6 +383,10 @@ function UserMenu() {
     setUser(getUser());
   }, [pathname]);
 
+  // On /dashboard, the account menu is folded into <DashboardIdentityBar />'s
+  // identity strip so there's no duplicate avatar in the top-right.
+  if (pathname === "/dashboard" || pathname === "/dashboard/") return null;
+
   async function handleSignOut() {
     // Awaiting the DELETE matters: it clears the HttpOnly matex_session
     // cookie that the middleware checks. If we kicked router.replace

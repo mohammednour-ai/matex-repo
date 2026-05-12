@@ -6,18 +6,22 @@
 export default function DashboardLoading(): JSX.Element {
   return (
     <div className="dashboard-page">
-      <div className="dashboard-hero">
-        <div className="dashboard-hero-grid">
-          <div className="h-7 w-32 rounded-full bg-elevated/60 animate-pulse" />
-          <div className="mt-4 h-9 w-3/4 max-w-lg rounded-lg bg-elevated/60 animate-pulse" />
-          <div className="mt-3 h-4 w-2/3 max-w-md rounded-lg bg-elevated/40 animate-pulse" />
-          <div className="dashboard-hero-kpis">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="dashboard-mini-kpi">
-                <div className="h-3 w-20 rounded bg-night-700/60 animate-pulse" />
-                <div className="mt-2 h-5 w-16 rounded bg-night-700/60 animate-pulse" />
-              </div>
-            ))}
+      {/* Hero skeleton — matches the taller DashboardIdentityBar layout
+          (min-h-[360px] mobile → 480px desktop, identity panel right column). */}
+      <div className="relative overflow-hidden rounded-2xl border border-night-700 bg-[linear-gradient(135deg,#1a1f27,#20262f_45%,#15191f_100%)] min-h-[360px] sm:min-h-[440px] lg:min-h-[480px]">
+        <div className="flex h-full min-h-[inherit] flex-col gap-6 px-5 py-6 sm:px-7 sm:py-8 lg:px-9 lg:py-10">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="flex-1 space-y-3">
+              <div className="h-3 w-16 rounded bg-night-700/60 animate-pulse" />
+              <div className="h-9 w-3/4 max-w-lg rounded-lg bg-night-700/60 animate-pulse" />
+              <div className="h-4 w-2/3 max-w-md rounded-lg bg-night-700/40 animate-pulse" />
+            </div>
+            <div className="h-24 w-full rounded-2xl bg-night-700/40 animate-pulse lg:w-[300px]" />
+          </div>
+          <div className="flex-1" aria-hidden />
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <div className="h-11 w-full rounded-xl bg-night-700/60 animate-pulse sm:w-44" />
+            <div className="h-11 w-full rounded-xl bg-night-700/40 animate-pulse sm:w-44" />
           </div>
         </div>
       </div>
