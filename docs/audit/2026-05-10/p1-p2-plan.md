@@ -38,7 +38,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-12 | `/logistics/[shipment]` trace page calls `logistics.get_shipment` but throws the response away | ⬜ | — |
 | P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` (4 sites, pre-existing lint warnings) | ⬜ | — |
 | P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | ⬜ | — |
-| P2-1 | Persist sidebar collapsed state in localStorage | ⬜ | — |
+| P2-1 | Persist sidebar collapsed state in localStorage | ✅ shipped | Key `matex_sidebar_collapsed`; hydrated in a layout effect to avoid SSR mismatch |
 | P2-2 | Confirm dialog before destructive admin ops (freeze/refund/release) | ⬜ | — |
 | P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ⬜ | — |
 | P2-5 | Period selector + chart on revenue report (currently raw numbers only) | ⬜ | — |

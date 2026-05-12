@@ -487,9 +487,31 @@ function UserMenu() {
   );
 }
 
+const SIDEBAR_COLLAPSED_KEY = "matex_sidebar_collapsed";
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // Sidebar collapsed state persists across reloads (P2-1). We start
+  // with `false` on the server + initial client render to avoid a
+  // hydration mismatch, then hydrate from localStorage in a layout
+  // effect. The width transition CSS hides the one-frame change.
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1") {
+        setCollapsed(true);
+      }
+    } catch {
+      // Private mode / storage disabled — fall through with the default.
+    }
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -520,7 +542,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <Sidebar
         collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
+        onToggle={toggleCollapsed}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
