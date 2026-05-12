@@ -40,7 +40,7 @@ const HERO_CLS = {
   track:
     "dashboard-pulse-strip__track !text-[12.5px] !font-medium !tracking-[0.01em] !text-night-100/95 ![animation-duration:120s]",
   item:
-    "relative shrink-0 pl-5 text-night-100/95 before:absolute before:left-0 before:top-1/2 before:h-1 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-brand-400/70 before:content-['']",
+    "relative shrink-0 pl-6 text-night-100/95 before:absolute before:left-0 before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full before:bg-brand-400 before:shadow-[0_0_8px_rgba(232,119,34,0.55)] before:content-['']",
   // Caption removed in hero variant (explicit user request).
   legal: "hidden",
 } as const;
