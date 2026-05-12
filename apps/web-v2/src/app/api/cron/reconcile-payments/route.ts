@@ -53,6 +53,13 @@ type ReconcileSummary = {
   still_pending: number;
   already_settled: number;
   errors: number;
+  // P1-13b: after reconciliation lands a previously-stuck transaction we
+  // also check whether tax.generate_invoice ran on the original client-side
+  // checkout. The cron can't re-invoke the tool directly (seller_province /
+  // buyer_province aren't on the transaction or orders rows), so we log a
+  // missing-invoice signal that ops can sweep for manual backfill.
+  invoice_missing: number;
+  invoice_already_present: number;
 };
 
 export async function GET(req: NextRequest) {
@@ -85,6 +92,8 @@ export async function GET(req: NextRequest) {
     still_pending: 0,
     already_settled: 0,
     errors: 0,
+    invoice_missing: 0,
+    invoice_already_present: 0,
   };
 
   const pg = (await import("pg")).default;
@@ -230,6 +239,36 @@ async function applySucceeded(
     throw e;
   } finally {
     client.release();
+  }
+
+  // Post-commit invoice sweep. tax.generate_invoice is normally called from
+  // /checkout right after Stripe confirms; if the page crashed or the user
+  // closed the tab before that ran, the order is paid but uninvoiced. The
+  // cron can't reissue here (generate_invoice needs seller/buyer provinces
+  // that don't live on transactions or orders), so we record a structured
+  // missing-invoice event ops can sweep on.
+  if (row.order_id) {
+    try {
+      const invRes = await pool.query(
+        `SELECT 1 FROM tax_mcp.invoices WHERE order_id = $1::uuid LIMIT 1`,
+        [row.order_id],
+      );
+      if (invRes.rowCount === 0) {
+        summary.invoice_missing += 1;
+        console.warn(
+          "[reconcile-payments] invoice_missing_after_reconcile",
+          JSON.stringify({
+            transaction_id: row.transaction_id,
+            order_id: row.order_id,
+            stripe_payment_intent_id: pi.id,
+          }),
+        );
+      } else {
+        summary.invoice_already_present += 1;
+      }
+    } catch {
+      // Non-fatal — invoice check is observational only.
+    }
   }
 }
 
