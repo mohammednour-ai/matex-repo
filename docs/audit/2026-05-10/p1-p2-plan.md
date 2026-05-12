@@ -34,10 +34,10 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 
 | ID | What | Status | PR |
 |---|---|---|---|
-| P1-11 | `/logistics` doesn't render `logistics.generate_bol`'s URL after the call; BoL invisible to buyers | ⬜ | — |
-| P1-12 | `/logistics/[shipment]` trace page calls `logistics.get_shipment` but throws the response away | ⬜ | — |
-| P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` (4 sites, pre-existing lint warnings) | ⬜ | — |
-| P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | ⬜ | — |
+| P1-11 | `/logistics` doesn't render `logistics.generate_bol`'s URL after the call; BoL invisible to buyers | 🟡 PR open | PR #76 — adds `showSuccess` toast with the new BoL number and an error toast on failure (badge rendering was already wired) |
+| P1-12 | `/logistics/[shipment]` trace page calls `logistics.get_shipment` but throws the response away | 🟡 PR open | PR #76 — caches the `quotes` array returned by `get_shipment` per shipment and renders them in the expanded timeline alongside a "Last refreshed" timestamp |
+| P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` | ⏸ re-scoped | Audit framing was wrong — both `<img>` sites are intentional eslint-disabled escape hatches for user-uploaded URLs from arbitrary Supabase storage hosts. A proper migration needs `images.remotePatterns` config + per-host URL validation; promoted to M effort and queued as P1-15b |
+| P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | 🟡 PR open | PR #77 — removed KycTab's race-fallback fetch; parent gates rendering on `pageKycLevel !== null` and shows the spinner during the single fetch |
 | P2-1 | Persist sidebar collapsed state in localStorage | ✅ shipped | Key `matex_sidebar_collapsed`; hydrated in a layout effect to avoid SSR mismatch |
 | P2-2 | Confirm dialog before destructive admin ops (Hold / Release / Freeze / Refund) | ✅ shipped | PR #66 — shadcn Dialog with `pendingOp: { label, summary, execute, danger }` state shape; pre-validates inputs before opening; danger-variant confirm button |
 | P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ✅ shipped | PR #71 — new `admin.get_overview_history({days?})` tool on both transports; cards render existing `PriceSparkline` with inverted colour for `open_disputes` |
@@ -53,12 +53,12 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | ID | What | Status | Notes |
 |---|---|---|---|
 | P1-2 | Replace static Jan–Jun contract fulfillment chart with real history | ✅ shipped | New `contracts.get_fulfillment_history` tool on both transports; chart on `/contracts` lazy-fetches per selected contract |
-| P1-3 | Auction lobby Register CTA + download terms PDF | ⬜ | Both have empty handlers today |
-| P1-4 | Listing share + report buttons (currently no-op) | ⬜ | Share = native Web Share API + clipboard fallback; report = new `listing.flag_listing` tool |
-| P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | ⬜ | Each row is a one-line `SELECT count(*) FROM ...` |
+| P1-3 | Auction lobby Register CTA + download terms PDF | ✅ shipped | Survey confirmed both already landed — `auction.register_bidder` wires the Register CTA (`/auctions/[id]/page.tsx:125`), Download PDF anchor on `terms_url` is gated and disables to "Not available" otherwise |
+| P1-4 | Listing share + report buttons (currently no-op) | ✅ shipped | Survey confirmed: `handleShareListing` uses `navigator.share` with clipboard fallback; `handleSubmitReport` calls `listing.flag_listing` on both transports (already in `TOOLS_ON_EDGE`) |
+| P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | 🟡 PR open | PR #78 — last hardcoded row (`catalytic_serials`) now counts the seller's listings via a slug-join on `listing_mcp.categories`. All six retention checks are live |
 | P1-6 | Post-auction "won lots" filter: real per-user data instead of `auction.lots.filter(sold).slice(0,2)` | ✅ shipped | Audit said "tool exists; UI doesn't call it" — survey found no such tool. New `auction.get_winning_bids({auction_id, user_id})` on both transports; UI fetches scoped to the logged-in user, per-lot "Check out" CTAs replace the broken `?order_id=ord-001` link |
 | P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | 🟡 partial — Option A only | Audit framed this as Supabase Realtime, but survey turned up that web-v2 doesn't use Supabase Auth (matex has its own JWT), so a client-side `supabase.channel()` subscription either sees nothing under RLS or requires a security regression. PR tightens poll cadence to 2s + ±20% jitter; real push tracked as P1-7b below |
-| P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | ⬜ | Sentry configs exist; just need explicit breadcrumbs at PI lifecycle + each tool boundary |
+| P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | 🟡 PR open | PR #79 — init verification already shipped (each `sentry.*.config.ts` warns on missing prod DSN) and `callTool` emits `mcp.<domain>` crumbs. This PR adds `stripe.webhook` / `stripe.reconcile` / `stripe.pi` lifecycle breadcrumbs |
 | P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | 🟡 PR open | PR #73 — chips per category (built from loaded entries), user_id + action substring inputs; row click expands the raw JSON |
 | P2-9 | First-time dashboard onboarding tour | ⬜ | New feature, not a fix |
 | P2-10 | Server-rendered dashboard for faster TTFB | ⬜ | Requires moving the 6-tool fan-out to a server component |
@@ -93,6 +93,7 @@ The narrow remaining drift case — **invoice generation fails AFTER payment con
 | P1-7b | Real push bid stream via Server-Sent Events (or WebSocket) backed by the existing Redis event bus and matex JWT auth | ⬜ | L effort. The right architectural fit — Next.js route at `/api/auctions/[id]/bid-stream` subscribes to the `event-relay` Redis stream and forwards `bidding.bid.placed` events. Uses existing matex JWT for auth (no Supabase Auth bridge). `useBidStream` switches transport: EventSource when supported, fall back to poll when disconnected. Out of scope for P1-7; surfaces here so it's queued for design |
 | P1-13b | Detect / retry `tax.generate_invoice` from the reconciliation cron | 🟡 PR open | PR #74 — adds invoice-presence check + `invoice_missing` / `invoice_already_present` counters and a structured warning per missing invoice. Full server-side *retry* still blocked on the tool taking `{order_id}` only (currently needs seller/buyer provinces) — queued as P1-13c |
 | P1-13c | Widen `tax.generate_invoice` to accept just `{order_id}` (look up seller/buyer/provinces internally), then call from the cron when `invoice_missing` is non-zero | ⬜ | Depends on profile_mcp exposing provinces by user_id; once shipped the cron stops needing manual ops backfill |
+| P1-15b | Migrate listings detail page `<img>` tags to `next/image` (proper version of audit's P1-15) | ⬜ | M effort. Configure `images.remotePatterns` for Supabase storage host(s) + any approved external hosts, plus per-host URL validation on `uploadImages` so listings can't smuggle in arbitrary `<Image>` srcs. Currently the `<img>` sites are explicitly eslint-disabled to acknowledge the user-content escape hatch |
 
 ---
 
