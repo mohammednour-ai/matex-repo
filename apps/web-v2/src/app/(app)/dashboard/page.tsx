@@ -438,14 +438,24 @@ export default function DashboardPage() {
       className="dashboard-page"
       data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
     >
-      <DashboardIdentityBar />
-      <DashboardPulseStrip
-        stats={stats}
+      <DashboardIdentityBar
+        email={user?.email}
+        accountType={user?.accountType}
+        kycLevel={kycLevel}
+        kycBadge={kycBadge}
         walletDisplay={walletDisplay}
         escrowDisplay={escrowDisplay}
-        unread={unreadCount}
-        kycLevel={kycLevel}
-      />
+        unreadCount={unreadCount}
+      >
+        <DashboardPulseStrip
+          variant="hero"
+          stats={stats}
+          walletDisplay={walletDisplay}
+          escrowDisplay={escrowDisplay}
+          unread={unreadCount}
+          kycLevel={kycLevel}
+        />
+      </DashboardIdentityBar>
 
       {Object.keys(sectionErrors).length > 0 && (
         // Surface the per-section load failures collected in `load()`. The
@@ -477,18 +487,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {kycLevel < 2 && (
-        <div className="dashboard-status-strip text-sm text-night-100">
-          <CircleAlert className="h-4 w-4 shrink-0 text-brand-400" />
-          <span>
-            <strong className="text-night-100">Complete verification</strong> — Higher KYC levels unlock
-            larger trades and faster payouts.
-          </span>
-          <Link href="/settings" className="font-semibold text-brand-400 underline-offset-2 hover:underline">
-            Continue in Settings
-          </Link>
-        </div>
-      )}
+      {/* KYC verification CTA moved into <DashboardIdentityBar /> (renders
+          inline at the bottom of the hero when kycLevel < 2). */}
 
       {showOrdersStrip && (
         <div className="dashboard-status-strip text-sm">

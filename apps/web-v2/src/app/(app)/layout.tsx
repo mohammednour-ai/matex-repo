@@ -361,6 +361,10 @@ function UserMenu() {
     setUser(getUser());
   }, [pathname]);
 
+  // On /dashboard, the account menu is folded into <DashboardIdentityBar />'s
+  // identity strip so there's no duplicate avatar in the top-right.
+  if (pathname === "/dashboard" || pathname === "/dashboard/") return null;
+
   async function handleSignOut() {
     await fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
     localStorage.removeItem("matex_token");
