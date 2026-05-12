@@ -4,6 +4,9 @@
  * The MCP gateway signs HS256 tokens with `MATEX_JWT_SECRET` (mirrored from
  * apps/mcp-gateway's JWT_SECRET). Used by the middleware (P1-10b) and by
  * self-authenticated API routes like /api/auctions/[id]/bid-stream (P1-7b).
+ * Verifies the signature and the standard `exp` claim so a forged or
+ * expired cookie is rejected at the edge rather than waiting for the API
+ * layer to 401.
  *
  * Uses `jose` because `jsonwebtoken` depends on Node's crypto module and
  * doesn't run in the Edge Runtime where Next middleware executes.
@@ -40,9 +43,9 @@ export async function verifyMatexJwt(token: string): Promise<MatexJwtClaims | nu
   if (!token) return null;
   const key = secretKey();
   if (!key) {
-    // No secret configured — fail closed in production rather than treat
-    // any token as valid. Dev / preview also rejects so behavior is
-    // identical across environments.
+    // No secret configured — fail closed regardless of environment rather
+    // than treat any token as valid. Same posture as the gateway, which
+    // logs FATAL when the dev secret is in use under NODE_ENV=production.
     return null;
   }
   try {

@@ -216,11 +216,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "get_retention_status") {
     // Replaces the hardcoded RETENTION_CHECKS in apps/web-v2's compliance
-    // page. Five of six checks now come from live DB counts (transaction
-    // records, KYC docs, beneficial ownership, LCTR-eligible transactions,
-    // STR filings); catalytic-converter serial coverage stays as a static
-    // "see Listings > Create" prompt because cross-tenant resolution
-    // through yardops_mcp.cat_converters needs more design.
+    // page. All six checks now come from live DB counts (transactions, KYC
+    // docs, beneficial ownership, LCTR-eligible transactions, STR filings,
+    // and catalytic-converter listings via category slug).
     const userId = String(args.user_id ?? "");
     if (!userId) {
       return {
@@ -235,7 +233,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    const [txs, kycDocs, companies, lctrEligible, strs] = await Promise.all([
+    const [txs, kycDocs, companies, lctrEligible, strs, catListings] = await Promise.all([
       supabase
         .schema("payments_mcp")
         .from("transactions")
@@ -263,6 +261,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         .select("log_id", { count: "exact", head: true })
         .eq("user_id", userId)
         .or("action.eq.compliance.str_filed,event_name.eq.compliance.str_filed"),
+      // Catalytic-converter listings for this seller. Mirrors the edge query
+      // in supabase/functions/log/index.ts — counts via category slug join so
+      // the check doesn't need a hardcoded category_id UUID.
+      supabase
+        .schema("listing_mcp")
+        .from("listings")
+        .select("listing_id, categories!inner(slug)", { count: "exact", head: true })
+        .eq("seller_id", userId)
+        .ilike("categories.slug", "%catalytic%"),
     ]);
 
     const txCount = txs.count ?? 0;
@@ -270,6 +277,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const companyCount = companies.count ?? 0;
     const lctrCount = lctrEligible.count ?? 0;
     const strCount = strs.count ?? 0;
+    const catCount = catListings.count ?? 0;
 
     const checks = [
       {
@@ -304,12 +312,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         id: "catalytic_serials",
         label: "Catalytic converter serial records",
         description: "Serial number, VIN, and photo documentation for all catalytic converter transactions.",
-        count: 0,
-        // Static reminder — catalytic listings live in yardops_mcp.cat_converters
-        // under a tenant scope that we don't resolve from the user_id here.
-        // Tracked as a follow-up in docs/audit/2026-05-10/p1-p2-plan.md.
-        ok: false,
-        action: "Catalytic converter compliance fields are required on listings — see Listings > Create.",
+        count: catCount,
+        ok: catCount === 0,
+        action:
+          catCount === 0
+            ? "No catalytic-converter listings on file — no serial records required yet."
+            : "Required for every catalytic listing — collect serial / VIN / photos via Listings > Create.",
       },
       {
         id: "str_filings",

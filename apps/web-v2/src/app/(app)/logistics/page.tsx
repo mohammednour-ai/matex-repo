@@ -16,6 +16,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { callTool, getUser, extractId } from "@/lib/api";
+import { showError, showSuccess } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
@@ -37,6 +38,7 @@ type Shipment = {
   eta: string;
   co2_kg: number;
   bol_number?: string;
+  last_tracked_at?: string;
 };
 
 type CarrierQuote = {
@@ -124,6 +126,10 @@ export default function LogisticsPage() {
   const [bolError, setBolError] = useState<string>("");
   const [trackError, setTrackError] = useState<string>("");
   const [expandedShipment, setExpandedShipment] = useState<string | null>(null);
+  // P1-12 — get_shipment also returns the historical carrier quotes for the
+  // order. We cache them per shipment so the timeline expand can show what
+  // alternatives the operator had at booking time.
+  const [trackedQuotes, setTrackedQuotes] = useState<Record<string, CarrierQuote[]>>({});
   const [bookedId, setBookedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -234,6 +240,7 @@ export default function LogisticsPage() {
     setBolLoading(null);
     if (!res.success) {
       setBolError(res.error?.message ?? "Could not generate Bill of Lading.");
+      showError(res.error, "Could not generate Bill of Lading.");
       return;
     }
     // The tool returns { shipment_id, bol_number }. Read it through both
@@ -251,6 +258,7 @@ export default function LogisticsPage() {
     setShipments((prev) =>
       prev.map((sh) => (sh.shipment_id === shipmentId ? { ...sh, bol_number: bolNumber } : sh)),
     );
+    showSuccess(`Bill of Lading generated: ${bolNumber}`);
   }
 
   async function handleTrack(shipmentId: string): Promise<void> {
@@ -275,6 +283,7 @@ export default function LogisticsPage() {
       | Record<string, unknown>
       | undefined;
     const fresh = ((up?.shipment ?? data?.shipment) as Record<string, unknown> | undefined) ?? undefined;
+    const freshQuotes = ((up?.quotes ?? data?.quotes) as Array<Record<string, unknown>> | undefined) ?? [];
     if (fresh) {
       setShipments((prev) =>
         prev.map((sh) => {
@@ -285,9 +294,24 @@ export default function LogisticsPage() {
             tracking_number: String(fresh.tracking_number ?? sh.tracking_number),
             bol_number: fresh.bol_number ? String(fresh.bol_number) : sh.bol_number,
             eta: fresh.estimated_delivery ? String(fresh.estimated_delivery) : sh.eta,
+            last_tracked_at: new Date().toISOString(),
           };
         }),
       );
+    }
+    if (freshQuotes.length > 0) {
+      const normalized: CarrierQuote[] = freshQuotes.map((q) => ({
+        quote_id: String(q.quote_id ?? ""),
+        order_id: String(q.order_id ?? ""),
+        carrier: String(q.carrier ?? ""),
+        carrier_name: q.carrier_name ? String(q.carrier_name) : undefined,
+        price: Number(q.price ?? 0),
+        transit_days: Number(q.transit_days ?? 0),
+        co2_kg: Number(q.co2_kg ?? 0),
+        rating: Number(q.rating ?? 0),
+        recommended: Boolean(q.recommended ?? false),
+      }));
+      setTrackedQuotes((prev) => ({ ...prev, [shipmentId]: normalized }));
     }
     setExpandedShipment((p) => (p === shipmentId ? null : shipmentId));
   }
@@ -382,7 +406,10 @@ export default function LogisticsPage() {
                   </div>
                 </div>
                 {expandedShipment === sh.shipment_id && (
-                  <ShipmentTimeline shipment={sh} />
+                  <ShipmentTimeline
+                    shipment={sh}
+                    quotes={trackedQuotes[sh.shipment_id] ?? []}
+                  />
                 )}
               </div>
             ))}
@@ -505,7 +532,7 @@ const TRACKING_STEPS = [
   "Delivered (W3 Recorded)",
 ];
 
-function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
+function ShipmentTimeline({ shipment, quotes }: { shipment: Shipment; quotes: CarrierQuote[] }) {
   const stepMap: Record<ShipmentStatus, number> = {
     pending: 0,
     booked: 1,
@@ -516,7 +543,7 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
   const currentStep = stepMap[shipment.status];
 
   return (
-    <div className="border-t border-line/60 bg-canvas px-5 py-4">
+    <div className="border-t border-line/60 bg-canvas px-5 py-4 space-y-4">
       <div className="flex gap-0 overflow-x-auto">
         {TRACKING_STEPS.map((step, i) => (
           <div key={step} className="flex flex-1 items-start min-w-[80px]">
@@ -534,6 +561,33 @@ function ShipmentTimeline({ shipment }: { shipment: Shipment }) {
           </div>
         ))}
       </div>
+
+      {shipment.last_tracked_at && (
+        <p className="text-[11px] text-fg-subtle">
+          Last refreshed {new Date(shipment.last_tracked_at).toLocaleTimeString("en-CA", { hour: "2-digit", minute: "2-digit" })}
+        </p>
+      )}
+
+      {quotes.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">
+            Carrier quotes at booking
+          </p>
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {quotes.map((q) => (
+              <li
+                key={q.quote_id || `${q.carrier}-${q.price}`}
+                className="flex items-center justify-between rounded-lg border border-line/60 bg-surfaceBg px-3 py-1.5 text-xs"
+              >
+                <span className="truncate text-fg-muted">{q.carrier_name || q.carrier}</span>
+                <span className="ml-2 shrink-0 text-fg">
+                  ${q.price.toFixed(2)} · {q.transit_days}d
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
