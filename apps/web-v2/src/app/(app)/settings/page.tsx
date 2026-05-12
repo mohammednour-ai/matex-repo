@@ -502,37 +502,20 @@ const kycLevelLabels: Record<KycLevelNum, string> = {
   3: "Level 3 — Corporate",
 };
 
-function KycTab({ initialLevel }: { initialLevel: number | null }) {
-  // initialLevel is provided by the parent SettingsPage so we don't
-  // round-trip kyc.get_kyc_level a second time. If a caller renders
-  // KycTab outside SettingsPage (or before the parent's fetch has
-  // resolved), initialLevel is null and we fall back to fetching here.
-  const [kycLevel, setKycLevel] = useState<KycLevelNum>(
-    initialLevel != null ? toKycLevelNum(initialLevel) : 0,
-  );
+function KycTab({ initialLevel }: { initialLevel: number }) {
+  // The parent SettingsPage owns the single kyc.get_kyc_level fetch and
+  // only mounts this component once that fetch has resolved, so no second
+  // round-trip happens. If the user advances levels in another tab the
+  // parent state updates and the useEffect below mirrors the new value in.
+  const [kycLevel, setKycLevel] = useState<KycLevelNum>(toKycLevelNum(initialLevel));
   const [uploading, setUploading] = useState<string | null>(null);
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(initialLevel == null);
   const [pendingDoc, setPendingDoc] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (initialLevel != null) {
-      // Parent already has the level; mirror into local state and skip
-      // the redundant fetch. Re-runs only if the parent's value changes
-      // (e.g. after the user advances levels in another tab).
-      setKycLevel(toKycLevelNum(initialLevel));
-      setLoading(false);
-      return;
-    }
-    callTool("kyc.get_kyc_level", {}).then((res) => {
-      if (res.success) {
-        const d = res.data as unknown as { current_level?: unknown; level?: unknown };
-        setKycLevel(toKycLevelNum(d?.current_level ?? d?.level));
-      }
-      setLoading(false);
-    });
+    setKycLevel(toKycLevelNum(initialLevel));
   }, [initialLevel]);
 
   const handleUploadDoc = async (docType: string, file: File): Promise<void> => {
@@ -560,15 +543,6 @@ function KycTab({ initialLevel }: { initialLevel: number | null }) {
     }
     setUploading(null);
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-fg-subtle">
-        <Spinner className="h-4 w-4" />
-        Loading KYC status…
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-xl space-y-6">
@@ -898,7 +872,16 @@ export default function SettingsPage() {
         <div className="marketplace-card min-h-96 flex-1 p-6">
           {activeTab === "profile" && <ProfileTab />}
           {activeTab === "company" && <CompanyTab />}
-          {activeTab === "kyc" && <KycTab initialLevel={pageKycLevel} />}
+          {activeTab === "kyc" && (
+            pageKycLevel == null ? (
+              <div className="flex items-center gap-2 text-sm text-fg-subtle">
+                <Spinner className="h-4 w-4" />
+                Loading KYC status…
+              </div>
+            ) : (
+              <KycTab initialLevel={pageKycLevel} />
+            )
+          )}
           {activeTab === "notifications" && <NotificationsTab />}
         </div>
       </div>
