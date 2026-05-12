@@ -56,7 +56,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-3 | Auction lobby Register CTA + download terms PDF | ⬜ | Both have empty handlers today |
 | P1-4 | Listing share + report buttons (currently no-op) | ⬜ | Share = native Web Share API + clipboard fallback; report = new `listing.flag_listing` tool |
 | P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | ⬜ | Each row is a one-line `SELECT count(*) FROM ...` |
-| P1-6 | Post-auction "won lots" filter: use `auction.get_winning_bids` instead of client-side filter | ⬜ | Tool exists; UI doesn't call it |
+| P1-6 | Post-auction "won lots" filter: real per-user data instead of `auction.lots.filter(sold).slice(0,2)` | ✅ shipped | Audit said "tool exists; UI doesn't call it" — survey found no such tool. New `auction.get_winning_bids({auction_id, user_id})` on both transports; UI fetches scoped to the logged-in user, per-lot "Check out" CTAs replace the broken `?order_id=ord-001` link |
 | P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | 🟡 partial — Option A only | Audit framed this as Supabase Realtime, but survey turned up that web-v2 doesn't use Supabase Auth (matex has its own JWT), so a client-side `supabase.channel()` subscription either sees nothing under RLS or requires a security regression. PR tightens poll cadence to 2s + ±20% jitter; real push tracked as P1-7b below |
 | P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | ⬜ | Sentry configs exist; just need explicit breadcrumbs at PI lifecycle + each tool boundary |
 | P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | ⬜ | Table + filter chips by actor / domain / action |
