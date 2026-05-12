@@ -11,6 +11,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Skip cleanly when the deploy token isn't wired (forks, branch builds
+    # without prod secrets). The mirror-sync check above used to run inside
+    # this job; we keep it gated too so the failure mode is "skipped", not
+    # "missing-secret crash".
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DEPLOY_FUNCTIONS == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
