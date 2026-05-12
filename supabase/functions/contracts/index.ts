@@ -362,6 +362,57 @@ async function collectPenalty({ args }: ToolRequest) {
   return okEnvelope({ penalty_id: penaltyId, contract_id: contractId, order_id: orderId, amount: penaltyAmount, reason, collected_at: collectedAt });
 }
 
+async function getFulfillmentHistory({ args }: ToolRequest) {
+  // Edge counterpart of contracts-mcp's get_fulfillment_history. Replaces
+  // the hardcoded 6-month chart on /contracts (P1-2). Buckets are computed
+  // client-side in JS rather than via a SQL GROUP BY so we don't need to
+  // add an RPC function for what is at most 12 rows of data per contract.
+  const contractId = String(args.contract_id ?? "");
+  const months = Math.min(Math.max(Number(args.months ?? 6), 1), 12);
+  if (!contractId) return failEnvelope("VALIDATION_ERROR", "contract_id is required.");
+
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
+  const startIso = start.toISOString().slice(0, 10);
+
+  const supabase = serviceClient();
+  const { data, error } = await supabase
+    .schema("contracts_mcp")
+    .from("contract_orders")
+    .select("scheduled_date,quantity,status")
+    .eq("contract_id", contractId)
+    .gte("scheduled_date", startIso)
+    .order("scheduled_date", { ascending: true });
+  if (error) return failEnvelope("DB_ERROR", "Database operation failed");
+
+  type Bucket = { year: number; month: number; scheduled: number; fulfilled: number };
+  const buckets: Bucket[] = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+    buckets.push({ year: d.getFullYear(), month: d.getMonth(), scheduled: 0, fulfilled: 0 });
+  }
+  const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  for (const raw of data ?? []) {
+    const row = raw as Record<string, unknown>;
+    const d = new Date(String(row.scheduled_date));
+    const bucket = buckets.find((b) => b.year === d.getFullYear() && b.month === d.getMonth());
+    if (!bucket) continue;
+    const qty = Number(row.quantity ?? 0);
+    bucket.scheduled += qty;
+    if (String(row.status) === "fulfilled") bucket.fulfilled += qty;
+  }
+
+  const points = buckets.map((b) => ({
+    label: monthLabels[b.month],
+    year: b.year,
+    scheduled_quantity: Number(b.scheduled.toFixed(2)),
+    fulfilled_quantity: Number(b.fulfilled.toFixed(2)),
+    pct: b.scheduled > 0 ? Math.round((b.fulfilled / b.scheduled) * 100) : 0,
+  }));
+
+  return okEnvelope({ contract_id: contractId, months, points });
+}
+
 Deno.serve(serveDomain({
   ping,
   create_contract: createContract,
@@ -373,4 +424,5 @@ Deno.serve(serveDomain({
   evaluate_breach: evaluateBreach,
   collect_penalty: collectPenalty,
   list_contracts: listContracts,
+  get_fulfillment_history: getFulfillmentHistory,
 }));

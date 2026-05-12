@@ -229,6 +229,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "contracts.evaluate_breach",
   "contracts.collect_penalty",
   "contracts.list_contracts",
+  "contracts.get_fulfillment_history",
   "contracts.ping",
   "dispute.file_dispute",
   "dispute.submit_evidence",
