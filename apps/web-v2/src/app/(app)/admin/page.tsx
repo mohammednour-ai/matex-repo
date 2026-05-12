@@ -101,6 +101,9 @@ export default function AdminPage() {
   const [auctionIdFilter, setAuctionIdFilter] = useState("");
   const [orderIdStatus, setOrderIdStatus] = useState("");
   const [orderNewStatus, setOrderNewStatus] = useState("confirmed");
+  // Per-row inline status edits on the Orders table. Keyed by order_id; only
+  // the rows the operator has touched appear here. Saving clears the entry.
+  const [orderRowEdits, setOrderRowEdits] = useState<Record<string, string>>({});
   // Audit-trail filters. category + user_id are server-side; actionFilter is
   // client-side substring match so the operator can refine without re-fetching.
   const [auditCategory, setAuditCategory] = useState<string>("");
@@ -592,15 +595,69 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
-                  <tr key={String(o.order_id)} className="border-t border-line/60">
-                    <td className="px-3 py-2 font-mono text-xs">{String(o.order_id ?? "").slice(0, 8)}…</td>
-                    <td className="px-3 py-2">{String(o.status ?? "")}</td>
-                    <td className="px-3 py-2">{String(o.original_amount ?? "")}</td>
-                    <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.buyer_id ?? "")}</td>
-                    <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.seller_id ?? "")}</td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const orderId = String(o.order_id ?? "");
+                  const currentStatus = String(o.status ?? "");
+                  const pending = orderRowEdits[orderId];
+                  const selected = pending ?? currentStatus;
+                  const dirty = pending !== undefined && pending !== currentStatus;
+                  return (
+                    <tr key={orderId} className="border-t border-line/60">
+                      <td className="px-3 py-2 font-mono text-xs">{orderId.slice(0, 8)}…</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selected}
+                            onChange={(e) =>
+                              setOrderRowEdits((prev) => ({ ...prev, [orderId]: e.target.value }))
+                            }
+                            className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs"
+                            aria-label={`Status for order ${orderId.slice(0, 8)}`}
+                          >
+                            {["pending", "confirmed", "shipped", "delivered", "completed", "cancelled", "disputed"].map(
+                              (s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ),
+                            )}
+                            {/* Preserve any legacy status not in the canonical list so the dropdown still
+                                shows the actual value rather than silently relabeling the row. */}
+                            {currentStatus &&
+                              !["pending", "confirmed", "shipped", "delivered", "completed", "cancelled", "disputed"].includes(
+                                currentStatus,
+                              ) && <option value={currentStatus}>{currentStatus}</option>}
+                          </select>
+                          {dirty && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                run(async () => {
+                                  const r = await callTool("admin.update_order_status", {
+                                    order_id: orderId,
+                                    status: selected,
+                                  });
+                                  if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                                  await loadOrders();
+                                  setOrderRowEdits((prev) => {
+                                    const { [orderId]: _drop, ...rest } = prev;
+                                    return rest;
+                                  });
+                                  flash(`Order ${orderId.slice(0, 8)} → ${selected}`);
+                                })
+                              }
+                            >
+                              Save
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">{String(o.original_amount ?? "")}</td>
+                      <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.buyer_id ?? "")}</td>
+                      <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.seller_id ?? "")}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
