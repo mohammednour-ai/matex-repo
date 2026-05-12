@@ -57,7 +57,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-4 | Listing share + report buttons (currently no-op) | ⬜ | Share = native Web Share API + clipboard fallback; report = new `listing.flag_listing` tool |
 | P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | ⬜ | Each row is a one-line `SELECT count(*) FROM ...` |
 | P1-6 | Post-auction "won lots" filter: use `auction.get_winning_bids` instead of client-side filter | ⬜ | Tool exists; UI doesn't call it |
-| P1-7 | Auction page: subscribe to Supabase Realtime for live bid stream, drop the 2s polling | ⬜ | `event-relay` app already feeds bids onto a Realtime channel |
+| P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | 🟡 partial — Option A only | Audit framed this as Supabase Realtime, but survey turned up that web-v2 doesn't use Supabase Auth (matex has its own JWT), so a client-side `supabase.channel()` subscription either sees nothing under RLS or requires a security regression. PR tightens poll cadence to 2s + ±20% jitter; real push tracked as P1-7b below |
 | P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | ⬜ | Sentry configs exist; just need explicit breadcrumbs at PI lifecycle + each tool boundary |
 | P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | ⬜ | Table + filter chips by actor / domain / action |
 | P2-9 | First-time dashboard onboarding tour | ⬜ | New feature, not a fix |
@@ -76,6 +76,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P0-1 5b | Admin "record manual purchase" card flow | ⬜ | Internal-only, low-traffic; same `<PaymentElement>` pattern as `/checkout` and `/escrow/create` |
 | P1-1d | Redesign `evaluate_breach` comparison semantics | ⬜ | TODO flagged in code (PR #49). Move to scheduled-vs-delivered (read `orders_mcp.orders.quantity` via `contract_orders.order_id` FK), drive penalties off `contract_orders.status` instead of whole-contract `total_volume` |
 | P1-10b | Full JWT verification on the edge + HttpOnly-only auth | ⬜ | Currently middleware checks cookie presence only; expired/forged tokens get past until the API layer 401s. Needs JWT secret in the edge runtime and login route emitting Set-Cookie directly so the access token never sits in localStorage |
+| P1-7b | Real push bid stream via Server-Sent Events (or WebSocket) backed by the existing Redis event bus and matex JWT auth | ⬜ | L effort. The right architectural fit — Next.js route at `/api/auctions/[id]/bid-stream` subscribes to the `event-relay` Redis stream and forwards `bidding.bid.placed` events. Uses existing matex JWT for auth (no Supabase Auth bridge). `useBidStream` switches transport: EventSource when supported, fall back to poll when disconnected. Out of scope for P1-7; surfaces here so it's queued for design |
 
 ---
 
