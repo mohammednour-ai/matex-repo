@@ -425,37 +425,24 @@ export default function DashboardPage() {
     return <DashboardSkeleton />;
   }
 
-  return (
-    <div
-      className="dashboard-page"
-      data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
-    >
-      <DashboardIdentityBar
-        email={user?.email}
-        accountType={user?.accountType}
-        kycLevel={kycLevel}
-        kycBadge={kycBadge}
-        walletDisplay={walletDisplay}
-        escrowDisplay={escrowDisplay}
-        unreadCount={unreadCount}
-      >
-        <DashboardPulseStrip
-          variant="hero"
-          stats={stats}
-          walletDisplay={walletDisplay}
-          escrowDisplay={escrowDisplay}
-          unread={unreadCount}
-          kycLevel={kycLevel}
-        />
-      </DashboardIdentityBar>
-
-      {kycLevel < 2 && (
-        <div className="dashboard-status-strip border-orange-400/40 bg-orange-500/[0.07] text-sm text-fg">
-          <CircleAlert className="h-4 w-4 shrink-0 text-orange-700" />
-          <span>
+  // All dashboard sections below the hero identity content. Passed into
+  // <DashboardIdentityBar pageContent={...} /> so the identity-hero
+  // background image spans the entire page instead of just a top card.
+  const pageContent = (
+    <>
+      {Object.keys(sectionErrors).length > 0 && (
+        <div
+          className="dashboard-status-strip border-night-700/70 bg-night-900/40 text-sm text-fg"
+          role="status"
+          aria-live="polite"
+        >
+          <CircleAlert className="h-4 w-4 shrink-0 text-warning-400" aria-hidden />
+          <span className="min-w-0">
             <strong className="text-night-100">Some sections didn't load</strong>
-            {" — "}
-            {Object.keys(sectionErrors).join(", ")}
+            <span className="text-fg-muted">
+              {" — "}
+              {Object.keys(sectionErrors).join(", ")}
+            </span>
           </span>
           <button
             type="button"
@@ -463,15 +450,12 @@ export default function DashboardPage() {
               retriedRef.current = false;
               void load(true);
             }}
-            className="font-semibold text-brand-400 underline-offset-2 hover:underline"
+            className="ml-auto font-semibold text-brand-400 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             Retry
           </button>
         </div>
       )}
-
-      {/* KYC verification CTA moved into <DashboardIdentityBar /> (renders
-          inline at the bottom of the hero when kycLevel < 2). */}
 
       {showOrdersStrip && (
         <div className="dashboard-status-strip text-sm">
@@ -678,6 +662,33 @@ export default function DashboardPage() {
           </div>
         )}
       </AppSectionCard>
+    </>
+  );
+
+  return (
+    <div
+      className="dashboard-page"
+      data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
+    >
+      <DashboardIdentityBar
+        email={user?.email}
+        accountType={user?.accountType}
+        kycLevel={kycLevel}
+        kycBadge={kycBadge}
+        walletDisplay={walletDisplay}
+        escrowDisplay={escrowDisplay}
+        unreadCount={unreadCount}
+        pageContent={pageContent}
+      >
+        <DashboardPulseStrip
+          variant="hero"
+          stats={stats}
+          walletDisplay={walletDisplay}
+          escrowDisplay={escrowDisplay}
+          unread={unreadCount}
+          kycLevel={kycLevel}
+        />
+      </DashboardIdentityBar>
     </div>
   );
 }
