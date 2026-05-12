@@ -15,7 +15,7 @@ import {
   ScrollText,
   UserCog,
 } from "lucide-react";
-import { callTool, getUser, type MCPResponse } from "@/lib/api";
+import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
@@ -24,6 +24,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
 import { PriceSparkline } from "@/components/intelligence/PriceSparkline";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 
 type TabId =
   | "overview"
@@ -95,6 +98,16 @@ export default function AdminPage() {
   const [cfgVal, setCfgVal] = useState("");
   const [payUserId, setPayUserId] = useState("");
   const [payAmount, setPayAmount] = useState("");
+  // P0-1 5b — admin-side Stripe card purchase. Operator pastes an order_id,
+  // we allocate a PaymentIntent via the same payments.create_payment_intent
+  // tool /checkout uses, mount PaymentElement, and admin physically taps the
+  // card. Low-traffic internal flow.
+  const [stripeOrderId, setStripeOrderId] = useState("");
+  const [stripeClientSecret, setStripeClientSecret] = useState("");
+  const [stripeTransactionId, setStripeTransactionId] = useState("");
+  const [stripeAmount, setStripeAmount] = useState<number>(0);
+  const [stripeAllocLoading, setStripeAllocLoading] = useState(false);
+  const [stripeAllocError, setStripeAllocError] = useState("");
   const [escrowIdInput, setEscrowIdInput] = useState("");
   const [escrowAmt, setEscrowAmt] = useState("100");
   const [escrowReason, setEscrowReason] = useState("");
@@ -842,29 +855,130 @@ export default function AdminPage() {
 
       {tab === "purchases" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-line bg-surfaceBg p-4 flex flex-wrap gap-3 items-end">
-            <Input label="Buyer user ID" value={payUserId} onChange={(e) => setPayUserId(e.target.value)} className="max-w-md" />
-            <Input label="Amount (CAD)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-32" />
-            <Button
-              size="sm"
-              onClick={() =>
-                run(async () => {
-                  const adminUser = getUser();
-                  const r = await callTool("payments.process_payment", {
-                    user_id: payUserId.trim(),
-                    actor_id: adminUser?.userId ?? "",
-                    amount: Number(payAmount),
-                    method: "admin_card",
-                  });
-                  if (!r.success) throw new Error(r.error?.message ?? "Failed");
-                  await loadTxs();
-                  flash("Payment recorded");
-                })
-              }
-            >
-              Record purchase
-            </Button>
+          {/* Off-platform record — wire/ACH/manual reconciliation. No Stripe charge. */}
+          <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+            <p className="text-sm font-semibold text-fg">Record off-platform payment</p>
+            <p className="text-xs text-fg-subtle">
+              Use when the buyer paid via wire / ACH / cheque. Inserts a ledger row but does not charge a card.
+            </p>
+            <div className="flex flex-wrap gap-3 items-end">
+              <Input label="Buyer user ID" value={payUserId} onChange={(e) => setPayUserId(e.target.value)} className="max-w-md" />
+              <Input label="Amount (CAD)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-32" />
+              <Button
+                size="sm"
+                onClick={() =>
+                  run(async () => {
+                    const adminUser = getUser();
+                    const r = await callTool("payments.process_payment", {
+                      user_id: payUserId.trim(),
+                      actor_id: adminUser?.userId ?? "",
+                      amount: Number(payAmount),
+                      method: "admin_card",
+                    });
+                    if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                    await loadTxs();
+                    flash("Payment recorded");
+                  })
+                }
+              >
+                Record purchase
+              </Button>
+            </div>
           </div>
+
+          {/* P0-1 5b — Stripe card purchase. Used when admin has the card in
+              hand (rare: phone-in orders, point-of-sale fallback). Same
+              PaymentElement flow as /checkout. */}
+          <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+            <p className="text-sm font-semibold text-fg">Charge card via Stripe</p>
+            <p className="text-xs text-fg-subtle">
+              Allocate a PaymentIntent for an existing order, then tap the card on this device.
+            </p>
+            {!isStripeConfigured() ? (
+              <p className="text-xs text-warning-400">
+                Stripe is not configured — set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable.
+              </p>
+            ) : !stripeClientSecret ? (
+              <div className="flex flex-wrap gap-3 items-end">
+                <Input
+                  label="Order ID"
+                  value={stripeOrderId}
+                  onChange={(e) => setStripeOrderId(e.target.value)}
+                  className="max-w-md"
+                  placeholder="uuid"
+                />
+                <Button
+                  size="sm"
+                  loading={stripeAllocLoading}
+                  onClick={async () => {
+                    setStripeAllocError("");
+                    const id = stripeOrderId.trim();
+                    if (!id) {
+                      setStripeAllocError("Order ID is required.");
+                      return;
+                    }
+                    setStripeAllocLoading(true);
+                    const r = await callTool("payments.create_payment_intent", { order_id: id });
+                    setStripeAllocLoading(false);
+                    if (!r.success) {
+                      setStripeAllocError(r.error?.message ?? "Could not allocate PaymentIntent.");
+                      return;
+                    }
+                    const d = r.data as Record<string, unknown> | undefined;
+                    const up = (d?.upstream_response as Record<string, unknown> | undefined)?.data as
+                      | Record<string, unknown>
+                      | undefined;
+                    const flat = up ?? d ?? {};
+                    const cs = String(flat.client_secret ?? "");
+                    const txId = extractId(r, "transaction_id") ?? "";
+                    const amt = Number(flat.amount ?? 0);
+                    if (!cs) {
+                      setStripeAllocError("PaymentIntent allocated but no client_secret returned.");
+                      return;
+                    }
+                    setStripeClientSecret(cs);
+                    setStripeTransactionId(txId);
+                    setStripeAmount(amt);
+                  }}
+                >
+                  Allocate
+                </Button>
+                {stripeAllocError && (
+                  <p className="basis-full text-xs text-danger-400">{stripeAllocError}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-fg-muted">
+                  Order <span className="font-mono">{stripeOrderId.slice(0, 8)}…</span>
+                  {stripeTransactionId ? ` · tx ${stripeTransactionId.slice(0, 8)}…` : ""}
+                  {stripeAmount > 0 ? ` · amount ${stripeAmount.toFixed(2)} CAD` : ""}
+                </p>
+                <StripeProvider clientSecret={stripeClientSecret}>
+                  <AdminStripeCardForm
+                    onSuccess={() => {
+                      setStripeClientSecret("");
+                      setStripeTransactionId("");
+                      setStripeOrderId("");
+                      flash("Card charged");
+                      void run(loadTxs);
+                    }}
+                  />
+                </StripeProvider>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStripeClientSecret("");
+                    setStripeTransactionId("");
+                  }}
+                  className="text-xs font-semibold text-brand-400 hover:underline"
+                >
+                  Cancel and clear
+                </button>
+              </div>
+            )}
+          </div>
+
           <h3 className="text-sm font-bold text-fg">Recent transactions</h3>
           <div className="space-y-2">
             {txs.map((t) => (
@@ -1103,5 +1217,57 @@ export default function AdminPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+
+/**
+ * P0-1 5b — admin-scoped Stripe card form. Mounts inside StripeProvider
+ * with the client_secret allocated by payments.create_payment_intent and
+ * calls stripe.confirmPayment on submit. Identical lifecycle to the
+ * /checkout CardPaymentForm; we keep it inline here because the admin
+ * surface needs no extras (no tax recalc, no escrow follow-through —
+ * those run via webhook the same as the buyer flow).
+ */
+function AdminStripeCardForm({ onSuccess }: { onSuccess: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}/admin?stripe_return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-line/60 bg-canvas p-3">
+      <PaymentElement />
+      {error && <p className="text-xs text-danger-400">{error}</p>}
+      <Button type="submit" size="sm" loading={submitting} disabled={!stripe || !elements}>
+        Charge card
+      </Button>
+    </form>
   );
 }
