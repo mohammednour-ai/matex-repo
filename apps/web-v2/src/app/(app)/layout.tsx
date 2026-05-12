@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { clearSession, getUser } from "@/lib/api";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
+import { PwaInstallBanner } from "@/components/ui/PwaInstallBanner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import clsx from "clsx";
 
@@ -561,6 +562,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       <MatexCopilot />
+      <PwaInstallBanner />
     </ClientAuthGuard>
   );
 }
