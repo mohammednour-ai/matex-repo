@@ -290,6 +290,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "esign.verify_hash",
   "esign.ping",
   "admin.get_platform_overview",
+  "admin.get_overview_history",
   "admin.suspend_user",
   "admin.unsuspend_user",
   "admin.moderate_listing",

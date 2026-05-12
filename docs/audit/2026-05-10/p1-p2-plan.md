@@ -39,14 +39,14 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` (4 sites, pre-existing lint warnings) | ⬜ | — |
 | P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | ⬜ | — |
 | P2-1 | Persist sidebar collapsed state in localStorage | ✅ shipped | Key `matex_sidebar_collapsed`; hydrated in a layout effect to avoid SSR mismatch |
-| P2-2 | Confirm dialog before destructive admin ops (freeze/refund/release) | ⬜ | — |
-| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ⬜ | — |
-| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | ⬜ | — |
-| P2-6 | Inline status dropdown per row in admin orders | ⬜ | — |
-| P2-7 | Toast / loading state for inspection discrepancy flag | ⬜ | — |
-| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | ⬜ | — |
-| P1-8 | Inspection complete: support pass / conditional / fail (currently boolean) | ⬜ | — |
-| P1-9 | Hard-coded `result: pass` in inspections complete handler | ⬜ | — |
+| P2-2 | Confirm dialog before destructive admin ops (freeze/refund/release) | ✅ shipped | PR #66 — shadcn Dialog with `pendingOp: { label, summary, execute, danger }` state shape gates Hold / Release / Freeze / Refund |
+| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | 🟡 PR open | PR #71 — new `admin.get_overview_history({days?})` tool on both transports; cards render existing `PriceSparkline` with inverted colour for `open_disputes` |
+| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | 🟡 PR open | PR #72 — `analytics.get_revenue_report` now accepts `{period}` OR `{start_date, end_date}` and returns daily `series[]`; chart is inline SVG bars |
+| P2-6 | Inline status dropdown per row in admin orders | 🟡 PR open | PR #70 — per-row `<select>` with Save button only when dirty; reloads after `admin.update_order_status` |
+| P2-7 | Toast / loading state for inspection discrepancy flag | 🟡 PR open | PR #69 — success/error toast via `showError`/`showSuccess`; loading state was already wired |
+| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | 🟡 PR open | PR #68 — warning toast when `DELETE /api/auth/session` throws or `!res.ok`; local sign-out still runs unconditionally |
+| P1-8 | Inspection complete: support pass / conditional / fail (currently boolean) | ✅ shipped | PR #58 / #65 — three result buttons; tool accepts arbitrary result strings; badge variants per result |
+| P1-9 | Hard-coded `result: pass` in inspections complete handler | ✅ shipped | Folded into P1-8 PRs — handler now passes the chosen result through |
 
 ### M effort — single PR, more design choice involved
 
@@ -59,7 +59,7 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-6 | Post-auction "won lots" filter: real per-user data instead of `auction.lots.filter(sold).slice(0,2)` | ✅ shipped | Audit said "tool exists; UI doesn't call it" — survey found no such tool. New `auction.get_winning_bids({auction_id, user_id})` on both transports; UI fetches scoped to the logged-in user, per-lot "Check out" CTAs replace the broken `?order_id=ord-001` link |
 | P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | 🟡 partial — Option A only | Audit framed this as Supabase Realtime, but survey turned up that web-v2 doesn't use Supabase Auth (matex has its own JWT), so a client-side `supabase.channel()` subscription either sees nothing under RLS or requires a security regression. PR tightens poll cadence to 2s + ±20% jitter; real push tracked as P1-7b below |
 | P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | ⬜ | Sentry configs exist; just need explicit breadcrumbs at PI lifecycle + each tool boundary |
-| P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | ⬜ | Table + filter chips by actor / domain / action |
+| P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | 🟡 PR open | PR #73 — chips per category (built from loaded entries), user_id + action substring inputs; row click expands the raw JSON |
 | P2-9 | First-time dashboard onboarding tour | ⬜ | New feature, not a fix |
 | P2-10 | Server-rendered dashboard for faster TTFB | ⬜ | Requires moving the 6-tool fan-out to a server component |
 
@@ -77,6 +77,8 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-1d | Redesign `evaluate_breach` comparison semantics | ⬜ | TODO flagged in code (PR #49). Move to scheduled-vs-delivered (read `orders_mcp.orders.quantity` via `contract_orders.order_id` FK), drive penalties off `contract_orders.status` instead of whole-contract `total_volume` |
 | P1-10b | Full JWT verification on the edge + HttpOnly-only auth | ⬜ | Currently middleware checks cookie presence only; expired/forged tokens get past until the API layer 401s. Needs JWT secret in the edge runtime and login route emitting Set-Cookie directly so the access token never sits in localStorage |
 | P1-7b | Real push bid stream via Server-Sent Events (or WebSocket) backed by the existing Redis event bus and matex JWT auth | ⬜ | L effort. The right architectural fit — Next.js route at `/api/auctions/[id]/bid-stream` subscribes to the `event-relay` Redis stream and forwards `bidding.bid.placed` events. Uses existing matex JWT for auth (no Supabase Auth bridge). `useBidStream` switches transport: EventSource when supported, fall back to poll when disconnected. Out of scope for P1-7; surfaces here so it's queued for design |
+| P1-13b | Detect / retry `tax.generate_invoice` from the reconciliation cron | 🟡 PR open | PR #74 — adds invoice-presence check + `invoice_missing` / `invoice_already_present` counters and a structured warning per missing invoice. Full server-side *retry* still blocked on the tool taking `{order_id}` only (currently needs seller/buyer provinces) — queued as P1-13c |
+| P1-13c | Widen `tax.generate_invoice` to accept just `{order_id}` (look up seller/buyer/provinces internally), then call from the cron when `invoice_missing` is non-zero | ⬜ | Depends on profile_mcp exposing provinces by user_id; once shipped the cron stops needing manual ops backfill |
 
 ---
 
