@@ -19,6 +19,7 @@ import { callTool, getUser, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/shadcn/dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
@@ -106,6 +107,18 @@ export default function AdminPage() {
   const [auditUserId, setAuditUserId] = useState<string>("");
   const [auditActionFilter, setAuditActionFilter] = useState<string>("");
   const [auditExpanded, setAuditExpanded] = useState<Record<string, boolean>>({});
+
+  // P2-2 — confirmation dialog before destructive escrow ops. The four
+  // buttons (Hold / Release / Freeze / Refund) move escrowed funds and
+  // one accidental click is a real-money mistake. Click prepares the
+  // pending op + summary, then the dialog requires an explicit confirm.
+  type PendingEscrowOp = {
+    label: string;
+    summary: string;
+    execute: () => Promise<void>;
+    danger: boolean;
+  };
+  const [pendingOp, setPendingOp] = useState<PendingEscrowOp | null>(null);
 
   const flash = useCallback((m: string) => {
     setMsg(m);
@@ -622,43 +635,58 @@ export default function AdminPage() {
                   key={tool}
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    run(async () => {
-                      const id = escrowIdInput.trim();
-                      if (!id) throw new Error("Enter escrow ID");
-                      const amount = Number(escrowAmt);
-                      const performedBy = getUser()?.userId ?? "";
-                      if (!performedBy) throw new Error("Sign in as a platform admin first.");
-                      const reason = escrowReason.trim();
-                      // Per packages/mcp-servers/escrow-mcp/src/index.ts:166-170
-                      // and the matching edge handler, every state-changing
-                      // tool requires performed_by; freeze/refund additionally
-                      // require reason. The previous admin form omitted
-                      // performed_by entirely (so every action 422'd) and
-                      // hardcoded reason="admin_console" for Freeze (losing
-                      // the actual operator rationale).
-                      let args: Record<string, unknown>;
-                      if (tool === "escrow.freeze_escrow") {
-                        if (!reason) throw new Error("Reason is required to freeze an escrow.");
-                        args = { escrow_id: id, reason, performed_by: performedBy };
-                      } else if (tool === "escrow.refund_escrow") {
-                        if (!reason) throw new Error("Reason is required to refund an escrow.");
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for refund.");
-                        args = { escrow_id: id, amount, reason, performed_by: performedBy };
-                      } else if (tool === "escrow.release_funds") {
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for release.");
-                        args = { escrow_id: id, amount, performed_by: performedBy };
-                      } else {
-                        // hold_funds
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for hold.");
-                        args = { escrow_id: id, amount, performed_by: performedBy };
-                      }
-                      const r = await callTool(tool, args);
-                      if (!r.success) throw new Error(r.error?.message ?? "Failed");
-                      await loadEscrows();
-                      flash(`${label} OK`);
-                    })
-                  }
+                  onClick={() => {
+                    // Pre-validate args HERE (not inside the dialog confirm)
+                    // so missing input shows the standard inline error
+                    // without first opening + cancelling a dialog. Only
+                    // valid actions proceed to confirmation.
+                    setErr(null);
+                    const id = escrowIdInput.trim();
+                    if (!id) { setErr("Enter escrow ID"); return; }
+                    const amount = Number(escrowAmt);
+                    const performedBy = getUser()?.userId ?? "";
+                    if (!performedBy) { setErr("Sign in as a platform admin first."); return; }
+                    const reason = escrowReason.trim();
+                    let args: Record<string, unknown>;
+                    if (tool === "escrow.freeze_escrow") {
+                      if (!reason) { setErr("Reason is required to freeze an escrow."); return; }
+                      args = { escrow_id: id, reason, performed_by: performedBy };
+                    } else if (tool === "escrow.refund_escrow") {
+                      if (!reason) { setErr("Reason is required to refund an escrow."); return; }
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for refund."); return; }
+                      args = { escrow_id: id, amount, reason, performed_by: performedBy };
+                    } else if (tool === "escrow.release_funds") {
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for release."); return; }
+                      args = { escrow_id: id, amount, performed_by: performedBy };
+                    } else {
+                      // hold_funds
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for hold."); return; }
+                      args = { escrow_id: id, amount, performed_by: performedBy };
+                    }
+
+                    // Build a human-readable summary of what's about to
+                    // happen so the admin can sanity-check the escrow ID
+                    // and amount before committing. Refund + Freeze are
+                    // the high-stakes ones; mark all four as danger so
+                    // the dialog confirms with a red button.
+                    const summaryParts: string[] = [`Escrow: ${id}`];
+                    if (tool !== "escrow.freeze_escrow") summaryParts.push(`Amount: $${amount.toFixed(2)} CAD`);
+                    if (reason) summaryParts.push(`Reason: ${reason}`);
+                    const summary = summaryParts.join("\n");
+
+                    setPendingOp({
+                      label,
+                      summary,
+                      danger: true,
+                      execute: () =>
+                        run(async () => {
+                          const r = await callTool(tool, args);
+                          if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                          await loadEscrows();
+                          flash(`${label} OK`);
+                        }),
+                    });
+                  }}
                 >
                   {label}
                 </Button>
@@ -979,6 +1007,44 @@ export default function AdminPage() {
           })()}
         </div>
       )}
+
+      {/* Confirmation dialog for destructive escrow ops (P2-2). Opened
+          by the four buttons in the Escrow tab; the summary block lets
+          the admin sanity-check escrow ID + amount + reason before the
+          operation actually fires. */}
+      <Dialog open={pendingOp !== null} onOpenChange={(open) => { if (!open) setPendingOp(null); }}>
+        <DialogContent size="md" className="bg-surfaceBg ring-1 ring-line max-w-md p-6">
+          <DialogTitle className="text-lg font-semibold text-fg mb-2">
+            Confirm: {pendingOp?.label} escrow funds
+          </DialogTitle>
+          <p className="text-sm text-fg-muted mb-3">
+            This action moves real money. Review the details below — there&apos;s no automatic undo
+            (use the matching counter-op, e.g. Hold to undo a Release).
+          </p>
+          {pendingOp && (
+            <pre className="rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-fg font-mono whitespace-pre-wrap break-all mb-4">
+              {pendingOp.summary}
+            </pre>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPendingOp(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant={pendingOp?.danger ? "danger" : "primary"}
+              loading={busy}
+              onClick={async () => {
+                const op = pendingOp;
+                if (!op) return;
+                setPendingOp(null);
+                await op.execute();
+              }}
+            >
+              Yes, {pendingOp?.label}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

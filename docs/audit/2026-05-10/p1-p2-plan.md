@@ -39,12 +39,12 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 | P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` (4 sites, pre-existing lint warnings) | ⬜ | — |
 | P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | ⬜ | — |
 | P2-1 | Persist sidebar collapsed state in localStorage | ✅ shipped | Key `matex_sidebar_collapsed`; hydrated in a layout effect to avoid SSR mismatch |
-| P2-2 | Confirm dialog before destructive admin ops (freeze/refund/release) | ✅ shipped | PR #66 — shadcn Dialog with `pendingOp: { label, summary, execute, danger }` state shape gates Hold / Release / Freeze / Refund |
-| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | 🟡 PR open | PR #71 — new `admin.get_overview_history({days?})` tool on both transports; cards render existing `PriceSparkline` with inverted colour for `open_disputes` |
-| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | 🟡 PR open | PR #72 — `analytics.get_revenue_report` now accepts `{period}` OR `{start_date, end_date}` and returns daily `series[]`; chart is inline SVG bars |
+| P2-2 | Confirm dialog before destructive admin ops (Hold / Release / Freeze / Refund) | ✅ shipped | PR #66 — shadcn Dialog with `pendingOp: { label, summary, execute, danger }` state shape; pre-validates inputs before opening; danger-variant confirm button |
+| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ✅ shipped | PR #71 — new `admin.get_overview_history({days?})` tool on both transports; cards render existing `PriceSparkline` with inverted colour for `open_disputes` |
+| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | ✅ shipped | PR #72 — `analytics.get_revenue_report` now accepts `{period}` OR `{start_date, end_date}` and returns daily `series[]`; chart is inline SVG bars |
 | P2-6 | Inline status dropdown per row in admin orders | 🟡 PR open | PR #70 — per-row `<select>` with Save button only when dirty; reloads after `admin.update_order_status` |
-| P2-7 | Toast / loading state for inspection discrepancy flag | 🟡 PR open | PR #69 — success/error toast via `showError`/`showSuccess`; loading state was already wired |
-| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | 🟡 PR open | PR #68 — warning toast when `DELETE /api/auth/session` throws or `!res.ok`; local sign-out still runs unconditionally |
+| P2-7 | Toast / loading state for inspection discrepancy flag | ✅ shipped | PR #69 — success/error toast via `showError`/`showSuccess`; loading state was already wired |
+| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | ✅ shipped | PR #68 — warning toast when `DELETE /api/auth/session` throws or `!res.ok`; local sign-out still runs unconditionally |
 | P1-8 | Inspection complete: support pass / conditional / fail (currently boolean) | ✅ shipped | PR #58 / #65 — three result buttons; tool accepts arbitrary result strings; badge variants per result |
 | P1-9 | Hard-coded `result: pass` in inspections complete handler | ✅ shipped | Folded into P1-8 PRs — handler now passes the chosen result through |
 
