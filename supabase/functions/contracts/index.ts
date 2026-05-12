@@ -255,10 +255,20 @@ async function terminateContract({ args, caller }: ToolRequest) {
 }
 
 async function evaluateBreach({ args }: ToolRequest) {
-  // Schema-aligned column reads; see the matching MCP handler in
-  // packages/mcp-servers/contracts-mcp/src/index.ts for the TODO on the
-  // comparison semantics (we kept them to avoid scope creep; redesign
-  // is a separate PR — P1-1d).
+  // P1-1d redesign — the old comparison computed shortfall as
+  // (contract.total_volume - one installment's quantity), which is
+  // nonsensical: total_volume is the sum of every installment, so a single
+  // delivery would always look short by ~(N-1)/N of the contract. The
+  // correct comparison is per-installment:
+  //
+  //   scheduled_quantity = contract_orders.quantity  (this installment's plan)
+  //   delivered_quantity = orders_mcp.orders.quantity, but only when the
+  //                        order has been delivered/inspected/completed;
+  //                        before then nothing is "delivered" yet.
+  //
+  // Late delivery is driven by contract_orders.status (the schedule's own
+  // lifecycle: scheduled / generated / confirmed / fulfilled / missed) plus
+  // scheduled_date, never by the buyer/seller-side orders.status.
   const supabase = serviceClient();
   const contractId = String(args.contract_id ?? "");
   const contractOrderId = args.contract_order_id ? String(args.contract_order_id) : "";
@@ -270,7 +280,7 @@ async function evaluateBreach({ args }: ToolRequest) {
   let orderQuery = supabase
     .schema("contracts_mcp")
     .from("contract_orders")
-    .select("quantity,calculated_price,status,scheduled_date")
+    .select("contract_order_id,order_id,quantity,calculated_price,status,scheduled_date")
     .eq("contract_id", contractId);
   if (contractOrderId) {
     orderQuery = orderQuery.eq("contract_order_id", contractOrderId);
@@ -282,7 +292,7 @@ async function evaluateBreach({ args }: ToolRequest) {
     supabase
       .schema("contracts_mcp")
       .from("contracts")
-      .select("total_volume,pricing_model,breach_penalties,status,unit")
+      .select("pricing_model,breach_penalties,status,unit")
       .eq("contract_id", contractId)
       .maybeSingle(),
     orderQuery.maybeSingle(),
@@ -292,33 +302,62 @@ async function evaluateBreach({ args }: ToolRequest) {
   if (!orderResult.data) return failEnvelope("NOT_FOUND", "Contract order not found.");
 
   const contract = contractResult.data as Record<string, unknown>;
-  const order = orderResult.data as Record<string, unknown>;
+  const contractOrder = orderResult.data as Record<string, unknown>;
   const penaltyConfig = (contract.breach_penalties ?? {}) as Record<string, unknown>;
   const pricingModel = (contract.pricing_model ?? {}) as Record<string, unknown>;
 
-  const orderQty = Number(order.quantity ?? 0);
-  const contractQty = Number(contract.total_volume ?? 0);
-  const basePrice = Number(pricingModel.base_price ?? 0);
+  const scheduledQty = Number(contractOrder.quantity ?? 0);
+  const installmentStatus = String(contractOrder.status ?? "scheduled");
+  const linkedOrderId = contractOrder.order_id ? String(contractOrder.order_id) : "";
 
-  const shortfallQty = Math.max(0, contractQty - orderQty);
-  const shortfallPct = contractQty > 0 ? Number(((shortfallQty / contractQty) * 100).toFixed(2)) : 0;
+  // Delivered quantity comes from orders_mcp.orders only when the actual
+  // order row reached a delivered/inspected/completed state. Otherwise the
+  // installment hasn't shipped yet and delivered counts as zero.
+  let deliveredQty = 0;
+  const DELIVERED_STATUSES = ["delivered", "inspected", "completed"];
+  if (linkedOrderId) {
+    const orderRowResult = await supabase
+      .schema("orders_mcp")
+      .from("orders")
+      .select("quantity,status")
+      .eq("order_id", linkedOrderId)
+      .maybeSingle();
+    if (orderRowResult.error) return failEnvelope("DB_ERROR", "Database operation failed");
+    const orderRow = orderRowResult.data as Record<string, unknown> | null;
+    if (orderRow && DELIVERED_STATUSES.includes(String(orderRow.status ?? ""))) {
+      deliveredQty = Number(orderRow.quantity ?? 0);
+    }
+  }
+
+  const basePrice = Number(pricingModel.base_price ?? 0);
+  const shortfallQty = Math.max(0, scheduledQty - deliveredQty);
+  const shortfallPct = scheduledQty > 0 ? Number(((shortfallQty / scheduledQty) * 100).toFixed(2)) : 0;
   const penaltyRate = Number(penaltyConfig.shortfall_rate ?? 0.05);
   const penaltyAmount = shortfallPct > 0 ? Number((shortfallQty * basePrice * penaltyRate).toFixed(2)) : 0;
-  const isLateDelivery =
-    order.scheduled_date &&
-    order.status !== "fulfilled" &&
-    new Date(String(order.scheduled_date)) < new Date();
+
+  // Late delivery: the installment's own status hasn't reached 'fulfilled'
+  // by its scheduled_date. 'missed' is a terminal-late state from the
+  // generator; both treat as late for penalty purposes.
+  const scheduledDate = contractOrder.scheduled_date ? new Date(String(contractOrder.scheduled_date)) : null;
+  const isLateDelivery = Boolean(
+    scheduledDate &&
+      installmentStatus !== "fulfilled" &&
+      scheduledDate < new Date(),
+  );
   const latePenalty = isLateDelivery ? Number(penaltyConfig.late_delivery_fee ?? 0) : 0;
   const totalPenalty = Number((penaltyAmount + latePenalty).toFixed(2));
   return okEnvelope({
     contract_id: contractId,
-    contract_order_id: contractOrderId || null,
-    order_id: orderId || null,
+    contract_order_id: String(contractOrder.contract_order_id ?? contractOrderId) || null,
+    order_id: linkedOrderId || orderId || null,
+    installment_status: installmentStatus,
+    scheduled_quantity: scheduledQty,
+    delivered_quantity: deliveredQty,
     is_breach: totalPenalty > 0,
     shortfall_quantity: shortfallQty,
     shortfall_unit: String(contract.unit ?? ""),
     shortfall_pct: shortfallPct,
-    late_delivery: Boolean(isLateDelivery),
+    late_delivery: isLateDelivery,
     penalty_amount: penaltyAmount,
     late_penalty: latePenalty,
     total_penalty: totalPenalty,
