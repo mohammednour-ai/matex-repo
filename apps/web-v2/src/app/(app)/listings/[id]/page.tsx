@@ -32,6 +32,7 @@ import {
 import clsx from "clsx";
 import { callTool, getUser, extractId } from "@/lib/api";
 import { showError } from "@/lib/toast";
+import { isOptimizableImage } from "@/lib/image-source";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Modal } from "@/components/ui/shadcn/modal";
@@ -203,8 +204,23 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
             className="relative block w-full h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             aria-label="Open photo in lightbox"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts; <Image> would require enumerating remotePatterns */}
-            <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
+            {isOptimizableImage(media[activeIdx]) ? (
+              <Image
+                src={media[activeIdx]}
+                alt={`${title} — photo ${activeIdx + 1}`}
+                fill
+                sizes="(min-width: 1024px) 60vw, 100vw"
+                className="object-cover cursor-zoom-in"
+                priority
+              />
+            ) : (
+              // Legacy listings carry photo URLs from hosts not in next's
+              // remotePatterns; fall through to <img> so the page still
+              // renders. Promotion to <Image> happens automatically once
+              // the listing's media is re-uploaded to Supabase Storage.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={media[activeIdx]} alt={`${title} — photo ${activeIdx + 1}`} className="w-full h-full object-cover cursor-zoom-in" />
+            )}
           </button>
         ) : (
           <div className="relative w-full h-full bg-gradient-to-br from-zinc-200 to-zinc-300 overflow-hidden">
@@ -266,12 +282,16 @@ function PhotoGallery({ photos, videoUrl, title }: { photos: string[]; videoUrl?
               key={i}
               onClick={() => { setActiveIdx(i); setShowVideo(false); }}
               className={clsx(
-                "w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all",
+                "relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all",
                 i === activeIdx && !showVideo ? "border-brand-600" : "border-transparent hover:border-line-strong"
               )}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded photo URLs from arbitrary Supabase storage hosts */}
-              <img src={src} alt="" className="w-full h-full object-cover" />
+              {isOptimizableImage(src) ? (
+                <Image src={src} alt="" fill sizes="64px" className="object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt="" className="w-full h-full object-cover" />
+              )}
             </button>
           ))}
           {videoUrl && (
