@@ -16,7 +16,44 @@ type DashboardPulseStripProps = {
   escrowDisplay: string | null;
   unread: number;
   kycLevel: number;
+  /**
+   * `"default"` — the standalone chunky strip used outside the hero.
+   * `"hero"` — transparent frame designed to sit inside `<DashboardIdentityBar />`:
+   *   no opaque fill, refined typography, ultra-muted caption. Reduced-motion
+   *   still disables the ticker animation (handled by globals.css rule on the
+   *   `dashboard-pulse-strip__track` class which both variants keep).
+   */
+  variant?: "default" | "hero";
 };
+
+const HERO_CLS = {
+  // Fully transparent — no fill, no border, no padding. Sits flush at the top
+  // of the hero so the ticker reads as part of the hero surface itself.
+  root: "",
+  inner: "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0",
+  badge:
+    "mb-1 inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border border-white/15 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-night-100 backdrop-blur-sm sm:mb-0 sm:mr-4 sm:self-center",
+  viewport: "relative min-h-[2.25rem] flex-1 overflow-hidden",
+  // Keep `dashboard-pulse-strip__track` so prefers-reduced-motion override
+  // in globals.css still wins. Slow the scroll from 52s → 120s for a calmer
+  // pace in the hero ("no need to hurry").
+  track:
+    "dashboard-pulse-strip__track !text-[12.5px] !font-medium !tracking-[0.01em] !text-night-100/95 ![animation-duration:120s]",
+  item:
+    "relative shrink-0 pl-5 text-night-100/95 before:absolute before:left-0 before:top-1/2 before:h-1 before:w-1 before:-translate-y-1/2 before:rounded-full before:bg-brand-400/70 before:content-['']",
+  // Caption removed in hero variant (explicit user request).
+  legal: "hidden",
+} as const;
+
+const DEFAULT_CLS = {
+  root: "dashboard-pulse-strip",
+  inner: "dashboard-pulse-strip__inner",
+  badge: "dashboard-pulse-strip__badge",
+  viewport: "dashboard-pulse-strip__viewport",
+  track: "dashboard-pulse-strip__track",
+  item: "dashboard-pulse-strip__item dashboard-pulse-strip__item--segmented",
+  legal: "dashboard-pulse-strip__legal",
+} as const;
 
 type PulseSegment = {
   kind: "metric" | "price" | "news";
@@ -34,7 +71,9 @@ export function DashboardPulseStrip({
   escrowDisplay,
   unread,
   kycLevel,
+  variant = "default",
 }: DashboardPulseStripProps) {
+  const cls = variant === "hero" ? HERO_CLS : DEFAULT_CLS;
   const [snapshots, setSnapshots] = useState<MarketIntelligenceRow[]>([]);
 
   useEffect(() => {
@@ -105,19 +144,16 @@ export function DashboardPulseStrip({
   const hasLiveData = snapshots.length > 0;
 
   return (
-    <div className="dashboard-pulse-strip" aria-label="Workspace activity pulse and Canadian market prices">
-      <div className="dashboard-pulse-strip__inner">
-        <span className="dashboard-pulse-strip__badge">
+    <div className={cls.root} aria-label="Workspace activity pulse and Canadian market prices">
+      <div className={cls.inner}>
+        <span className={cls.badge}>
           <Activity className="h-3.5 w-3.5 shrink-0" aria-hidden />
           Pulse
         </span>
-        <div className="dashboard-pulse-strip__viewport">
-          <ul className="dashboard-pulse-strip__track">
+        <div className={cls.viewport}>
+          <ul className={cls.track}>
             {loop.map((seg, i) => (
-              <li
-                key={`${seg.kind}-${seg.text}-${i}`}
-                className="dashboard-pulse-strip__item dashboard-pulse-strip__item--segmented"
-              >
+              <li key={`${seg.kind}-${seg.text}-${i}`} className={cls.item}>
                 {seg.kind === "price" ? (
                   <TrendingUp className="mr-1.5 inline h-3 w-3 -translate-y-px text-brand-400" aria-hidden />
                 ) : seg.kind === "news" ? (
@@ -129,9 +165,9 @@ export function DashboardPulseStrip({
           </ul>
         </div>
       </div>
-      <p className="dashboard-pulse-strip__legal">
+      <p className={cls.legal}>
         {hasLiveData
-          ? "Live LME / Matex prices and Canadian scrap-industry headlines · refreshed daily"
+          ? "Live LME / Matex prices · Canadian scrap-industry headlines · refreshed daily"
           : "Workspace metrics · live market data syncing"}
       </p>
     </div>

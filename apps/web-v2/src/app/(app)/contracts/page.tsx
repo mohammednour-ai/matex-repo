@@ -155,10 +155,65 @@ export default function ContractsPage() {
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Fulfillment chart history for the currently selected contract (P1-2).
+  // Lazily fetched each time the user picks a different contract — keeps
+  // the initial /contracts load lean (the list view doesn't need the
+  // chart). Loading/empty/error states render inline below.
+  type FulfillmentPoint = {
+    label: string;
+    year: number;
+    scheduled_quantity: number;
+    fulfilled_quantity: number;
+    pct: number;
+  };
+  const [fulfillmentPoints, setFulfillmentPoints] = useState<FulfillmentPoint[] | null>(null);
+  const [fulfillmentLoading, setFulfillmentLoading] = useState(false);
+  const [fulfillmentError, setFulfillmentError] = useState("");
+
   useEffect(() => {
     loadPrices();
     loadContracts();
   }, []);
+
+  // Re-fetch fulfillment history whenever a different contract is selected.
+  // Reset state on null so the chart doesn't briefly show stale data when
+  // the user closes the side panel and opens a different contract.
+  useEffect(() => {
+    if (!selectedContract) {
+      setFulfillmentPoints(null);
+      setFulfillmentError("");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setFulfillmentLoading(true);
+      setFulfillmentError("");
+      const res = await callTool("contracts.get_fulfillment_history", {
+        contract_id: selectedContract.contract_id,
+        months: 6,
+      });
+      if (cancelled) return;
+      if (!res.success) {
+        setFulfillmentError(res.error?.message ?? "Could not load fulfillment history.");
+        setFulfillmentPoints([]);
+        setFulfillmentLoading(false);
+        return;
+      }
+      const data = res.data as Record<string, unknown> | undefined;
+      const up = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const points = (up?.points ?? data?.points) as FulfillmentPoint[] | undefined;
+      setFulfillmentPoints(Array.isArray(points) ? points : []);
+      setFulfillmentLoading(false);
+    })();
+    return () => { cancelled = true; };
+    // We intentionally key only on the contract_id, not the whole
+    // selectedContract object. If a different field on the same contract
+    // updates (e.g. esign_status flips after Request Signature), we don't
+    // want to re-fetch the fulfillment history — it didn't change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedContract?.contract_id]);
 
   async function loadContracts(): Promise<void> {
     setContractsLoading(true);
@@ -403,27 +458,61 @@ export default function ContractsPage() {
               ))}
             </div>
 
-            {/* Fulfillment chart */}
+            {/* Fulfillment chart — six monthly buckets from
+                contracts.get_fulfillment_history. Each bar's height is the
+                scheduled quantity (full bar); the filled portion is the
+                fulfilled fraction. Empty months render as a flat baseline
+                so the timeline is intuitive even when delivery cadence is
+                irregular. */}
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-2">Fulfillment Progress</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-fg-subtle mb-2">
+                Fulfillment Progress
+                <span className="ml-1.5 font-normal normal-case text-fg-subtle">— last 6 months</span>
+              </p>
               <div className="rounded-xl border border-line bg-canvas p-4">
-                <div className="flex items-end gap-2 h-20">
-                  {[
-                    { label: "Jan", pct: 100 },
-                    { label: "Feb", pct: 92 },
-                    { label: "Mar", pct: 78 },
-                    { label: "Apr", pct: 43 },
-                    { label: "May", pct: 0 },
-                    { label: "Jun", pct: 0 },
-                  ].map((m) => (
-                    <div key={m.label} className="flex flex-1 flex-col items-center gap-1">
-                      <div className="w-full rounded-t bg-info-500/30 transition-all" style={{ height: `${m.pct}%` }}>
-                        {m.pct > 0 && <div className="h-full rounded-t bg-blue-600" style={{ height: `${Math.min(m.pct, 100)}%` }} />}
-                      </div>
-                      <p className="text-[10px] text-fg-subtle">{m.label}</p>
+                {fulfillmentLoading ? (
+                  <div className="flex h-20 items-center justify-center">
+                    <Spinner className="h-4 w-4 text-brand-500" />
+                  </div>
+                ) : fulfillmentError ? (
+                  <p className="text-xs text-danger-400 py-2">{fulfillmentError}</p>
+                ) : !fulfillmentPoints || fulfillmentPoints.length === 0 ? (
+                  <p className="text-xs text-fg-subtle py-2">No fulfillment history yet for this contract.</p>
+                ) : (
+                  <>
+                    <div className="flex items-end gap-2 h-20">
+                      {(() => {
+                        // Normalize bar heights against the busiest month so
+                        // the chart fits the panel even when scheduled
+                        // volumes vary by 10x across months.
+                        const maxScheduled = Math.max(
+                          ...fulfillmentPoints.map((p) => p.scheduled_quantity),
+                          1,
+                        );
+                        return fulfillmentPoints.map((m) => {
+                          const barHeightPct = (m.scheduled_quantity / maxScheduled) * 100;
+                          return (
+                            <div key={`${m.year}-${m.label}`} className="flex flex-1 flex-col items-center gap-1">
+                              <div className="w-full rounded-t bg-info-500/30 transition-all" style={{ height: `${barHeightPct}%` }}>
+                                {m.pct > 0 && (
+                                  <div
+                                    className="rounded-t bg-blue-600"
+                                    style={{ height: `${Math.min(m.pct, 100)}%` }}
+                                    title={`${m.fulfilled_quantity} / ${m.scheduled_quantity} ${selectedContract.unit} (${m.pct}%)`}
+                                  />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-fg-subtle">{m.label}</p>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
-                  ))}
-                </div>
+                    <p className="mt-2 text-[10px] text-fg-subtle">
+                      Bar height = scheduled volume; filled portion = fulfilled.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 

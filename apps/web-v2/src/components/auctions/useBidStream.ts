@@ -29,10 +29,23 @@ type UseBidStreamArgs = {
  * reflects bids the local user places, plus the periodic top-line refresh.
  * Once the tool ships in auction-mcp, real-time bids from other bidders
  * start flowing with no UI change.
+ *
+ * Why not Supabase Realtime? The audit's P1-7 originally framed this as
+ * a Realtime channel change. Survey turned up that web-v2 doesn't use
+ * Supabase Auth (matex has its own JWT system), so a client-side
+ * supabase.channel() subscription would either see no rows (RLS blocks
+ * unauthenticated reads of bidding_mcp.bids) or require a security
+ * regression (broad anon SELECT on competitive bid data). The right
+ * fix is a server-sent-events endpoint that consumes the existing
+ * Redis event bus and forwards through our existing matex JWT auth —
+ * tracked as P1-7b in docs/audit/2026-05-10/p1-p2-plan.md. Until that
+ * lands, polling is the pragmatic compromise; this PR just tightens
+ * the cadence and adds jitter so concurrent lots don't all thunder
+ * at the same moment.
  */
 export function useBidStream({
   lotId,
-  intervalMs = 5000,
+  intervalMs = 2000,
   onBids,
   onLotUpdate,
   auctionId,
@@ -45,6 +58,7 @@ export function useBidStream({
   useEffect(() => {
     if (!lotId) return;
     let cancelled = false;
+    let timer: number | null = null;
 
     async function tick() {
       // Bid history poll. The auction-mcp tool returns `{ lot_id, bids: [...], count }`;
@@ -82,12 +96,24 @@ export function useBidStream({
       }
     }
 
-    // Fire immediately + then on interval
-    tick();
-    const id = window.setInterval(tick, intervalMs);
+    function scheduleNext() {
+      if (cancelled) return;
+      // Add ±20% jitter so concurrent lots don't thunder at the same
+      // wall-clock moment. With many users watching the same lot, this
+      // smooths the load on auction.list_bids without changing the
+      // perceived cadence.
+      const jitter = intervalMs * (0.8 + Math.random() * 0.4);
+      timer = window.setTimeout(async () => {
+        await tick();
+        scheduleNext();
+      }, jitter);
+    }
+
+    // Fire immediately + then jittered tail.
+    tick().then(scheduleNext);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [lotId, auctionId, intervalMs]);
 }

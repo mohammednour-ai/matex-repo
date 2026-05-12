@@ -48,6 +48,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "evaluate_breach", description: "Evaluate a contract order for breach; computes shortfall and late-delivery penalties using contract.breach_penalties + pricing_model.base_price. Accepts contract_order_id (preferred) or order_id (orders_mcp FK).", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, contract_order_id: { type: "string" }, order_id: { type: "string", description: "Alternative to contract_order_id; orders_mcp.orders FK." } }, required: ["contract_id"] } },
     { name: "collect_penalty", description: "Record and trigger collection of a breach penalty", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" }, penalty_amount: { type: "number" }, reason: { type: "string" } }, required: ["contract_id", "order_id", "penalty_amount", "reason"] } },
     { name: "list_contracts", description: "List contracts for a user (as buyer or seller). Optional status filter. If no user_id is provided, returns all contracts (admin view).", inputSchema: { type: "object", properties: { user_id: { type: "string" }, status: { type: "string" }, contract_type: { type: "string" }, limit: { type: "number" } } } },
+    { name: "get_fulfillment_history", description: "Per-month fulfillment buckets for a contract over the last N months (default 6, max 12). Each bucket reports scheduled_quantity, fulfilled_quantity, and pct (0–100). Powers the /contracts fulfillment chart.", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, months: { type: "number" } }, required: ["contract_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -431,6 +432,58 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }),
       }],
     };
+  }
+
+  if (tool === "get_fulfillment_history") {
+    // Replaces the hardcoded 6-month bar chart on /contracts (P1-2 in the
+    // audit). For a given contract, bucket contract_orders by month
+    // (scheduled_date) and compute scheduled vs fulfilled quantity per
+    // bucket. Empty months get zeros — caller renders them as no-bar so
+    // the timeline is intuitive even when delivery cadence is irregular.
+    const contractId = String(args.contract_id ?? "");
+    const months = Math.min(Math.max(Number(args.months ?? 6), 1), 12);
+    if (!contractId) return fail("VALIDATION_ERROR", "contract_id is required.");
+
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
+    const startIso = start.toISOString().slice(0, 10);
+
+    const rowsResult = await supabase
+      .schema("contracts_mcp")
+      .from("contract_orders")
+      .select("scheduled_date,quantity,status")
+      .eq("contract_id", contractId)
+      .gte("scheduled_date", startIso)
+      .order("scheduled_date", { ascending: true });
+    if (rowsResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    type Bucket = { year: number; month: number; scheduled: number; fulfilled: number };
+    const buckets: Bucket[] = [];
+    for (let i = 0; i < months; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      buckets.push({ year: d.getFullYear(), month: d.getMonth(), scheduled: 0, fulfilled: 0 });
+    }
+
+    const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (const raw of rowsResult.data ?? []) {
+      const row = raw as Record<string, unknown>;
+      const d = new Date(String(row.scheduled_date));
+      const bucket = buckets.find((b) => b.year === d.getFullYear() && b.month === d.getMonth());
+      if (!bucket) continue;
+      const qty = Number(row.quantity ?? 0);
+      bucket.scheduled += qty;
+      if (String(row.status) === "fulfilled") bucket.fulfilled += qty;
+    }
+
+    const points = buckets.map((b) => ({
+      label: monthLabels[b.month],
+      year: b.year,
+      scheduled_quantity: Number(b.scheduled.toFixed(2)),
+      fulfilled_quantity: Number(b.fulfilled.toFixed(2)),
+      pct: b.scheduled > 0 ? Math.round((b.fulfilled / b.scheduled) * 100) : 0,
+    }));
+
+    return { content: [{ type: "text", text: ok({ contract_id: contractId, months, points }) }] };
   }
 
   if (tool === "list_contracts") {
