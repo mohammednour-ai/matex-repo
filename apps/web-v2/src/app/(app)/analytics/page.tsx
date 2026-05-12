@@ -26,11 +26,19 @@ type DashStats = {
   new_listings_7d: number;
 };
 
+type RevenueSeriesPoint = {
+  day: string;
+  transactions: number;
+  volume: number;
+  commission: number;
+};
+
 type RevenueReport = {
-  period: string;
+  period?: string;
   transactions: number;
   volume: number;
   commission_estimate: number;
+  series?: RevenueSeriesPoint[];
 };
 
 type Funnel = {
@@ -182,21 +190,69 @@ function RevenuePanel() {
           <Spinner className="h-5 w-5 text-brand-500" />
         </div>
       ) : report ? (
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Transactions", value: String(report.transactions), color: "text-brand-700" },
-            { label: "Volume", value: formatCAD(report.volume), color: "text-fg" },
-            { label: "Commission Est.", value: formatCAD(report.commission_estimate), color: "text-success-400" },
-          ].map((item) => (
-            <div key={item.label} className="text-center">
-              <p className={clsx("text-xl font-extrabold", item.color)}>{item.value}</p>
-              <p className="mt-1 text-[11px] font-medium text-fg-subtle">{item.label}</p>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Transactions", value: String(report.transactions), color: "text-brand-700" },
+              { label: "Volume", value: formatCAD(report.volume), color: "text-fg" },
+              { label: "Commission Est.", value: formatCAD(report.commission_estimate), color: "text-success-400" },
+            ].map((item) => (
+              <div key={item.label} className="text-center">
+                <p className={clsx("text-xl font-extrabold", item.color)}>{item.value}</p>
+                <p className="mt-1 text-[11px] font-medium text-fg-subtle">{item.label}</p>
+              </div>
+            ))}
+          </div>
+          {report.series && report.series.length > 0 && (
+            <RevenueChart series={report.series} />
+          )}
+        </>
       ) : (
         <p className="py-6 text-center text-sm text-fg-subtle">No data for this period.</p>
       )}
+    </div>
+  );
+}
+
+// Inline SVG bar chart of daily commission revenue. Avoids pulling in a chart
+// lib for a panel that only needs one bar series.
+function RevenueChart({ series }: { series: RevenueSeriesPoint[] }) {
+  const max = Math.max(...series.map((p) => p.commission), 1);
+  const w = 100;
+  const h = 40;
+  const barW = w / series.length;
+  return (
+    <div className="mt-5 border-t border-line/60 pt-4">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">
+        Daily commission
+      </p>
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+        className="h-24 w-full"
+        role="img"
+        aria-label={`Daily commission across ${series.length} days, peak ${formatCAD(max)}.`}
+      >
+        {series.map((p, i) => {
+          const barH = (p.commission / max) * (h - 2);
+          return (
+            <rect
+              key={p.day}
+              x={i * barW + 0.2}
+              y={h - barH}
+              width={Math.max(barW - 0.4, 0.4)}
+              height={barH}
+              className="fill-success-500/70"
+            >
+              <title>{`${p.day} — ${formatCAD(p.commission)} (${p.transactions} txn)`}</title>
+            </rect>
+          );
+        })}
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-fg-subtle">
+        <span>{series[0]?.day ?? ""}</span>
+        <span>{series[series.length - 1]?.day ?? ""}</span>
+      </div>
     </div>
   );
 }

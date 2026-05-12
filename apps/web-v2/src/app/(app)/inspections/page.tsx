@@ -17,6 +17,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { callTool, getUser } from "@/lib/api";
+import { showError, showSuccess } from "@/lib/toast";
 import { Badge } from "@/components/ui/shadcn/badge";
 import { Button } from "@/components/ui/shadcn/button";
 import { Spinner } from "@/components/ui/shadcn/spinner";
@@ -178,7 +179,12 @@ export default function InspectionsPage() {
 
   async function handleFlagDiscrepancy(inspectionId: string): Promise<void> {
     setActionLoading(inspectionId + "discrepancy");
-    await callTool("inspection.evaluate_discrepancy", { inspection_id: inspectionId });
+    const res = await callTool("inspection.evaluate_discrepancy", { inspection_id: inspectionId });
+    if (res.success) {
+      showSuccess("Discrepancy flagged for review.");
+    } else {
+      showError(res.error, "Could not flag the discrepancy. Please try again.");
+    }
     setActionLoading(null);
   }
 

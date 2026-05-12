@@ -529,6 +529,14 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
       const userObj = regData.user as Record<string, unknown> | undefined;
       const newUserId = String(regData.user_id ?? userObj?.user_id ?? userObj?.id ?? "");
       track("signup_completed", { account_type: accountType });
+      // Flag this session as a fresh registration so the (app) shell can offer
+      // the PWA install banner once. The banner clears the flag on dismiss /
+      // accept so it never re-fires for the same browser.
+      try {
+        localStorage.setItem("matex_freshly_registered", "1");
+      } catch {
+        /* storage unavailable — banner just won't show */
+      }
       setUserId(newUserId);
       setProfileSection(0);
       setStep("profile");

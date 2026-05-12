@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/shadcn/badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { PriceSparkline } from "@/components/intelligence/PriceSparkline";
 
 type TabId =
   | "overview"
@@ -76,6 +77,7 @@ export default function AdminPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
+  const [overviewHistory, setOverviewHistory] = useState<Record<string, number[]>>({});
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [listings, setListings] = useState<Record<string, unknown>[]>([]);
   const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
@@ -98,6 +100,12 @@ export default function AdminPage() {
   const [auctionIdFilter, setAuctionIdFilter] = useState("");
   const [orderIdStatus, setOrderIdStatus] = useState("");
   const [orderNewStatus, setOrderNewStatus] = useState("confirmed");
+  // Audit-trail filters. category + user_id are server-side; actionFilter is
+  // client-side substring match so the operator can refine without re-fetching.
+  const [auditCategory, setAuditCategory] = useState<string>("");
+  const [auditUserId, setAuditUserId] = useState<string>("");
+  const [auditActionFilter, setAuditActionFilter] = useState<string>("");
+  const [auditExpanded, setAuditExpanded] = useState<Record<string, boolean>>({});
 
   const flash = useCallback((m: string) => {
     setMsg(m);
@@ -129,9 +137,16 @@ export default function AdminPage() {
   );
 
   const loadOverview = useCallback(async () => {
-    const r = await callTool("admin.get_platform_overview", {});
-    const p = unwrapToolPayload(r);
-    setOverview(p);
+    // Pull current totals + 14-day history in parallel; the history call is
+    // best-effort so a failure there doesn't blank the cards.
+    const [r, h] = await Promise.all([
+      callTool("admin.get_platform_overview", {}),
+      callTool("admin.get_overview_history", { days: 14 }),
+    ]);
+    setOverview(unwrapToolPayload(r));
+    const hp = unwrapToolPayload(h);
+    const series = (hp?.series as Record<string, number[]> | undefined) ?? {};
+    setOverviewHistory(series);
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -192,10 +207,15 @@ export default function AdminPage() {
   }, []);
 
   const loadAudit = useCallback(async () => {
-    const r = await callTool("admin.get_audit_trail", { limit: 80 });
+    // Server-side filters: category, user_id. Client-side action filter is
+    // applied at render time to avoid round-trips on every keystroke.
+    const args: Record<string, unknown> = { limit: 200 };
+    if (auditCategory) args.category = auditCategory;
+    if (auditUserId.trim()) args.user_id = auditUserId.trim();
+    const r = await callTool("admin.get_audit_trail", args);
     const p = unwrapToolPayload(r);
     setAuditEntries((p?.entries as Record<string, unknown>[]) ?? []);
-  }, []);
+  }, [auditCategory, auditUserId]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -321,12 +341,30 @@ export default function AdminPage() {
       {tab === "overview" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {overview &&
-            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => (
-              <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
-                <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
-              </div>
-            ))}
+            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => {
+              const series = overviewHistory[k] ?? [];
+              // Trend is derived from the last two non-zero buckets; "open_disputes"
+              // inverts the colour mapping since fewer disputes is good.
+              const last = series.at(-1) ?? 0;
+              const prev = series.at(-2) ?? 0;
+              const goingUp = last > prev;
+              const goingDown = last < prev;
+              const isDisputes = k === "open_disputes";
+              const trend: "up" | "down" | "stable" = goingUp
+                ? (isDisputes ? "down" : "up")
+                : goingDown
+                  ? (isDisputes ? "up" : "down")
+                  : "stable";
+              return (
+                <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
+                  <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
+                  {series.length > 0 && (
+                    <PriceSparkline series={series} trend={trend} height={32} className="mt-2" />
+                  )}
+                </div>
+              );
+            })}
           {!overview && <p className="text-fg-subtle text-sm">Loading overview…</p>}
         </div>
       )}
@@ -801,12 +839,144 @@ export default function AdminPage() {
       )}
 
       {tab === "audit" && (
-        <div className="space-y-2">
-          {auditEntries.map((row, i) => (
-            <div key={String(row.log_id ?? i)} className="rounded-lg border border-line bg-surfaceBg p-3">
-              <JsonPreview value={row} />
-            </div>
-          ))}
+        <div className="space-y-3">
+          {(() => {
+            // Build the unique server/category set from the loaded page so the
+            // chips reflect what's actually present rather than a hardcoded list.
+            const categories = Array.from(
+              new Set(auditEntries.map((r) => String(r.category ?? "")).filter(Boolean)),
+            ).sort();
+            const filtered = auditEntries.filter((r) => {
+              if (!auditActionFilter.trim()) return true;
+              const needle = auditActionFilter.trim().toLowerCase();
+              return (
+                String(r.action ?? "").toLowerCase().includes(needle) ||
+                String(r.server ?? "").toLowerCase().includes(needle)
+              );
+            });
+            return (
+              <>
+                <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                      Category
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategory("")}
+                      className={clsx(
+                        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        auditCategory === ""
+                          ? "bg-brand-600 text-white"
+                          : "border border-line bg-canvas text-fg-muted hover:bg-elevated",
+                      )}
+                    >
+                      All
+                    </button>
+                    {categories.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setAuditCategory(c)}
+                        className={clsx(
+                          "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                          auditCategory === c
+                            ? "bg-brand-600 text-white"
+                            : "border border-line bg-canvas text-fg-muted hover:bg-elevated",
+                        )}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <Input
+                      label="User ID"
+                      value={auditUserId}
+                      onChange={(e) => setAuditUserId(e.target.value)}
+                      placeholder="filter by uuid"
+                      className="max-w-md"
+                    />
+                    <Input
+                      label="Action / server contains"
+                      value={auditActionFilter}
+                      onChange={(e) => setAuditActionFilter(e.target.value)}
+                      placeholder="e.g. listing"
+                      className="max-w-md"
+                    />
+                    <Button size="sm" onClick={() => run(loadAudit)}>
+                      Apply
+                    </Button>
+                    <p className="text-xs text-fg-subtle">
+                      {filtered.length} of {auditEntries.length} entries
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-line bg-surfaceBg">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-canvas text-left text-xs font-semibold uppercase text-fg-muted">
+                      <tr>
+                        <th className="px-3 py-2">When</th>
+                        <th className="px-3 py-2">Server</th>
+                        <th className="px-3 py-2">Category</th>
+                        <th className="px-3 py-2">Action</th>
+                        <th className="px-3 py-2">User</th>
+                        <th className="px-3 py-2">Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((row, i) => {
+                        const logId = String(row.log_id ?? i);
+                        const expanded = auditExpanded[logId] ?? false;
+                        return (
+                          <Fragment key={logId}>
+                            <tr
+                              className="cursor-pointer border-t border-line/60 hover:bg-canvas/60"
+                              onClick={() =>
+                                setAuditExpanded((prev) => ({ ...prev, [logId]: !expanded }))
+                              }
+                            >
+                              <td className="px-3 py-2 text-xs text-fg-muted whitespace-nowrap">
+                                {row.created_at ? new Date(String(row.created_at)).toLocaleString("en-CA") : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-xs">
+                                <Badge variant="gray">{String(row.server ?? "")}</Badge>
+                              </td>
+                              <td className="px-3 py-2 text-xs">{String(row.category ?? "")}</td>
+                              <td className="px-3 py-2 text-xs font-medium">{String(row.action ?? "")}</td>
+                              <td className="px-3 py-2 font-mono text-[10px] max-w-[8rem] truncate">
+                                {String(row.user_id ?? "")}
+                              </td>
+                              <td className="px-3 py-2 text-xs text-fg-muted max-w-xs truncate">
+                                {typeof row.output_summary === "string"
+                                  ? row.output_summary
+                                  : JSON.stringify(row.output_summary ?? "")}
+                              </td>
+                            </tr>
+                            {expanded && (
+                              <tr className="border-t border-line/40 bg-canvas/40">
+                                <td colSpan={6} className="px-3 py-2">
+                                  <JsonPreview value={row} />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                      {filtered.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-fg-subtle">
+                            No audit entries match the current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
