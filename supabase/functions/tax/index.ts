@@ -62,17 +62,62 @@ async function calculateTax({ args }: ToolRequest) {
 
 async function generateInvoice({ args }: ToolRequest) {
   const orderId = String(args.order_id ?? "");
-  const sellerId = String(args.seller_id ?? "");
-  const buyerId = String(args.buyer_id ?? "");
-  const sellerProvince = String(args.seller_province ?? "");
-  const buyerProvince = String(args.buyer_province ?? "");
-  const subtotal = Number(args.subtotal ?? 0);
-  if (!orderId || !sellerId || !buyerId || !sellerProvince || !buyerProvince || subtotal <= 0) {
-    return failEnvelope("VALIDATION_ERROR", "order_id, seller_id, buyer_id, seller_province, buyer_province, subtotal>0 are required.");
+  if (!orderId) {
+    return failEnvelope("VALIDATION_ERROR", "order_id is required.");
   }
   const supabase = serviceClient();
+
+  // P1-13c — when callers (now including the reconciliation cron) pass only
+  // order_id, look up the rest from orders_mcp.orders and profile_mcp.profiles
+  // so the tool doesn't need every caller to assemble the full bundle.
+  // Explicit args still win for the legacy /checkout flow that already has
+  // the data in hand.
+  let sellerId = String(args.seller_id ?? "");
+  let buyerId = String(args.buyer_id ?? "");
+  let sellerProvince = String(args.seller_province ?? "");
+  let buyerProvince = String(args.buyer_province ?? "");
+  let subtotal = Number(args.subtotal ?? 0);
+  let commissionAmount = Number(args.commission_amount ?? 0);
+
+  const needsOrderLookup =
+    !sellerId || !buyerId || subtotal <= 0 || (!args.commission_amount && commissionAmount === 0);
+  if (needsOrderLookup) {
+    const order = await supabase
+      .schema("orders_mcp")
+      .from("orders")
+      .select("seller_id,buyer_id,original_amount,commission_amount")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (order.error) return failEnvelope("DB_ERROR", "Database operation failed");
+    if (!order.data) return failEnvelope("NOT_FOUND", "Order not found for invoice generation.");
+    const row = order.data as Record<string, unknown>;
+    if (!sellerId) sellerId = String(row.seller_id ?? "");
+    if (!buyerId) buyerId = String(row.buyer_id ?? "");
+    if (subtotal <= 0) subtotal = Number(row.original_amount ?? 0);
+    if (!args.commission_amount) commissionAmount = Number(row.commission_amount ?? 0);
+  }
+
+  if (!sellerProvince || !buyerProvince) {
+    const profiles = await supabase
+      .schema("profile_mcp")
+      .from("profiles")
+      .select("user_id,province")
+      .in("user_id", [sellerId, buyerId]);
+    if (profiles.error) return failEnvelope("DB_ERROR", "Database operation failed");
+    const byUser = new Map<string, string>(
+      (profiles.data ?? []).map((p: Record<string, unknown>) => [String(p.user_id), String(p.province ?? "")]),
+    );
+    if (!sellerProvince) sellerProvince = byUser.get(sellerId) ?? "";
+    if (!buyerProvince) buyerProvince = byUser.get(buyerId) ?? "";
+  }
+
+  if (!sellerId || !buyerId || !sellerProvince || !buyerProvince || subtotal <= 0) {
+    return failEnvelope(
+      "VALIDATION_ERROR",
+      "Could not assemble invoice — order_id is required, and (seller_province, buyer_province, subtotal) must be supplied or derivable from the order + profile records.",
+    );
+  }
   const taxBreakdown = calculateProvincialTax(buyerProvince, subtotal);
-  const commissionAmount = Number(args.commission_amount ?? 0);
   const commissionTax = commissionAmount > 0
     ? calculateProvincialTax(buyerProvince, commissionAmount)
     : { gst: 0, hst: 0, pst: 0, qst: 0, total_tax: 0 };

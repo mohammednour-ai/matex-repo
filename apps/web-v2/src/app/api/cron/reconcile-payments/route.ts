@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Pool } from "pg";
+import * as Sentry from "@sentry/nextjs";
+
+function cronBreadcrumb(message: string, data?: Record<string, unknown>, level: Sentry.SeverityLevel = "info"): void {
+  try {
+    Sentry.addBreadcrumb({ category: "stripe.reconcile", message, level, data });
+  } catch {
+    /* Sentry not loaded — no-op. */
+  }
+}
 
 /**
  * Stripe payment reconciliation cron.
@@ -53,6 +62,14 @@ type ReconcileSummary = {
   still_pending: number;
   already_settled: number;
   errors: number;
+  // P1-13b detection — invoice_missing was incremented when no tax_mcp.invoices
+  // row existed for the order. P1-13c adds invoice_generated: tax.generate_invoice
+  // now accepts {order_id} alone and looks up the rest, so the cron retries
+  // generation server-side. invoice_missing remains for the failure case
+  // where the tool itself can't complete.
+  invoice_missing: number;
+  invoice_already_present: number;
+  invoice_generated: number;
 };
 
 export async function GET(req: NextRequest) {
@@ -85,6 +102,9 @@ export async function GET(req: NextRequest) {
     still_pending: 0,
     already_settled: 0,
     errors: 0,
+    invoice_missing: 0,
+    invoice_already_present: 0,
+    invoice_generated: 0,
   };
 
   const pg = (await import("pg")).default;
@@ -108,6 +128,7 @@ export async function GET(req: NextRequest) {
     );
 
     summary.scanned = stale.rows.length;
+    cronBreadcrumb("scan", { scanned: summary.scanned, batch_limit: BATCH_LIMIT });
 
     for (const raw of stale.rows) {
       const row = raw as PendingTransactionRow;
@@ -144,8 +165,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    cronBreadcrumb("done", { ...summary }, summary.errors > 0 ? "warning" : "info");
     return NextResponse.json({ ok: true, ...summary });
   } catch (e) {
+    cronBreadcrumb(
+      "fatal",
+      { error: e instanceof Error ? e.message : String(e) },
+      "error",
+    );
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "reconcile_error" },
       { status: 500 },
@@ -231,6 +258,183 @@ async function applySucceeded(
   } finally {
     client.release();
   }
+
+  // Post-commit invoice sweep. tax.generate_invoice is normally called from
+  // /checkout right after Stripe confirms; if the page crashed or the user
+  // closed the tab before that ran, the order is paid but uninvoiced. P1-13c
+  // makes the cron self-heal: when no invoice exists, look up the order +
+  // buyer/seller provinces and insert the row via the same SQL pieces
+  // tax.generate_invoice uses (atomic invoice_number RPC + insert into
+  // tax_mcp.invoices). On any lookup failure we keep the invoice_missing
+  // signal so ops still see the gap.
+  if (row.order_id) {
+    try {
+      const invRes = await pool.query(
+        `SELECT 1 FROM tax_mcp.invoices WHERE order_id = $1::uuid LIMIT 1`,
+        [row.order_id],
+      );
+      if (invRes.rowCount === 0) {
+        const generated = await tryGenerateInvoice(pool, row);
+        if (generated) {
+          summary.invoice_generated += 1;
+        } else {
+          summary.invoice_missing += 1;
+          console.warn(
+            "[reconcile-payments] invoice_missing_after_reconcile",
+            JSON.stringify({
+              transaction_id: row.transaction_id,
+              order_id: row.order_id,
+              stripe_payment_intent_id: pi.id,
+            }),
+          );
+        }
+      } else {
+        summary.invoice_already_present += 1;
+      }
+    } catch {
+      // Non-fatal — invoice check is observational only.
+    }
+  }
+}
+
+/**
+ * P1-13c — server-side retry of tax.generate_invoice for a freshly-reconciled
+ * order. Looks up the order amounts and the buyer/seller provinces, allocates
+ * an atomic MTX-YYYY-NNNNNN invoice number via the same RPC the edge tool
+ * uses, and inserts into tax_mcp.invoices. Returns true on success, false on
+ * any missing data (caller increments invoice_missing instead).
+ */
+async function tryGenerateInvoice(pool: Pool, row: PendingTransactionRow): Promise<boolean> {
+  if (!row.order_id) return false;
+  try {
+    const orderRes = await pool.query(
+      `SELECT seller_id, buyer_id, original_amount::text AS original_amount, commission_amount::text AS commission_amount
+         FROM orders_mcp.orders
+        WHERE order_id = $1::uuid
+        LIMIT 1`,
+      [row.order_id],
+    );
+    if (orderRes.rowCount === 0) return false;
+    const order = orderRes.rows[0] as {
+      seller_id: string;
+      buyer_id: string;
+      original_amount: string;
+      commission_amount: string | null;
+    };
+    const subtotal = Number(order.original_amount);
+    if (!Number.isFinite(subtotal) || subtotal <= 0) return false;
+    const commission = Number(order.commission_amount ?? 0);
+
+    const profileRes = await pool.query(
+      `SELECT user_id, province
+         FROM profile_mcp.profiles
+        WHERE user_id = ANY($1::uuid[])`,
+      [[order.seller_id, order.buyer_id]],
+    );
+    const byUser = new Map<string, string>();
+    for (const r of profileRes.rows as Array<{ user_id: string; province: string | null }>) {
+      byUser.set(r.user_id, r.province ?? "");
+    }
+    const sellerProvince = byUser.get(order.seller_id) ?? "";
+    const buyerProvince = byUser.get(order.buyer_id) ?? "";
+    if (!sellerProvince || !buyerProvince) return false;
+
+    const numberRes = await pool.query<{ next_invoice_number: string }>(
+      `SELECT next_invoice_number() AS next_invoice_number`,
+    );
+    const invoiceNumber = numberRes.rows[0]?.next_invoice_number;
+    if (!invoiceNumber) return false;
+
+    const breakdown = calculateProvincialTaxForCron(buyerProvince, subtotal);
+    const commissionTax = commission > 0 ? calculateProvincialTaxForCron(buyerProvince, commission) : { total_tax: 0 };
+    const totalAmount = Number((subtotal + breakdown.total_tax).toFixed(2));
+
+    await pool.query(
+      `INSERT INTO tax_mcp.invoices (
+         invoice_id, invoice_number, order_id, seller_id, buyer_id,
+         seller_province, buyer_province,
+         subtotal, gst_amount, hst_amount, pst_amount, qst_amount,
+         tax_amount, tax_type, commission_amount, commission_tax_amount,
+         total_amount, line_items, status, currency,
+         issue_date, due_date, issued_at, created_at
+       )
+       VALUES (
+         gen_random_uuid(), $1, $2::uuid, $3::uuid, $4::uuid,
+         $5, $6,
+         $7, $8, $9, $10, $11,
+         $12, $13, $14, $15,
+         $16, $17::jsonb, 'issued', 'CAD',
+         NOW(), NOW() + interval '30 days', NOW(), NOW()
+       )`,
+      [
+        invoiceNumber,
+        row.order_id,
+        order.seller_id,
+        order.buyer_id,
+        sellerProvince,
+        buyerProvince,
+        subtotal,
+        breakdown.gst,
+        breakdown.hst,
+        breakdown.pst,
+        breakdown.qst,
+        breakdown.total_tax,
+        breakdown.tax_type,
+        commission,
+        commissionTax.total_tax,
+        totalAmount,
+        JSON.stringify([
+          { description: "Materials (subtotal)", amount: subtotal },
+          { description: `Tax (${breakdown.tax_type})`, amount: breakdown.total_tax },
+          ...(commission > 0 ? [{ description: "Platform commission", amount: commission }] : []),
+        ]),
+      ],
+    );
+    return true;
+  } catch (e) {
+    console.warn(
+      "[reconcile-payments] invoice_generation_failed",
+      JSON.stringify({
+        transaction_id: row.transaction_id,
+        order_id: row.order_id,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+    return false;
+  }
+}
+
+/**
+ * Standalone tax-breakdown calculator used by the cron's invoice retry path.
+ * Mirrors the matrix in supabase/functions/tax/index.ts:calculateProvincialTax
+ * — kept inline rather than imported because the cron is a Node route and
+ * the edge function is Deno (different module resolution).
+ */
+function calculateProvincialTaxForCron(province: string, amount: number): {
+  gst: number; hst: number; pst: number; qst: number; total_tax: number; tax_type: string;
+} {
+  const p = province.toUpperCase();
+  const rates: Record<string, { gst: number; hst: number; pst: number; qst: number; tax_type: string }> = {
+    ON: { gst: 0, hst: 0.13, pst: 0, qst: 0, tax_type: "HST" },
+    NB: { gst: 0, hst: 0.15, pst: 0, qst: 0, tax_type: "HST" },
+    NS: { gst: 0, hst: 0.15, pst: 0, qst: 0, tax_type: "HST" },
+    NL: { gst: 0, hst: 0.15, pst: 0, qst: 0, tax_type: "HST" },
+    PE: { gst: 0, hst: 0.15, pst: 0, qst: 0, tax_type: "HST" },
+    BC: { gst: 0.05, hst: 0, pst: 0.07, qst: 0, tax_type: "GST+PST" },
+    SK: { gst: 0.05, hst: 0, pst: 0.06, qst: 0, tax_type: "GST+PST" },
+    MB: { gst: 0.05, hst: 0, pst: 0.07, qst: 0, tax_type: "GST+PST" },
+    QC: { gst: 0.05, hst: 0, pst: 0, qst: 0.09975, tax_type: "GST+QST" },
+    AB: { gst: 0.05, hst: 0, pst: 0, qst: 0, tax_type: "GST" },
+    NT: { gst: 0.05, hst: 0, pst: 0, qst: 0, tax_type: "GST" },
+    YT: { gst: 0.05, hst: 0, pst: 0, qst: 0, tax_type: "GST" },
+    NU: { gst: 0.05, hst: 0, pst: 0, qst: 0, tax_type: "GST" },
+  };
+  const r = rates[p] ?? rates.ON;
+  const gst = Math.round(amount * r.gst * 100) / 100;
+  const hst = Math.round(amount * r.hst * 100) / 100;
+  const pst = Math.round(amount * r.pst * 100) / 100;
+  const qst = Math.round(amount * r.qst * 100) / 100;
+  return { gst, hst, pst, qst, total_tax: Math.round((gst + hst + pst + qst) * 100) / 100, tax_type: r.tax_type };
 }
 
 /**

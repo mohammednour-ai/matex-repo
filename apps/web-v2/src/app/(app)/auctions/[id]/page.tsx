@@ -113,7 +113,9 @@ export default function AuctionRoomPage() {
   const [isRegistered, setIsRegistered] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState("");
-  const [wonLots] = useState<Lot[]>([]);
+  // Note: won-lots state moved inside PostAuctionView (it fetches
+  // auction.get_winning_bids on mount, scoped to the logged-in user).
+  // Parent no longer carries this slice.
 
   // Wire up the Register CTA on both lobby + watch-only fallback. Was a
   // local setIsRegistered(true) with no server call — clicks didn't
@@ -304,7 +306,7 @@ export default function AuctionRoomPage() {
   }
 
   if (auction.status === "completed") {
-    return <PostAuctionView auction={auction} wonLots={wonLots} />;
+    return <PostAuctionView auction={auction} />;
   }
 
   return (
@@ -652,41 +654,115 @@ function LobbyView({
   );
 }
 
-function PostAuctionView({ auction, wonLots }: { auction: AuctionDetail; wonLots: Lot[] }) {
-  const mockWon: Lot[] = auction.lots.filter((l) => l.status === "sold").slice(0, 2);
+type WonLot = {
+  lot_id: string;
+  lot_number: number;
+  listing_id: string;
+  title: string;
+  winning_bid: number;
+  closed_at: string | null;
+};
+
+function PostAuctionView({ auction }: { auction: AuctionDetail }) {
+  // Used to filter auction.lots client-side for any sold lot, which
+  // returned the same "won lots" for every user. Now we fetch the real
+  // set from auction.get_winning_bids scoped to the logged-in user.
+  const [wonLots, setWonLots] = useState<WonLot[]>([]);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const user = getUser();
+      if (!user?.userId) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError("");
+      const res = await callTool("auction.get_winning_bids", {
+        auction_id: auction.auction_id,
+        user_id: user.userId,
+      });
+      if (cancelled) return;
+      if (!res.success) {
+        setError(res.error?.message ?? "Could not load winning bids.");
+        setLoading(false);
+        return;
+      }
+      const data = res.data as Record<string, unknown> | undefined;
+      const up = (data?.upstream_response as Record<string, unknown> | undefined)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const won = (up?.won_lots ?? data?.won_lots) as WonLot[] | undefined;
+      const total = Number(up?.total_amount ?? data?.total_amount ?? 0);
+      setWonLots(Array.isArray(won) ? won : []);
+      setTotalAmount(total);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [auction.auction_id]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      {mockWon.length > 0 && (
-        <div className="rounded-xl border-2 border-emerald-300 bg-success-500/10 p-6 text-center">
-          <Trophy className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
-          <h2 className="text-xl font-bold text-success-400">Congratulations!</h2>
-          <p className="text-sm text-success-400 mt-1">
-            You won {mockWon.length} lot{mockWon.length > 1 ? "s" : ""} with a total of{" "}
-            <strong>{formatCAD(mockWon.reduce((s, l) => s + l.current_bid, 0))}</strong>
+      {loading ? (
+        <div className="rounded-xl border border-night-700 bg-night-850 p-6 text-center text-sm text-night-300">
+          Loading your won lots…
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-sm text-danger-400">
+          {error}
+        </div>
+      ) : wonLots.length === 0 ? (
+        <div className="rounded-xl border border-night-700 bg-night-850 p-6 text-center">
+          <p className="text-sm font-medium text-night-200">You didn&apos;t win any lots in this auction.</p>
+          <p className="text-xs text-night-300 mt-1">
+            Browse upcoming auctions or set saved searches to be ready next time.
           </p>
-          <Link href="/escrow/create?order_id=ord-001">
-            <Button size="lg" className="mt-4">
-              Proceed to Escrow <ArrowRight className="h-4 w-4" />
-            </Button>
+          <Link href="/auctions">
+            <Button size="sm" variant="secondary" className="mt-4">View all auctions</Button>
           </Link>
         </div>
-      )}
+      ) : (
+        <>
+          <div className="rounded-xl border-2 border-emerald-300 bg-success-500/10 p-6 text-center">
+            <Trophy className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
+            <h2 className="text-xl font-bold text-success-400">Congratulations!</h2>
+            <p className="text-sm text-success-400 mt-1">
+              You won {wonLots.length} lot{wonLots.length > 1 ? "s" : ""} with a total of{" "}
+              <strong>{formatCAD(totalAmount)}</strong>
+            </p>
+            {/* Per-lot checkout link below — the previous version pointed
+                at /escrow/create?order_id=ord-001 (a MOCK_ORDER ID that
+                was removed in P0-2). Each won lot needs its own order, so
+                the buyer goes through normal checkout per lot. */}
+          </div>
 
-      <div>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-night-300 mb-3">Won Lots</h2>
-        <div className="space-y-2">
-          {mockWon.map((lot) => (
-            <div key={lot.lot_id} className="flex items-center justify-between rounded-lg border border-night-700 bg-night-850 p-4">
-              <div>
-                <p className="text-sm font-semibold text-night-100">Lot #{lot.lot_number} — {lot.title}</p>
-                <p className="text-xs text-night-300 mt-0.5">Winning bid</p>
-              </div>
-              <p className="text-lg font-bold text-blue-600">{formatCAD(lot.current_bid)}</p>
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-night-300 mb-3">Won Lots</h2>
+            <div className="space-y-2">
+              {wonLots.map((lot) => (
+                <div key={lot.lot_id} className="flex items-center justify-between rounded-lg border border-night-700 bg-night-850 p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-night-100 truncate">Lot #{lot.lot_number} — {lot.title}</p>
+                    <p className="text-xs text-night-300 mt-0.5">Winning bid</p>
+                  </div>
+                  <div className="ml-3 flex items-center gap-3 shrink-0">
+                    <p className="text-lg font-bold text-blue-600">{formatCAD(lot.winning_bid)}</p>
+                    <Link href={`/checkout?listing_id=${encodeURIComponent(lot.listing_id)}`}>
+                      <Button size="sm">
+                        Check out <ArrowRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
 
       <div className="rounded-xl border border-night-700 bg-night-850 p-5">
         <h3 className="text-sm font-semibold text-night-200 mb-4">Next Steps</h3>

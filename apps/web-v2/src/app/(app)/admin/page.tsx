@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefreshCw,
@@ -15,13 +15,18 @@ import {
   ScrollText,
   UserCog,
 } from "lucide-react";
-import { callTool, getUser, type MCPResponse } from "@/lib/api";
+import { callTool, getUser, extractId, type MCPResponse } from "@/lib/api";
 import { Button } from "@/components/ui/shadcn/button";
 import { Input } from "@/components/ui/shadcn/input";
 import { Badge } from "@/components/ui/shadcn/badge";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/shadcn/dialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { PriceSparkline } from "@/components/intelligence/PriceSparkline";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { StripeProvider } from "@/components/payments/StripeProvider";
+import { isStripeConfigured } from "@/lib/stripe";
 
 type TabId =
   | "overview"
@@ -76,6 +81,7 @@ export default function AdminPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
+  const [overviewHistory, setOverviewHistory] = useState<Record<string, number[]>>({});
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [listings, setListings] = useState<Record<string, unknown>[]>([]);
   const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
@@ -92,12 +98,43 @@ export default function AdminPage() {
   const [cfgVal, setCfgVal] = useState("");
   const [payUserId, setPayUserId] = useState("");
   const [payAmount, setPayAmount] = useState("");
+  // P0-1 5b — admin-side Stripe card purchase. Operator pastes an order_id,
+  // we allocate a PaymentIntent via the same payments.create_payment_intent
+  // tool /checkout uses, mount PaymentElement, and admin physically taps the
+  // card. Low-traffic internal flow.
+  const [stripeOrderId, setStripeOrderId] = useState("");
+  const [stripeClientSecret, setStripeClientSecret] = useState("");
+  const [stripeTransactionId, setStripeTransactionId] = useState("");
+  const [stripeAmount, setStripeAmount] = useState<number>(0);
+  const [stripeAllocLoading, setStripeAllocLoading] = useState(false);
+  const [stripeAllocError, setStripeAllocError] = useState("");
   const [escrowIdInput, setEscrowIdInput] = useState("");
   const [escrowAmt, setEscrowAmt] = useState("100");
   const [escrowReason, setEscrowReason] = useState("");
   const [auctionIdFilter, setAuctionIdFilter] = useState("");
   const [orderIdStatus, setOrderIdStatus] = useState("");
   const [orderNewStatus, setOrderNewStatus] = useState("confirmed");
+  // Per-row inline status edits on the Orders table. Keyed by order_id; only
+  // the rows the operator has touched appear here. Saving clears the entry.
+  const [orderRowEdits, setOrderRowEdits] = useState<Record<string, string>>({});
+  // Audit-trail filters. category + user_id are server-side; actionFilter is
+  // client-side substring match so the operator can refine without re-fetching.
+  const [auditCategory, setAuditCategory] = useState<string>("");
+  const [auditUserId, setAuditUserId] = useState<string>("");
+  const [auditActionFilter, setAuditActionFilter] = useState<string>("");
+  const [auditExpanded, setAuditExpanded] = useState<Record<string, boolean>>({});
+
+  // P2-2 — confirmation dialog before destructive escrow ops. The four
+  // buttons (Hold / Release / Freeze / Refund) move escrowed funds and
+  // one accidental click is a real-money mistake. Click prepares the
+  // pending op + summary, then the dialog requires an explicit confirm.
+  type PendingEscrowOp = {
+    label: string;
+    summary: string;
+    execute: () => Promise<void>;
+    danger: boolean;
+  };
+  const [pendingOp, setPendingOp] = useState<PendingEscrowOp | null>(null);
 
   const flash = useCallback((m: string) => {
     setMsg(m);
@@ -129,9 +166,16 @@ export default function AdminPage() {
   );
 
   const loadOverview = useCallback(async () => {
-    const r = await callTool("admin.get_platform_overview", {});
-    const p = unwrapToolPayload(r);
-    setOverview(p);
+    // Pull current totals + 14-day history in parallel; the history call is
+    // best-effort so a failure there doesn't blank the cards.
+    const [r, h] = await Promise.all([
+      callTool("admin.get_platform_overview", {}),
+      callTool("admin.get_overview_history", { days: 14 }),
+    ]);
+    setOverview(unwrapToolPayload(r));
+    const hp = unwrapToolPayload(h);
+    const series = (hp?.series as Record<string, number[]> | undefined) ?? {};
+    setOverviewHistory(series);
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -192,10 +236,15 @@ export default function AdminPage() {
   }, []);
 
   const loadAudit = useCallback(async () => {
-    const r = await callTool("admin.get_audit_trail", { limit: 80 });
+    // Server-side filters: category, user_id. Client-side action filter is
+    // applied at render time to avoid round-trips on every keystroke.
+    const args: Record<string, unknown> = { limit: 200 };
+    if (auditCategory) args.category = auditCategory;
+    if (auditUserId.trim()) args.user_id = auditUserId.trim();
+    const r = await callTool("admin.get_audit_trail", args);
     const p = unwrapToolPayload(r);
     setAuditEntries((p?.entries as Record<string, unknown>[]) ?? []);
-  }, []);
+  }, [auditCategory, auditUserId]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -321,12 +370,30 @@ export default function AdminPage() {
       {tab === "overview" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {overview &&
-            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => (
-              <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
-                <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
-              </div>
-            ))}
+            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => {
+              const series = overviewHistory[k] ?? [];
+              // Trend is derived from the last two non-zero buckets; "open_disputes"
+              // inverts the colour mapping since fewer disputes is good.
+              const last = series.at(-1) ?? 0;
+              const prev = series.at(-2) ?? 0;
+              const goingUp = last > prev;
+              const goingDown = last < prev;
+              const isDisputes = k === "open_disputes";
+              const trend: "up" | "down" | "stable" = goingUp
+                ? (isDisputes ? "down" : "up")
+                : goingDown
+                  ? (isDisputes ? "up" : "down")
+                  : "stable";
+              return (
+                <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
+                  <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
+                  {series.length > 0 && (
+                    <PriceSparkline series={series} trend={trend} height={32} className="mt-2" />
+                  )}
+                </div>
+              );
+            })}
           {!overview && <p className="text-fg-subtle text-sm">Loading overview…</p>}
         </div>
       )}
@@ -541,15 +608,69 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((o) => (
-                  <tr key={String(o.order_id)} className="border-t border-line/60">
-                    <td className="px-3 py-2 font-mono text-xs">{String(o.order_id ?? "").slice(0, 8)}…</td>
-                    <td className="px-3 py-2">{String(o.status ?? "")}</td>
-                    <td className="px-3 py-2">{String(o.original_amount ?? "")}</td>
-                    <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.buyer_id ?? "")}</td>
-                    <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.seller_id ?? "")}</td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const orderId = String(o.order_id ?? "");
+                  const currentStatus = String(o.status ?? "");
+                  const pending = orderRowEdits[orderId];
+                  const selected = pending ?? currentStatus;
+                  const dirty = pending !== undefined && pending !== currentStatus;
+                  return (
+                    <tr key={orderId} className="border-t border-line/60">
+                      <td className="px-3 py-2 font-mono text-xs">{orderId.slice(0, 8)}…</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selected}
+                            onChange={(e) =>
+                              setOrderRowEdits((prev) => ({ ...prev, [orderId]: e.target.value }))
+                            }
+                            className="rounded-lg border border-line bg-canvas px-2 py-1 text-xs"
+                            aria-label={`Status for order ${orderId.slice(0, 8)}`}
+                          >
+                            {["pending", "confirmed", "shipped", "delivered", "completed", "cancelled", "disputed"].map(
+                              (s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ),
+                            )}
+                            {/* Preserve any legacy status not in the canonical list so the dropdown still
+                                shows the actual value rather than silently relabeling the row. */}
+                            {currentStatus &&
+                              !["pending", "confirmed", "shipped", "delivered", "completed", "cancelled", "disputed"].includes(
+                                currentStatus,
+                              ) && <option value={currentStatus}>{currentStatus}</option>}
+                          </select>
+                          {dirty && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                run(async () => {
+                                  const r = await callTool("admin.update_order_status", {
+                                    order_id: orderId,
+                                    status: selected,
+                                  });
+                                  if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                                  await loadOrders();
+                                  setOrderRowEdits((prev) => {
+                                    const { [orderId]: _drop, ...rest } = prev;
+                                    return rest;
+                                  });
+                                  flash(`Order ${orderId.slice(0, 8)} → ${selected}`);
+                                })
+                              }
+                            >
+                              Save
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">{String(o.original_amount ?? "")}</td>
+                      <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.buyer_id ?? "")}</td>
+                      <td className="px-3 py-2 font-mono text-xs max-w-[6rem] truncate">{String(o.seller_id ?? "")}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -584,43 +705,58 @@ export default function AdminPage() {
                   key={tool}
                   variant="secondary"
                   size="sm"
-                  onClick={() =>
-                    run(async () => {
-                      const id = escrowIdInput.trim();
-                      if (!id) throw new Error("Enter escrow ID");
-                      const amount = Number(escrowAmt);
-                      const performedBy = getUser()?.userId ?? "";
-                      if (!performedBy) throw new Error("Sign in as a platform admin first.");
-                      const reason = escrowReason.trim();
-                      // Per packages/mcp-servers/escrow-mcp/src/index.ts:166-170
-                      // and the matching edge handler, every state-changing
-                      // tool requires performed_by; freeze/refund additionally
-                      // require reason. The previous admin form omitted
-                      // performed_by entirely (so every action 422'd) and
-                      // hardcoded reason="admin_console" for Freeze (losing
-                      // the actual operator rationale).
-                      let args: Record<string, unknown>;
-                      if (tool === "escrow.freeze_escrow") {
-                        if (!reason) throw new Error("Reason is required to freeze an escrow.");
-                        args = { escrow_id: id, reason, performed_by: performedBy };
-                      } else if (tool === "escrow.refund_escrow") {
-                        if (!reason) throw new Error("Reason is required to refund an escrow.");
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for refund.");
-                        args = { escrow_id: id, amount, reason, performed_by: performedBy };
-                      } else if (tool === "escrow.release_funds") {
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for release.");
-                        args = { escrow_id: id, amount, performed_by: performedBy };
-                      } else {
-                        // hold_funds
-                        if (!(amount > 0)) throw new Error("Amount must be > 0 for hold.");
-                        args = { escrow_id: id, amount, performed_by: performedBy };
-                      }
-                      const r = await callTool(tool, args);
-                      if (!r.success) throw new Error(r.error?.message ?? "Failed");
-                      await loadEscrows();
-                      flash(`${label} OK`);
-                    })
-                  }
+                  onClick={() => {
+                    // Pre-validate args HERE (not inside the dialog confirm)
+                    // so missing input shows the standard inline error
+                    // without first opening + cancelling a dialog. Only
+                    // valid actions proceed to confirmation.
+                    setErr(null);
+                    const id = escrowIdInput.trim();
+                    if (!id) { setErr("Enter escrow ID"); return; }
+                    const amount = Number(escrowAmt);
+                    const performedBy = getUser()?.userId ?? "";
+                    if (!performedBy) { setErr("Sign in as a platform admin first."); return; }
+                    const reason = escrowReason.trim();
+                    let args: Record<string, unknown>;
+                    if (tool === "escrow.freeze_escrow") {
+                      if (!reason) { setErr("Reason is required to freeze an escrow."); return; }
+                      args = { escrow_id: id, reason, performed_by: performedBy };
+                    } else if (tool === "escrow.refund_escrow") {
+                      if (!reason) { setErr("Reason is required to refund an escrow."); return; }
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for refund."); return; }
+                      args = { escrow_id: id, amount, reason, performed_by: performedBy };
+                    } else if (tool === "escrow.release_funds") {
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for release."); return; }
+                      args = { escrow_id: id, amount, performed_by: performedBy };
+                    } else {
+                      // hold_funds
+                      if (!(amount > 0)) { setErr("Amount must be > 0 for hold."); return; }
+                      args = { escrow_id: id, amount, performed_by: performedBy };
+                    }
+
+                    // Build a human-readable summary of what's about to
+                    // happen so the admin can sanity-check the escrow ID
+                    // and amount before committing. Refund + Freeze are
+                    // the high-stakes ones; mark all four as danger so
+                    // the dialog confirms with a red button.
+                    const summaryParts: string[] = [`Escrow: ${id}`];
+                    if (tool !== "escrow.freeze_escrow") summaryParts.push(`Amount: $${amount.toFixed(2)} CAD`);
+                    if (reason) summaryParts.push(`Reason: ${reason}`);
+                    const summary = summaryParts.join("\n");
+
+                    setPendingOp({
+                      label,
+                      summary,
+                      danger: true,
+                      execute: () =>
+                        run(async () => {
+                          const r = await callTool(tool, args);
+                          if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                          await loadEscrows();
+                          flash(`${label} OK`);
+                        }),
+                    });
+                  }}
                 >
                   {label}
                 </Button>
@@ -719,29 +855,130 @@ export default function AdminPage() {
 
       {tab === "purchases" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-line bg-surfaceBg p-4 flex flex-wrap gap-3 items-end">
-            <Input label="Buyer user ID" value={payUserId} onChange={(e) => setPayUserId(e.target.value)} className="max-w-md" />
-            <Input label="Amount (CAD)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-32" />
-            <Button
-              size="sm"
-              onClick={() =>
-                run(async () => {
-                  const adminUser = getUser();
-                  const r = await callTool("payments.process_payment", {
-                    user_id: payUserId.trim(),
-                    actor_id: adminUser?.userId ?? "",
-                    amount: Number(payAmount),
-                    method: "admin_card",
-                  });
-                  if (!r.success) throw new Error(r.error?.message ?? "Failed");
-                  await loadTxs();
-                  flash("Payment recorded");
-                })
-              }
-            >
-              Record purchase
-            </Button>
+          {/* Off-platform record — wire/ACH/manual reconciliation. No Stripe charge. */}
+          <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+            <p className="text-sm font-semibold text-fg">Record off-platform payment</p>
+            <p className="text-xs text-fg-subtle">
+              Use when the buyer paid via wire / ACH / cheque. Inserts a ledger row but does not charge a card.
+            </p>
+            <div className="flex flex-wrap gap-3 items-end">
+              <Input label="Buyer user ID" value={payUserId} onChange={(e) => setPayUserId(e.target.value)} className="max-w-md" />
+              <Input label="Amount (CAD)" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-32" />
+              <Button
+                size="sm"
+                onClick={() =>
+                  run(async () => {
+                    const adminUser = getUser();
+                    const r = await callTool("payments.process_payment", {
+                      user_id: payUserId.trim(),
+                      actor_id: adminUser?.userId ?? "",
+                      amount: Number(payAmount),
+                      method: "admin_card",
+                    });
+                    if (!r.success) throw new Error(r.error?.message ?? "Failed");
+                    await loadTxs();
+                    flash("Payment recorded");
+                  })
+                }
+              >
+                Record purchase
+              </Button>
+            </div>
           </div>
+
+          {/* P0-1 5b — Stripe card purchase. Used when admin has the card in
+              hand (rare: phone-in orders, point-of-sale fallback). Same
+              PaymentElement flow as /checkout. */}
+          <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+            <p className="text-sm font-semibold text-fg">Charge card via Stripe</p>
+            <p className="text-xs text-fg-subtle">
+              Allocate a PaymentIntent for an existing order, then tap the card on this device.
+            </p>
+            {!isStripeConfigured() ? (
+              <p className="text-xs text-warning-400">
+                Stripe is not configured — set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable.
+              </p>
+            ) : !stripeClientSecret ? (
+              <div className="flex flex-wrap gap-3 items-end">
+                <Input
+                  label="Order ID"
+                  value={stripeOrderId}
+                  onChange={(e) => setStripeOrderId(e.target.value)}
+                  className="max-w-md"
+                  placeholder="uuid"
+                />
+                <Button
+                  size="sm"
+                  loading={stripeAllocLoading}
+                  onClick={async () => {
+                    setStripeAllocError("");
+                    const id = stripeOrderId.trim();
+                    if (!id) {
+                      setStripeAllocError("Order ID is required.");
+                      return;
+                    }
+                    setStripeAllocLoading(true);
+                    const r = await callTool("payments.create_payment_intent", { order_id: id });
+                    setStripeAllocLoading(false);
+                    if (!r.success) {
+                      setStripeAllocError(r.error?.message ?? "Could not allocate PaymentIntent.");
+                      return;
+                    }
+                    const d = r.data as Record<string, unknown> | undefined;
+                    const up = (d?.upstream_response as Record<string, unknown> | undefined)?.data as
+                      | Record<string, unknown>
+                      | undefined;
+                    const flat = up ?? d ?? {};
+                    const cs = String(flat.client_secret ?? "");
+                    const txId = extractId(r, "transaction_id") ?? "";
+                    const amt = Number(flat.amount ?? 0);
+                    if (!cs) {
+                      setStripeAllocError("PaymentIntent allocated but no client_secret returned.");
+                      return;
+                    }
+                    setStripeClientSecret(cs);
+                    setStripeTransactionId(txId);
+                    setStripeAmount(amt);
+                  }}
+                >
+                  Allocate
+                </Button>
+                {stripeAllocError && (
+                  <p className="basis-full text-xs text-danger-400">{stripeAllocError}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-fg-muted">
+                  Order <span className="font-mono">{stripeOrderId.slice(0, 8)}…</span>
+                  {stripeTransactionId ? ` · tx ${stripeTransactionId.slice(0, 8)}…` : ""}
+                  {stripeAmount > 0 ? ` · amount ${stripeAmount.toFixed(2)} CAD` : ""}
+                </p>
+                <StripeProvider clientSecret={stripeClientSecret}>
+                  <AdminStripeCardForm
+                    onSuccess={() => {
+                      setStripeClientSecret("");
+                      setStripeTransactionId("");
+                      setStripeOrderId("");
+                      flash("Card charged");
+                      void run(loadTxs);
+                    }}
+                  />
+                </StripeProvider>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStripeClientSecret("");
+                    setStripeTransactionId("");
+                  }}
+                  className="text-xs font-semibold text-brand-400 hover:underline"
+                >
+                  Cancel and clear
+                </button>
+              </div>
+            )}
+          </div>
+
           <h3 className="text-sm font-bold text-fg">Recent transactions</h3>
           <div className="space-y-2">
             {txs.map((t) => (
@@ -801,14 +1038,236 @@ export default function AdminPage() {
       )}
 
       {tab === "audit" && (
-        <div className="space-y-2">
-          {auditEntries.map((row, i) => (
-            <div key={String(row.log_id ?? i)} className="rounded-lg border border-line bg-surfaceBg p-3">
-              <JsonPreview value={row} />
-            </div>
-          ))}
+        <div className="space-y-3">
+          {(() => {
+            // Build the unique server/category set from the loaded page so the
+            // chips reflect what's actually present rather than a hardcoded list.
+            const categories = Array.from(
+              new Set(auditEntries.map((r) => String(r.category ?? "")).filter(Boolean)),
+            ).sort();
+            const filtered = auditEntries.filter((r) => {
+              if (!auditActionFilter.trim()) return true;
+              const needle = auditActionFilter.trim().toLowerCase();
+              return (
+                String(r.action ?? "").toLowerCase().includes(needle) ||
+                String(r.server ?? "").toLowerCase().includes(needle)
+              );
+            });
+            return (
+              <>
+                <div className="rounded-xl border border-line bg-surfaceBg p-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                      Category
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategory("")}
+                      className={clsx(
+                        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                        auditCategory === ""
+                          ? "bg-brand-600 text-white"
+                          : "border border-line bg-canvas text-fg-muted hover:bg-elevated",
+                      )}
+                    >
+                      All
+                    </button>
+                    {categories.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setAuditCategory(c)}
+                        className={clsx(
+                          "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                          auditCategory === c
+                            ? "bg-brand-600 text-white"
+                            : "border border-line bg-canvas text-fg-muted hover:bg-elevated",
+                        )}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <Input
+                      label="User ID"
+                      value={auditUserId}
+                      onChange={(e) => setAuditUserId(e.target.value)}
+                      placeholder="filter by uuid"
+                      className="max-w-md"
+                    />
+                    <Input
+                      label="Action / server contains"
+                      value={auditActionFilter}
+                      onChange={(e) => setAuditActionFilter(e.target.value)}
+                      placeholder="e.g. listing"
+                      className="max-w-md"
+                    />
+                    <Button size="sm" onClick={() => run(loadAudit)}>
+                      Apply
+                    </Button>
+                    <p className="text-xs text-fg-subtle">
+                      {filtered.length} of {auditEntries.length} entries
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-line bg-surfaceBg">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-canvas text-left text-xs font-semibold uppercase text-fg-muted">
+                      <tr>
+                        <th className="px-3 py-2">When</th>
+                        <th className="px-3 py-2">Server</th>
+                        <th className="px-3 py-2">Category</th>
+                        <th className="px-3 py-2">Action</th>
+                        <th className="px-3 py-2">User</th>
+                        <th className="px-3 py-2">Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((row, i) => {
+                        const logId = String(row.log_id ?? i);
+                        const expanded = auditExpanded[logId] ?? false;
+                        return (
+                          <Fragment key={logId}>
+                            <tr
+                              className="cursor-pointer border-t border-line/60 hover:bg-canvas/60"
+                              onClick={() =>
+                                setAuditExpanded((prev) => ({ ...prev, [logId]: !expanded }))
+                              }
+                            >
+                              <td className="px-3 py-2 text-xs text-fg-muted whitespace-nowrap">
+                                {row.created_at ? new Date(String(row.created_at)).toLocaleString("en-CA") : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-xs">
+                                <Badge variant="gray">{String(row.server ?? "")}</Badge>
+                              </td>
+                              <td className="px-3 py-2 text-xs">{String(row.category ?? "")}</td>
+                              <td className="px-3 py-2 text-xs font-medium">{String(row.action ?? "")}</td>
+                              <td className="px-3 py-2 font-mono text-[10px] max-w-[8rem] truncate">
+                                {String(row.user_id ?? "")}
+                              </td>
+                              <td className="px-3 py-2 text-xs text-fg-muted max-w-xs truncate">
+                                {typeof row.output_summary === "string"
+                                  ? row.output_summary
+                                  : JSON.stringify(row.output_summary ?? "")}
+                              </td>
+                            </tr>
+                            {expanded && (
+                              <tr className="border-t border-line/40 bg-canvas/40">
+                                <td colSpan={6} className="px-3 py-2">
+                                  <JsonPreview value={row} />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                      {filtered.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-sm text-fg-subtle">
+                            No audit entries match the current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
+
+      {/* Confirmation dialog for destructive escrow ops (P2-2). Opened
+          by the four buttons in the Escrow tab; the summary block lets
+          the admin sanity-check escrow ID + amount + reason before the
+          operation actually fires. */}
+      <Dialog open={pendingOp !== null} onOpenChange={(open) => { if (!open) setPendingOp(null); }}>
+        <DialogContent size="md" className="bg-surfaceBg ring-1 ring-line max-w-md p-6">
+          <DialogTitle className="text-lg font-semibold text-fg mb-2">
+            Confirm: {pendingOp?.label} escrow funds
+          </DialogTitle>
+          <p className="text-sm text-fg-muted mb-3">
+            This action moves real money. Review the details below — there&apos;s no automatic undo
+            (use the matching counter-op, e.g. Hold to undo a Release).
+          </p>
+          {pendingOp && (
+            <pre className="rounded-lg border border-line bg-canvas px-3 py-2 text-xs text-fg font-mono whitespace-pre-wrap break-all mb-4">
+              {pendingOp.summary}
+            </pre>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setPendingOp(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button
+              variant={pendingOp?.danger ? "danger" : "primary"}
+              loading={busy}
+              onClick={async () => {
+                const op = pendingOp;
+                if (!op) return;
+                setPendingOp(null);
+                await op.execute();
+              }}
+            >
+              Yes, {pendingOp?.label}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+
+/**
+ * P0-1 5b — admin-scoped Stripe card form. Mounts inside StripeProvider
+ * with the client_secret allocated by payments.create_payment_intent and
+ * calls stripe.confirmPayment on submit. Identical lifecycle to the
+ * /checkout CardPaymentForm; we keep it inline here because the admin
+ * surface needs no extras (no tax recalc, no escrow follow-through —
+ * those run via webhook the same as the buyer flow).
+ */
+function AdminStripeCardForm({ onSuccess }: { onSuccess: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setSubmitting(true);
+    setError("");
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}/admin?stripe_return=1`,
+      },
+    });
+    if (confirmError) {
+      setError(confirmError.message ?? "Card was declined.");
+      setSubmitting(false);
+      return;
+    }
+    if (paymentIntent && paymentIntent.status !== "succeeded" && paymentIntent.status !== "processing") {
+      setError(`Payment is ${paymentIntent.status.replace(/_/g, " ")}. Please try again.`);
+      setSubmitting(false);
+      return;
+    }
+    onSuccess();
+    setSubmitting(false);
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-line/60 bg-canvas p-3">
+      <PaymentElement />
+      {error && <p className="text-xs text-danger-400">{error}</p>}
+      <Button type="submit" size="sm" loading={submitting} disabled={!stripe || !elements}>
+        Charge card
+      </Button>
+    </form>
   );
 }

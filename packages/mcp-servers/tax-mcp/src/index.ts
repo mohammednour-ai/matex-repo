@@ -82,7 +82,7 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     { name: "calculate_tax", description: "Calculate GST/HST/PST/QST based on seller and buyer provinces", inputSchema: { type: "object", properties: { amount: { type: "number" }, seller_province: { type: "string" }, buyer_province: { type: "string" } }, required: ["amount", "seller_province", "buyer_province"] } },
-    { name: "generate_invoice", description: "Generate an invoice with sequential MTX-YYYY-NNNNNN number", inputSchema: { type: "object", properties: { order_id: { type: "string" }, seller_id: { type: "string" }, buyer_id: { type: "string" }, seller_province: { type: "string" }, buyer_province: { type: "string" }, subtotal: { type: "number" }, commission_amount: { type: "number" }, line_items: { type: "array" } }, required: ["order_id", "seller_id", "buyer_id", "seller_province", "buyer_province", "subtotal"] } },
+    { name: "generate_invoice", description: "Generate an invoice with sequential MTX-YYYY-NNNNNN number. Only order_id is required; seller/buyer ids, provinces, subtotal, and commission default to lookup from orders_mcp.orders + profile_mcp.profiles when omitted.", inputSchema: { type: "object", properties: { order_id: { type: "string" }, seller_id: { type: "string" }, buyer_id: { type: "string" }, seller_province: { type: "string" }, buyer_province: { type: "string" }, subtotal: { type: "number" }, commission_amount: { type: "number" }, line_items: { type: "array" } }, required: ["order_id"] } },
     { name: "get_invoice", description: "Get invoice by ID or invoice number", inputSchema: { type: "object", properties: { invoice_id: { type: "string" }, invoice_number: { type: "string" } }, required: [] } },
     { name: "void_invoice", description: "Void an existing invoice", inputSchema: { type: "object", properties: { invoice_id: { type: "string" }, reason: { type: "string" }, voided_by: { type: "string" } }, required: ["invoice_id", "reason", "voided_by"] } },
     { name: "get_remittance_summary", description: "Get tax remittance summary for a period", inputSchema: { type: "object", properties: { period_start: { type: "string" }, period_end: { type: "string" } }, required: ["period_start", "period_end"] } },
@@ -111,17 +111,59 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (tool === "generate_invoice") {
     const orderId = String(args.order_id ?? "");
-    const sellerId = String(args.seller_id ?? "");
-    const buyerId = String(args.buyer_id ?? "");
-    const sellerProvince = String(args.seller_province ?? "");
-    const buyerProvince = String(args.buyer_province ?? "");
-    const subtotal = Number(args.subtotal ?? 0);
-    if (!orderId || !sellerId || !buyerId || !sellerProvince || !buyerProvince || subtotal <= 0) {
-      return fail("VALIDATION_ERROR", "order_id, seller_id, buyer_id, seller_province, buyer_province, subtotal>0 are required.");
+    if (!orderId) {
+      return fail("VALIDATION_ERROR", "order_id is required.");
+    }
+
+    // P1-13c — only order_id is required. Missing fields are looked up from
+    // orders_mcp.orders + profile_mcp.profiles so the reconciliation cron
+    // can call this tool with just the order id when an invoice is missing.
+    // Mirrors supabase/functions/tax/index.ts:generateInvoice.
+    let sellerId = String(args.seller_id ?? "");
+    let buyerId = String(args.buyer_id ?? "");
+    let sellerProvince = String(args.seller_province ?? "");
+    let buyerProvince = String(args.buyer_province ?? "");
+    let subtotal = Number(args.subtotal ?? 0);
+    let commissionAmount = Number(args.commission_amount ?? 0);
+
+    if (!sellerId || !buyerId || subtotal <= 0 || (!args.commission_amount && commissionAmount === 0)) {
+      const order = await supabase
+        .schema("orders_mcp")
+        .from("orders")
+        .select("seller_id,buyer_id,original_amount,commission_amount")
+        .eq("order_id", orderId)
+        .maybeSingle();
+      if (order.error) return fail("DB_ERROR", "Database operation failed");
+      if (!order.data) return fail("NOT_FOUND", "Order not found for invoice generation.");
+      const row = order.data as Record<string, unknown>;
+      if (!sellerId) sellerId = String(row.seller_id ?? "");
+      if (!buyerId) buyerId = String(row.buyer_id ?? "");
+      if (subtotal <= 0) subtotal = Number(row.original_amount ?? 0);
+      if (!args.commission_amount) commissionAmount = Number(row.commission_amount ?? 0);
+    }
+
+    if (!sellerProvince || !buyerProvince) {
+      const profiles = await supabase
+        .schema("profile_mcp")
+        .from("profiles")
+        .select("user_id,province")
+        .in("user_id", [sellerId, buyerId]);
+      if (profiles.error) return fail("DB_ERROR", "Database operation failed");
+      const byUser = new Map<string, string>(
+        (profiles.data ?? []).map((p: Record<string, unknown>) => [String(p.user_id), String(p.province ?? "")]),
+      );
+      if (!sellerProvince) sellerProvince = byUser.get(sellerId) ?? "";
+      if (!buyerProvince) buyerProvince = byUser.get(buyerId) ?? "";
+    }
+
+    if (!sellerId || !buyerId || !sellerProvince || !buyerProvince || subtotal <= 0) {
+      return fail(
+        "VALIDATION_ERROR",
+        "Could not assemble invoice — order_id is required, and (seller_province, buyer_province, subtotal) must be supplied or derivable from the order + profile records.",
+      );
     }
 
     const taxBreakdown = calculateProvincialTax(buyerProvince, subtotal);
-    const commissionAmount = Number(args.commission_amount ?? 0);
     const commissionTax = commissionAmount > 0 ? calculateProvincialTax(buyerProvince, commissionAmount) : { gst: 0, hst: 0, pst: 0, qst: 0, total_tax: 0 };
     const totalAmount = Number((subtotal + taxBreakdown.total_tax).toFixed(2));
 

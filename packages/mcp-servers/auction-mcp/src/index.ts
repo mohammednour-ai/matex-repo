@@ -49,6 +49,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "list_auctions", description: "List auctions filtered by status. Returns auction summary records.", inputSchema: { type: "object", properties: { status: { type: "string", enum: ["scheduled", "live", "completed", "cancelled"] }, limit: { type: "number" } } } },
     { name: "get_auction", description: "Get one auction with its lots", inputSchema: { type: "object", properties: { auction_id: { type: "string" } }, required: ["auction_id"] } },
     { name: "list_bids", description: "List bids for a lot (newest-first). Powers the live bid feed in the auction console.", inputSchema: { type: "object", properties: { lot_id: { type: "string" }, limit: { type: "number" } }, required: ["lot_id"] } },
+    { name: "get_winning_bids", description: "List the lots a user won in a given auction. Returns lot_id, lot_number, listing_id, title, winning_bid, closed_at; plus total_amount across the won lots. Backs the post-auction Won Lots panel on /auctions/[id].", inputSchema: { type: "object", properties: { auction_id: { type: "string" }, user_id: { type: "string" } }, required: ["auction_id", "user_id"] } },
     { name: "register_bidder", description: "Register a user as a bidder for an auction. Idempotent — re-registering returns the existing record. session_id is treated as auction_id.", inputSchema: { type: "object", properties: { auction_id: { type: "string" }, session_id: { type: "string" }, listing_id: { type: "string" }, user_id: { type: "string" }, deposit_amount: { type: "number" }, deposit_id: { type: "string" }, payment_method: { type: "string" } }, required: ["user_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
@@ -299,6 +300,68 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         },
       ],
     };
+  }
+
+  if (tool === "get_winning_bids") {
+    // Returns the lots a user won in a given auction. A "won lot" is one
+    // where status = 'sold' AND highest_bidder_id = user_id. Backs the
+    // /auctions/[id] post-auction "Won Lots" panel (P1-2 in the audit
+    // mis-labelled this as "filter swap" — there's no tool to swap to,
+    // so adding the canonical one here).
+    //
+    // Joins lots with listings for the title; pulls current_highest_bid
+    // and closed_at for the per-lot card. Sorted by lot_number for
+    // stable rendering when a user wins multiple lots in one auction.
+    const auctionId = String(args.auction_id ?? "");
+    const userId = String(args.user_id ?? "");
+    if (!auctionId) return fail("VALIDATION_ERROR", "auction_id is required.");
+    if (!userId) return fail("VALIDATION_ERROR", "user_id is required.");
+
+    const lotsResult = await supabase
+      .schema("auction_mcp")
+      .from("lots")
+      .select("lot_id,lot_number,listing_id,current_highest_bid,closed_at,status")
+      .eq("auction_id", auctionId)
+      .eq("status", "sold")
+      .eq("highest_bidder_id", userId)
+      .order("lot_number", { ascending: true });
+    if (lotsResult.error) return fail("DB_ERROR", "Database operation failed");
+    const lots = (lotsResult.data ?? []) as Array<Record<string, unknown>>;
+
+    if (lots.length === 0) {
+      return { content: [{ type: "text", text: ok({ auction_id: auctionId, user_id: userId, won_lots: [], total_amount: 0 }) }] };
+    }
+
+    // Resolve titles in one batch. Listings live in a different schema —
+    // a single .in(...) is cheaper than N round-trips for the per-lot title.
+    const listingIds = lots.map((l) => String(l.listing_id));
+    const listingsResult = await supabase
+      .schema("listing_mcp")
+      .from("listings")
+      .select("listing_id,title")
+      .in("listing_id", listingIds);
+    const titleByListing = new Map<string, string>();
+    for (const raw of listingsResult.data ?? []) {
+      const row = raw as Record<string, unknown>;
+      titleByListing.set(String(row.listing_id), String(row.title ?? ""));
+    }
+
+    const wonLots = lots.map((l) => ({
+      lot_id: String(l.lot_id),
+      lot_number: Number(l.lot_number ?? 0),
+      listing_id: String(l.listing_id),
+      title: titleByListing.get(String(l.listing_id)) ?? `Lot #${l.lot_number}`,
+      winning_bid: Number(l.current_highest_bid ?? 0),
+      closed_at: l.closed_at ? String(l.closed_at) : null,
+    }));
+    const totalAmount = Number(wonLots.reduce((s, l) => s + l.winning_bid, 0).toFixed(2));
+
+    return { content: [{ type: "text", text: ok({
+      auction_id: auctionId,
+      user_id: userId,
+      won_lots: wonLots,
+      total_amount: totalAmount,
+    }) }] };
   }
 
   if (tool === "register_bidder") {

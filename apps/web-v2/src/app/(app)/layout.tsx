@@ -28,7 +28,9 @@ import {
   FileSearch,
 } from "lucide-react";
 import { clearSession, getUser } from "@/lib/api";
+import { showWarning } from "@/lib/toast";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
+import { PwaInstallBanner } from "@/components/ui/PwaInstallBanner";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import clsx from "clsx";
 
@@ -389,17 +391,21 @@ function UserMenu() {
 
   async function handleSignOut() {
     // Awaiting the DELETE matters: it clears the HttpOnly matex_session
-    // cookie that the middleware checks. If we kicked router.replace
-    // before this resolved, a quick back-button navigation could land
-    // the user back on a protected page because the cookie is still
-    // valid for a few hundred ms after sign-out. The original .catch(() => {})
-    // swallowed errors silently; we keep that since sign-out should
-    // succeed locally even when the server-side clear fails.
+    // cookie that the middleware checks. Local sign-out (clearSession +
+    // replace) always runs so the user is never stuck on a protected
+    // page; if the server-side revoke fails we surface a warning so the
+    // user knows their session may still be live on other devices.
+    let revokeFailed = false;
     try {
-      await fetch("/api/auth/session", { method: "DELETE" });
+      const res = await fetch("/api/auth/session", { method: "DELETE" });
+      if (!res.ok) revokeFailed = true;
     } catch {
-      // Network drop on sign-out — local state is still cleared below
-      // and the cookie has a short Max-Age. Surface nothing to the user.
+      revokeFailed = true;
+    }
+    if (revokeFailed) {
+      showWarning(
+        "Signed out locally, but couldn't revoke the server session. If you're on a shared device, sign in again and retry.",
+      );
     }
     clearSession();
     router.replace("/login");
@@ -487,9 +493,31 @@ function UserMenu() {
   );
 }
 
+const SIDEBAR_COLLAPSED_KEY = "matex_sidebar_collapsed";
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  // Sidebar collapsed state persists across reloads (P2-1). We start
+  // with `false` on the server + initial client render to avoid a
+  // hydration mismatch, then hydrate from localStorage in a layout
+  // effect. The width transition CSS hides the one-frame change.
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1") {
+        setCollapsed(true);
+      }
+    } catch {
+      // Private mode / storage disabled — fall through with the default.
+    }
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try { window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -520,7 +548,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <Sidebar
         collapsed={collapsed}
-        onToggle={() => setCollapsed((c) => !c)}
+        onToggle={toggleCollapsed}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
@@ -565,6 +593,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       <MatexCopilot />
+      <PwaInstallBanner />
     </ClientAuthGuard>
   );
 }

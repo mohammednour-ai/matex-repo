@@ -57,6 +57,47 @@ async function getPlatformOverview() {
   });
 }
 
+async function getOverviewHistory({ args }: ToolRequest) {
+  // 14 daily buckets for the admin sparklines: new users, new listings,
+  // new orders, new disputes. We query created_at >= startDate then bucket
+  // client-side; this avoids needing a SQL grouping function but keeps the
+  // payload tiny (4 series × 14 numbers).
+  const days = Math.max(1, Math.min(Number(args.days ?? 14), 60));
+  const startDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+  startDate.setUTCHours(0, 0, 0, 0);
+  const startIso = startDate.toISOString();
+  const supabase = serviceClient();
+
+  function bucket(rows: Array<{ created_at: string | null }>): number[] {
+    const out = new Array(days).fill(0);
+    for (const r of rows) {
+      if (!r.created_at) continue;
+      const t = new Date(r.created_at).getTime();
+      const idx = Math.floor((t - startDate.getTime()) / (24 * 60 * 60 * 1000));
+      if (idx >= 0 && idx < days) out[idx] += 1;
+    }
+    return out;
+  }
+
+  const [usersRes, listingsRes, ordersRes, disputesRes] = await Promise.all([
+    supabase.schema("auth_mcp").from("users").select("created_at").gte("created_at", startIso),
+    supabase.schema("listing_mcp").from("listings").select("created_at").gte("created_at", startIso),
+    supabase.schema("orders_mcp").from("orders").select("created_at").gte("created_at", startIso),
+    supabase.schema("dispute_mcp").from("disputes").select("created_at").gte("created_at", startIso),
+  ]);
+
+  return okEnvelope({
+    days,
+    start_date: startIso,
+    series: {
+      total_users: bucket((usersRes.data as Array<{ created_at: string | null }>) ?? []),
+      total_listings: bucket((listingsRes.data as Array<{ created_at: string | null }>) ?? []),
+      total_orders: bucket((ordersRes.data as Array<{ created_at: string | null }>) ?? []),
+      open_disputes: bucket((disputesRes.data as Array<{ created_at: string | null }>) ?? []),
+    },
+  });
+}
+
 async function suspendUser({ args }: ToolRequest) {
   const supabase = serviceClient();
   const userId = String(args.user_id ?? "");
@@ -275,6 +316,7 @@ async function getPlatformConfig({ args }: ToolRequest) {
 Deno.serve(serveDomain({
   ping,
   get_platform_overview: adminOnly(getPlatformOverview),
+  get_overview_history: adminOnly(getOverviewHistory),
   suspend_user: adminOnly(suspendUser),
   unsuspend_user: adminOnly(unsuspendUser),
   moderate_listing: adminOnly(moderateListing),

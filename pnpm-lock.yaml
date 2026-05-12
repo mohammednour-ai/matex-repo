@@ -222,6 +222,12 @@ importers:
       inngest:
         specifier: ^4.2.6
         version: 4.2.6(@opentelemetry/core@2.7.1)(next@14.2.35)(react@18.3.1)(typescript@5.4.5)(zod@4.3.6)
+      ioredis:
+        specifier: ^5.3.0
+        version: 5.10.0
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       lucide-react:
         specifier: ^0.400.0
         version: 0.400.0(react@18.3.1)
@@ -13536,6 +13542,10 @@ packages:
 
   /jose@6.2.1:
     resolution: {integrity: sha512-jUaKr1yrbfaImV7R2TN/b3IcZzsw38/chqMpo2XJ7i2F8AfM/lA4G1goC3JVEwg0H7UldTmSt3P68nt31W7/mw==}
+    dev: false
+
+  /jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
     dev: false
 
   /jpeg-js@0.4.4:

@@ -252,6 +252,62 @@ async function listBids({ args }: ToolRequest) {
   return okEnvelope({ lot_id: lotId, bids: rows, count: rows.length });
 }
 
+async function getWinningBids({ args }: ToolRequest) {
+  // Edge counterpart of auction-mcp's get_winning_bids. Returns lots
+  // a given user won in a given auction (status='sold' + highest_bidder_id
+  // matches). Backs the post-auction Won Lots panel.
+  const supabase = serviceClient();
+  const auctionId = String(args.auction_id ?? "");
+  const userId = String(args.user_id ?? "");
+  if (!auctionId) return failEnvelope("VALIDATION_ERROR", "auction_id is required.");
+  if (!userId) return failEnvelope("VALIDATION_ERROR", "user_id is required.");
+
+  const lotsRes = await supabase
+    .schema("auction_mcp")
+    .from("lots")
+    .select("lot_id,lot_number,listing_id,current_highest_bid,closed_at,status")
+    .eq("auction_id", auctionId)
+    .eq("status", "sold")
+    .eq("highest_bidder_id", userId)
+    .order("lot_number", { ascending: true });
+  if (lotsRes.error) return failEnvelope("DB_ERROR", "Database operation failed");
+  const lots = (lotsRes.data ?? []) as Array<Record<string, unknown>>;
+
+  if (lots.length === 0) {
+    return okEnvelope({ auction_id: auctionId, user_id: userId, won_lots: [], total_amount: 0 });
+  }
+
+  // Batch the title resolution — single .in() rather than N round-trips.
+  const listingIds = lots.map((l) => String(l.listing_id));
+  const titlesRes = await supabase
+    .schema("listing_mcp")
+    .from("listings")
+    .select("listing_id,title")
+    .in("listing_id", listingIds);
+  const titleByListing = new Map<string, string>();
+  for (const raw of titlesRes.data ?? []) {
+    const row = raw as Record<string, unknown>;
+    titleByListing.set(String(row.listing_id), String(row.title ?? ""));
+  }
+
+  const wonLots = lots.map((l) => ({
+    lot_id: String(l.lot_id),
+    lot_number: Number(l.lot_number ?? 0),
+    listing_id: String(l.listing_id),
+    title: titleByListing.get(String(l.listing_id)) ?? `Lot #${l.lot_number}`,
+    winning_bid: Number(l.current_highest_bid ?? 0),
+    closed_at: l.closed_at ? String(l.closed_at) : null,
+  }));
+  const totalAmount = Number(wonLots.reduce((s, l) => s + l.winning_bid, 0).toFixed(2));
+
+  return okEnvelope({
+    auction_id: auctionId,
+    user_id: userId,
+    won_lots: wonLots,
+    total_amount: totalAmount,
+  });
+}
+
 Deno.serve(serveDomain({
   ping,
   create_auction: createAuction,
@@ -264,4 +320,5 @@ Deno.serve(serveDomain({
   get_auction: getAuction,
   register_bidder: registerBidder,
   list_bids: listBids,
+  get_winning_bids: getWinningBids,
 }));

@@ -34,69 +34,93 @@ Statuses: ⬜ pending · 🟡 in flight · ✅ merged · ⏸ paused
 
 | ID | What | Status | PR |
 |---|---|---|---|
-| P1-11 | `/logistics` doesn't render `logistics.generate_bol`'s URL after the call; BoL invisible to buyers | ⬜ | — |
-| P1-12 | `/logistics/[shipment]` trace page calls `logistics.get_shipment` but throws the response away | ⬜ | — |
-| P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` (4 sites, pre-existing lint warnings) | ⬜ | — |
-| P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | ⬜ | — |
-| P2-1 | Persist sidebar collapsed state in localStorage | ⬜ | — |
-| P2-2 | Confirm dialog before destructive admin ops (freeze/refund/release) | ⬜ | — |
-| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ⬜ | — |
-| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | ⬜ | — |
-| P2-6 | Inline status dropdown per row in admin orders | ⬜ | — |
-| P2-7 | Toast / loading state for inspection discrepancy flag | ⬜ | — |
-| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | ⬜ | — |
-| P1-8 | Inspection complete: support pass / conditional / fail (currently boolean) | ⬜ | — |
-| P1-9 | Hard-coded `result: pass` in inspections complete handler | ⬜ | — |
+| P1-11 | `/logistics` doesn't render `logistics.generate_bol`'s URL after the call; BoL invisible to buyers | 🟡 PR open | PR #76 — adds `showSuccess` toast with the new BoL number and an error toast on failure (badge rendering was already wired) |
+| P1-12 | `/logistics/[shipment]` trace page calls `logistics.get_shipment` but throws the response away | 🟡 PR open | PR #76 — caches the `quotes` array returned by `get_shipment` per shipment and renders them in the expanded timeline alongside a "Last refreshed" timestamp |
+| P1-15 | Replace raw `<img>` with `next/image` in `listings/[id]/page.tsx` | ⏸ re-scoped | Audit framing was wrong — both `<img>` sites are intentional eslint-disabled escape hatches for user-uploaded URLs from arbitrary Supabase storage hosts. A proper migration needs `images.remotePatterns` config + per-host URL validation; promoted to M effort and queued as P1-15b |
+| P1-16 | Settings page calls `kyc.get_kyc_level` twice on mount; dedupe | 🟡 PR open | PR #77 — removed KycTab's race-fallback fetch; parent gates rendering on `pageKycLevel !== null` and shows the spinner during the single fetch |
+| P2-1 | Persist sidebar collapsed state in localStorage | ✅ shipped | Key `matex_sidebar_collapsed`; hydrated in a layout effect to avoid SSR mismatch |
+| P2-2 | Confirm dialog before destructive admin ops (Hold / Release / Freeze / Refund) | ✅ shipped | PR #66 — shadcn Dialog with `pendingOp: { label, summary, execute, danger }` state shape; pre-validates inputs before opening; danger-variant confirm button |
+| P2-4 | Sparklines on admin overview KPIs (cards exist; sparkline component exists) | ✅ shipped | PR #71 — new `admin.get_overview_history({days?})` tool on both transports; cards render existing `PriceSparkline` with inverted colour for `open_disputes` |
+| P2-5 | Period selector + chart on revenue report (currently raw numbers only) | ✅ shipped | PR #72 — `analytics.get_revenue_report` now accepts `{period}` OR `{start_date, end_date}` and returns daily `series[]`; chart is inline SVG bars |
+| P2-6 | Inline status dropdown per row in admin orders | 🟡 PR open | PR #70 — per-row `<select>` with Save button only when dirty; reloads after `admin.update_order_status` |
+| P2-7 | Toast / loading state for inspection discrepancy flag | ✅ shipped | PR #69 — success/error toast via `showError`/`showSuccess`; loading state was already wired |
+| P2-8 | Sign-out: surface revoke failure (currently swallowed; PR #50 partly improves this) | ✅ shipped | PR #68 — warning toast when `DELETE /api/auth/session` throws or `!res.ok`; local sign-out still runs unconditionally |
+| P1-8 | Inspection complete: support pass / conditional / fail (currently boolean) | ✅ shipped | PR #58 / #65 — three result buttons; tool accepts arbitrary result strings; badge variants per result |
+| P1-9 | Hard-coded `result: pass` in inspections complete handler | ✅ shipped | Folded into P1-8 PRs — handler now passes the chosen result through |
 
 ### M effort — single PR, more design choice involved
 
 | ID | What | Status | Notes |
 |---|---|---|---|
-| P1-2 | Replace static Jan–Jun contract fulfillment chart with real history | ⬜ | Needs a `contracts.get_fulfillment_history` tool or a SELECT against `contracts_mcp.contract_orders` |
-| P1-3 | Auction lobby Register CTA + download terms PDF | ⬜ | Both have empty handlers today |
-| P1-4 | Listing share + report buttons (currently no-op) | ⬜ | Share = native Web Share API + clipboard fallback; report = new `listing.flag_listing` tool |
-| P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | ⬜ | Each row is a one-line `SELECT count(*) FROM ...` |
-| P1-6 | Post-auction "won lots" filter: use `auction.get_winning_bids` instead of client-side filter | ⬜ | Tool exists; UI doesn't call it |
-| P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | 🟡 partial — Option A only | Audit framed this as Supabase Realtime, but survey turned up that web-v2 doesn't use Supabase Auth (matex has its own JWT), so a client-side `supabase.channel()` subscription either sees nothing under RLS or requires a security regression. PR tightens poll cadence to 2s + ±20% jitter; real push tracked as P1-7b below |
-| P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | ⬜ | Sentry configs exist; just need explicit breadcrumbs at PI lifecycle + each tool boundary |
-| P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | ⬜ | Table + filter chips by actor / domain / action |
-| P2-9 | First-time dashboard onboarding tour | ⬜ | New feature, not a fix |
-| P2-10 | Server-rendered dashboard for faster TTFB | ⬜ | Requires moving the 6-tool fan-out to a server component |
+| P1-2 | Replace static Jan–Jun contract fulfillment chart with real history | ✅ shipped | New `contracts.get_fulfillment_history` tool on both transports; chart on `/contracts` lazy-fetches per selected contract |
+| P1-3 | Auction lobby Register CTA + download terms PDF | ✅ shipped | Survey confirmed both already landed — `auction.register_bidder` wires the Register CTA (`/auctions/[id]/page.tsx:125`), Download PDF anchor on `terms_url` is gated and disables to "Not available" otherwise |
+| P1-4 | Listing share + report buttons (currently no-op) | ✅ shipped | Survey confirmed: `handleShareListing` uses `navigator.share` with clipboard fallback; `handleSubmitReport` calls `listing.flag_listing` on both transports (already in `TOOLS_ON_EDGE`) |
+| P1-5 | Compliance retention checklist: replace hardcoded checks with real DB queries | 🟡 PR open | PR #78 — last hardcoded row (`catalytic_serials`) now counts the seller's listings via a slug-join on `listing_mcp.categories`. All six retention checks are live |
+| P1-7 | Auction page: tighten bid-stream polling + jitter (Option A from the P1-7 survey) | ✅ shipped | Poll path landed in PR #61 (2s + ±20% jitter); real push path follows in P1-7b |
+| P1-6 | Post-auction "won lots" filter: real per-user data instead of `auction.lots.filter(sold).slice(0,2)` | ✅ shipped | Audit said "tool exists; UI doesn't call it" — survey found no such tool. New `auction.get_winning_bids({auction_id, user_id})` on both transports; UI fetches scoped to the logged-in user, per-lot "Check out" CTAs replace the broken `?order_id=ord-001` link |
+| P1-14 | Sentry init verification + per-domain breadcrumbs (folded the deferred Stripe breadcrumbs here) | 🟡 PR open | PR #79 — init verification already shipped (each `sentry.*.config.ts` warns on missing prod DSN) and `callTool` emits `mcp.<domain>` crumbs. This PR adds `stripe.webhook` / `stripe.reconcile` / `stripe.pi` lifecycle breadcrumbs |
+| P2-3 | Filterable audit-trail UI in `/admin` replacing the JSON dump | 🟡 PR open | PR #73 — chips per category (built from loaded entries), user_id + action substring inputs; row click expands the raw JSON |
+| P2-9 | First-time dashboard onboarding tour | 🟡 PR open | PR #85 — five-step modal walkthrough (Search / Listings / Auctions / Messages / Wallet). localStorage flag `matex_onboarding_complete` shows once per device |
+| P2-10 | Server-rendered dashboard for faster TTFB | 🟡 PR open | PR #86 — coalesces six client tool calls into a single `/api/dashboard/seed` route that fans them out server-side. Full server-component refactor blocked on cookie-only auth (P1-10c) |
 
 ### Needs scoping before code
 
 | ID | What | Status | Why |
 |---|---|---|---|
-| P1-13 | Checkout 4-tool transaction boundary | ⏸ | Partly covered by recent Stripe work (#41 atomic webhook, #43 race fix, #44 reconciliation cron). Needs to be re-scoped against the current shape — the original "5 sequential tool calls can drift" framing is mostly addressed; remaining failure modes are narrow and need fresh design before a tight PR |
+| P1-13 | Checkout 4-tool transaction boundary | ✅ closed | Closed without code — see "P1-13 — closed without code" below. The original concern is covered end-to-end by recent Stripe work (#41 atomic webhook, #43 race fix, #44 reconciliation cron); the narrow remaining drift case is tracked as P1-13b |
+
+### P1-13 — closed without code
+
+The audit framed this as "Add transaction boundary to checkout 4-tool flow". Survey after the Stripe work concluded the original concern is now covered end-to-end:
+
+| Original concern | Where it's addressed |
+|---|---|
+| Order created, payment fails halfway | `payments.create_payment_intent` (PR #39) inserts the transaction row before calling Stripe, so a Stripe failure leaves an auditable `failed` transaction. The original order stays in the matching status. |
+| Payment confirmed, escrow not transitioned | Stripe webhook (PR #41) atomically updates both `transactions.status='completed'` AND `escrows.status='funds_held'` inside a single Postgres transaction with idempotent guards. |
+| Escrow created AFTER webhook (race) | `escrow.create_escrow` (PR #43) reads any settled transaction for the order and auto-opens `status='funds_held'` instead of `'created'`. |
+| Lost webhook | Reconciliation cron (PR #44) runs every 15 minutes against stuck `pending_capture` rows and resolves them from Stripe. |
+| Wallet/credit/interac never completed | `payments.process_payment` (PR #46) is now method-aware and writes the right terminal status per method, with atomic wallet debit. |
+
+The narrow remaining drift case — **invoice generation fails AFTER payment confirmed** — is tracked as P1-13b (detection shipped in PR #74) and P1-13c (full retry once `tax.generate_invoice` accepts `{order_id}` alone).
 
 ### Deferred follow-ups I created during the P0 / P1-1 work
 
 | ID | What | Status | Notes |
 |---|---|---|---|
-| P0-1 5b | Admin "record manual purchase" card flow | ⬜ | Internal-only, low-traffic; same `<PaymentElement>` pattern as `/checkout` and `/escrow/create` |
-| P1-1d | Redesign `evaluate_breach` comparison semantics | ⬜ | TODO flagged in code (PR #49). Move to scheduled-vs-delivered (read `orders_mcp.orders.quantity` via `contract_orders.order_id` FK), drive penalties off `contract_orders.status` instead of whole-contract `total_volume` |
-| P1-10b | Full JWT verification on the edge + HttpOnly-only auth | ⬜ | Currently middleware checks cookie presence only; expired/forged tokens get past until the API layer 401s. Needs JWT secret in the edge runtime and login route emitting Set-Cookie directly so the access token never sits in localStorage |
-| P1-7b | Real push bid stream via Server-Sent Events (or WebSocket) backed by the existing Redis event bus and matex JWT auth | ⬜ | L effort. The right architectural fit — Next.js route at `/api/auctions/[id]/bid-stream` subscribes to the `event-relay` Redis stream and forwards `bidding.bid.placed` events. Uses existing matex JWT for auth (no Supabase Auth bridge). `useBidStream` switches transport: EventSource when supported, fall back to poll when disconnected. Out of scope for P1-7; surfaces here so it's queued for design |
+| P0-1 5b | Admin "record manual purchase" card flow | 🟡 PR open | PR #83 — Stripe-card panel on `/admin` Purchases tab. Allocates a PI via `payments.create_payment_intent` then mounts PaymentElement; settlement runs through the same webhook + reconciliation as buyer checkout |
+| P1-1d | Redesign `evaluate_breach` comparison semantics | 🟡 PR open | PR #84 — per-installment scheduled-vs-delivered comparison driven by `contract_orders.quantity` + `orders_mcp.orders.quantity` (when status ∈ {delivered, inspected, completed}). Late-delivery now checks `contract_orders.status`, not `total_volume` |
+| P1-10b | Full JWT verification on the edge | 🟡 PR open | PR #87 — middleware now verifies HS256 signature + exp via `jose` in `src/lib/jwt-edge.ts`; clears the cookie + redirects on failure. HttpOnly-only auth tracked as P1-10c (needs every `callTool` to proxy through a Next API route) |
+| P1-10c | HttpOnly-only auth (no `matex_token` in localStorage) | ⬜ | L effort. `callTool` currently reads from localStorage; needs to proxy every call through a Next API route so the token never sits in JS-readable storage |
+| P1-7b | Real push bid stream via Server-Sent Events backed by the existing Redis event bus and matex JWT auth | 🟡 PR open | PR #88 — `/api/auctions/[id]/bid-stream` Node route reads `matex.events` via `XREAD BLOCK`, filters `bidding.bid.placed` by `auction_id`, forwards as SSE. `useBidStream` opens EventSource when supported, falls back to poll on error before first bid event |
+| P1-13b | Detect / retry `tax.generate_invoice` from the reconciliation cron | 🟡 PR open | PR #74 — adds invoice-presence check + `invoice_missing` / `invoice_already_present` counters and a structured warning per missing invoice |
+| P1-13c | Widen `tax.generate_invoice` to accept just `{order_id}` (look up seller/buyer/provinces internally), then call from the cron when `invoice_missing` is non-zero | 🟡 PR open | PR #82 — tool now accepts `{order_id}` alone on both transports; the cron's `applySucceeded` calls a `tryGenerateInvoice` helper using the same RPC + insert against the existing `pg.Pool`. New summary counter `invoice_generated` |
+| P1-15b | Migrate listings detail page `<img>` tags to `next/image` (proper version of audit's P1-15) | 🟡 PR open | PR #81 — `next.config.mjs` adds `images.remotePatterns` for the `NEXT_PUBLIC_SUPABASE_URL` host + `*.supabase.co` wildcard. New `isOptimizableImage` helper branches between `<Image>` and `<img>` fallback for legacy non-allow-listed hosts |
 
 ---
 
-## Recommended sequence
+## Status as of this refresh
 
-Easy wins to keep momentum, then design-heavier items:
+Every actionable item from the audit and every deferred follow-up has a
+corresponding PR or is shipped. The only ⬜ row is **P1-10c** —
+HttpOnly-only auth — which is an L-effort refactor of every `callTool`
+to proxy through a Next API route. Not blocking QA.
 
-1. **P1-11 + P1-12 in one PR** — both logistics-page fixes, same shape (tool returns real data, UI throws it away). ~50–80 lines, immediately user-visible.
-2. **P1-15 + P1-16 in one PR** — perf cleanups, knock out pre-existing lint warnings at the same time.
-3. **P1-8 + P1-9 in one PR** — inspection result is currently hardcoded `pass`; supporting pass / conditional / fail is one schema-aware refactor.
-4. **P1-5 retention checklist** — compliance page; visible to operators and regulators.
-5. **P1-4 listing share + report** — small but two unrelated features; could split.
-6. **P1-3 auction lobby register + PDF** — needs an `auction.register_for_lobby` tool that may not exist yet; survey first.
-7. **P1-14 Sentry breadcrumbs** — observability cross-cuts everything; landing this after the above means more code instrumented.
-8. **P1-7 Realtime bid stream** — switches polling to Supabase Realtime; design choice on backpressure / reconnect.
-9. **P1-2 contract fulfillment chart** — needs the contracts surface that PR #47–#49 already shipped.
-10. **P1-6 won-lots filter** — small but depends on knowing what `auction.get_winning_bids` returns; survey first.
-11. **P2 items** — polish; pick after P1 is clean.
-12. **P1-13 checkout transaction boundary** — open the re-scoping conversation once everything around it is settled.
-13. **The three deferred follow-ups (5b / 1d / 10b)** — pick when convenient; none blocking.
+## Original recommended sequence (historical)
+
+Kept for reference. Actual delivery order matched this fairly closely.
+
+1. P1-11 + P1-12 logistics fixes
+2. P1-15 + P1-16 perf cleanups
+3. P1-8 + P1-9 inspection result
+4. P1-5 retention checklist
+5. P1-4 listing share + report
+6. P1-3 auction lobby register + PDF
+7. P1-14 Sentry breadcrumbs
+8. P1-7 / P1-7b bid stream
+9. P1-2 contract fulfillment chart
+10. P1-6 won-lots filter
+11. P2 items
+12. Deferred follow-ups (5b / 1d / 7b / 10b / 13b / 13c / 15b)
 
 Stop after every PR. Re-confirm direction if any survey turns up a bigger problem than expected (the P1-1 split was the model — survey, report, propose split, then code).
 

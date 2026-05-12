@@ -58,30 +58,84 @@ async function getConversionFunnel({ args }: ToolRequest) {
   });
 }
 
+// "7d" / "30d" / "90d" → {startIso, endIso, days}. Falls back to an explicit
+// start_date/end_date pair when no period is supplied, so old callers keep
+// working unchanged.
+function resolvePeriod(args: Record<string, unknown>): { startIso: string; endIso: string; days: number } | null {
+  const period = String(args.period ?? "");
+  if (period) {
+    const m = /^(\d+)d$/.exec(period);
+    if (!m) return null;
+    const days = Math.max(1, Math.min(parseInt(m[1], 10), 365));
+    const end = new Date();
+    const start = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+    start.setUTCHours(0, 0, 0, 0);
+    return { startIso: start.toISOString(), endIso: end.toISOString(), days };
+  }
+  const startDate = String(args.start_date ?? "");
+  const endDate = String(args.end_date ?? "");
+  if (!startDate || !endDate) return null;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  start.setUTCHours(0, 0, 0, 0);
+  const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
+  return { startIso: start.toISOString(), endIso: end.toISOString(), days };
+}
+
 async function getRevenueReport({ args, caller }: ToolRequest) {
   const supabase = serviceClient();
   if (!(await isPlatformAdmin(supabase, caller.userId))) {
     return failEnvelope("FORBIDDEN", "Platform admin access required.");
   }
-  const startDate = String(args.start_date ?? "");
-  const endDate = String(args.end_date ?? "");
-  if (!startDate || !endDate) return failEnvelope("VALIDATION_ERROR", "start_date and end_date are required.");
+  const range = resolvePeriod(args);
+  if (!range) return failEnvelope("VALIDATION_ERROR", "Provide either {period: \"7d|30d|90d\"} or {start_date, end_date}.");
+  const { startIso, endIso, days } = range;
 
   const { data, error } = await supabase
     .schema("payments_mcp").from("transactions")
     .select("transaction_id,amount,commission_amount,tax_amount,transaction_type,created_at")
-    .gte("created_at", startDate).lte("created_at", endDate)
+    .gte("created_at", startIso).lte("created_at", endIso)
     .in("transaction_type", ["purchase", "commission"]);
   if (error) return failEnvelope("DB_ERROR", "Database operation failed");
-  const rows = data ?? [];
-  const totalRevenue = rows.reduce((s: number, r: Record<string, unknown>) => s + Number(r.commission_amount ?? 0), 0);
-  const totalTax = rows.reduce((s: number, r: Record<string, unknown>) => s + Number(r.tax_amount ?? 0), 0);
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const totalRevenue = rows.reduce((s, r) => s + Number(r.commission_amount ?? 0), 0);
+  const totalTax = rows.reduce((s, r) => s + Number(r.tax_amount ?? 0), 0);
+  const totalVolume = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
+  // Bucket per UTC day so the chart aligns regardless of timezone.
+  const bucketStart = new Date(startIso).getTime();
+  const series = Array.from({ length: days }, (_, i) => ({
+    day: new Date(bucketStart + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    transactions: 0,
+    volume: 0,
+    commission: 0,
+  }));
+  for (const r of rows) {
+    const t = new Date(String(r.created_at ?? "")).getTime();
+    if (!Number.isFinite(t)) continue;
+    const idx = Math.floor((t - bucketStart) / (24 * 60 * 60 * 1000));
+    if (idx < 0 || idx >= days) continue;
+    series[idx].transactions += 1;
+    series[idx].volume += Number(r.amount ?? 0);
+    series[idx].commission += Number(r.commission_amount ?? 0);
+  }
+  for (const b of series) {
+    b.volume = Math.round(b.volume * 100) / 100;
+    b.commission = Math.round(b.commission * 100) / 100;
+  }
+
   return okEnvelope({
-    start_date: startDate,
-    end_date: endDate,
+    start_date: startIso,
+    end_date: endIso,
+    days,
+    transactions: rows.length,
+    volume: Math.round(totalVolume * 100) / 100,
+    commission_estimate: Math.round(totalRevenue * 100) / 100,
     total_commission_revenue: Math.round(totalRevenue * 100) / 100,
     total_tax_collected: Math.round(totalTax * 100) / 100,
     transaction_count: rows.length,
+    series,
   });
 }
 

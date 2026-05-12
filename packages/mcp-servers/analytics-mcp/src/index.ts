@@ -41,7 +41,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     { name: "get_dashboard_stats", description: "Platform-wide KPIs: active listings, total escrow, active auctions, total users", inputSchema: { type: "object", properties: {} } },
     { name: "get_conversion_funnel", description: "Listing to search to message to order conversion rates", inputSchema: { type: "object", properties: { period_days: { type: "number", description: "Lookback period in days (default 30)" } } } },
-    { name: "get_revenue_report", description: "Commission revenue by period", inputSchema: { type: "object", properties: { start_date: { type: "string" }, end_date: { type: "string" } }, required: ["start_date", "end_date"] } },
+    { name: "get_revenue_report", description: "Commission revenue with daily series. Accepts {period: \"7d|30d|90d\"} or {start_date, end_date}.", inputSchema: { type: "object", properties: { period: { type: "string" }, start_date: { type: "string" }, end_date: { type: "string" } } } },
     { name: "export_data", description: "Export query results as JSON", inputSchema: { type: "object", properties: { query_type: { type: "string", description: "One of: listings, transactions, users, orders" }, filters: { type: "object" } }, required: ["query_type"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
@@ -164,33 +164,87 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "get_revenue_report") {
-    const startDate = String(args.start_date ?? "");
-    const endDate = String(args.end_date ?? "");
-    if (!startDate || !endDate) return fail("VALIDATION_ERROR", "start_date and end_date are required.");
+    // Accept either {period: "7d|30d|90d"} or {start_date, end_date} —
+    // mirrors the Edge implementation in supabase/functions/analytics.
+    let startIso = "";
+    let endIso = "";
+    let days = 0;
+    const period = String(args.period ?? "");
+    if (period) {
+      const m = /^(\d+)d$/.exec(period);
+      if (!m) return fail("VALIDATION_ERROR", "period must look like \"7d\", \"30d\" or \"90d\".");
+      days = Math.max(1, Math.min(parseInt(m[1], 10), 365));
+      const start = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+      start.setUTCHours(0, 0, 0, 0);
+      startIso = start.toISOString();
+      endIso = new Date().toISOString();
+    } else {
+      const startDate = String(args.start_date ?? "");
+      const endDate = String(args.end_date ?? "");
+      if (!startDate || !endDate) return fail("VALIDATION_ERROR", "Provide either {period} or {start_date, end_date}.");
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return fail("VALIDATION_ERROR", "start_date / end_date must be ISO dates.");
+      }
+      start.setUTCHours(0, 0, 0, 0);
+      days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
+      startIso = start.toISOString();
+      endIso = end.toISOString();
+    }
+
+    const bucketStart = new Date(startIso).getTime();
+    const emptySeries = Array.from({ length: days }, (_, i) => ({
+      day: new Date(bucketStart + i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      transactions: 0,
+      volume: 0,
+      commission: 0,
+    }));
 
     if (supabase) {
       const { data, error } = await supabase
         .schema("payments_mcp")
         .from("transactions")
         .select("transaction_id,amount,commission_amount,tax_amount,transaction_type,created_at")
-        .gte("created_at", startDate)
-        .lte("created_at", endDate)
+        .gte("created_at", startIso)
+        .lte("created_at", endIso)
         .in("transaction_type", ["purchase", "commission"]);
       if (error) return fail("DB_ERROR", "Database operation failed");
 
-      const rows = data ?? [];
-      const totalRevenue = rows.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.commission_amount ?? 0), 0);
-      const totalTax = rows.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.tax_amount ?? 0), 0);
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const totalRevenue = rows.reduce((s, r) => s + Number(r.commission_amount ?? 0), 0);
+      const totalTax = rows.reduce((s, r) => s + Number(r.tax_amount ?? 0), 0);
+      const totalVolume = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
+      const series = emptySeries;
+      for (const r of rows) {
+        const t = new Date(String(r.created_at ?? "")).getTime();
+        if (!Number.isFinite(t)) continue;
+        const idx = Math.floor((t - bucketStart) / (24 * 60 * 60 * 1000));
+        if (idx < 0 || idx >= days) continue;
+        series[idx].transactions += 1;
+        series[idx].volume += Number(r.amount ?? 0);
+        series[idx].commission += Number(r.commission_amount ?? 0);
+      }
+      for (const b of series) {
+        b.volume = Math.round(b.volume * 100) / 100;
+        b.commission = Math.round(b.commission * 100) / 100;
+      }
 
       return {
         content: [{
           type: "text",
           text: ok({
-            start_date: startDate,
-            end_date: endDate,
+            start_date: startIso,
+            end_date: endIso,
+            days,
+            transactions: rows.length,
+            volume: Math.round(totalVolume * 100) / 100,
+            commission_estimate: Math.round(totalRevenue * 100) / 100,
             total_commission_revenue: Math.round(totalRevenue * 100) / 100,
             total_tax_collected: Math.round(totalTax * 100) / 100,
             transaction_count: rows.length,
+            series,
           }),
         }],
       };
@@ -200,11 +254,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [{
         type: "text",
         text: ok({
-          start_date: startDate,
-          end_date: endDate,
+          start_date: startIso,
+          end_date: endIso,
+          days,
+          transactions: 0,
+          volume: 0,
+          commission_estimate: 0,
           total_commission_revenue: 0,
           total_tax_collected: 0,
           transaction_count: 0,
+          series: emptySeries,
         }),
       }],
     };

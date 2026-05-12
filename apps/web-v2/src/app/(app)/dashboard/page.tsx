@@ -36,6 +36,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ActivityTimeline } from "@/components/dashboard/ActivityTimeline";
 import { MiniSparkBars } from "@/components/dashboard/MiniSparkBars";
 import { DashboardIdentityBar } from "@/components/dashboard/DashboardIdentityBar";
+import { OnboardingTour } from "@/components/dashboard/OnboardingTour";
 import { DashboardPulseStrip } from "@/components/dashboard/DashboardPulseStrip";
 import { MATEXUI_TO_WEB_V2_ROUTES } from "@/data/matexui-route-map";
 import { DashboardMarketSummary } from "@/components/intelligence/DashboardMarketSummary";
@@ -227,7 +228,43 @@ export default function DashboardPage() {
     const userId = currentUser.userId ?? "";
     const errs: Partial<Record<SectionKey, string>> = {};
 
-    const [statsRes, walletRes, unreadRes, notifRes, kycRes, bookingsRes] = await Promise.allSettled([
+    // P2-10 — coalesce the six initial tool calls into one /api/dashboard/seed
+    // round-trip. The server fans them out in parallel against the Supabase
+    // Edge functions, cutting six client → server hops down to one. On
+    // refresh (or when the cookie's missing) we still fall back to the
+    // per-tool calls so behaviour is preserved.
+    type SeedToolResult = { success?: boolean; data?: Record<string, unknown>; error?: { message?: string } };
+    type SeedBundle = {
+      stats: SeedToolResult;
+      wallet: SeedToolResult;
+      unread: SeedToolResult;
+      notifications: SeedToolResult;
+      kyc: SeedToolResult;
+      bookings: SeedToolResult;
+    };
+    let seed: SeedBundle | null = null;
+    if (!isRefresh) {
+      try {
+        const seedRes = await fetch("/api/dashboard/seed", { cache: "no-store", credentials: "include" });
+        if (seedRes.ok) {
+          const body = (await seedRes.json()) as { ok?: boolean; seed?: SeedBundle };
+          if (body.ok && body.seed) seed = body.seed;
+        }
+      } catch {
+        // Seed unavailable (cookie missing, network drop, route 5xx) — fall
+        // through to the legacy per-tool fan-out below.
+      }
+    }
+
+    function toAllSettled(b: SeedBundle | null) {
+      if (!b) return null;
+      const wrap = (r: SeedToolResult): PromiseSettledResult<SeedToolResult> =>
+        ({ status: "fulfilled" as const, value: r });
+      return [wrap(b.stats), wrap(b.wallet), wrap(b.unread), wrap(b.notifications), wrap(b.kyc), wrap(b.bookings)];
+    }
+
+    const fromSeed = toAllSettled(seed);
+    const [statsRes, walletRes, unreadRes, notifRes, kycRes, bookingsRes] = fromSeed ?? await Promise.allSettled([
       callTool("analytics.get_dashboard_stats", { user_id: userId }),
       callTool("payments.get_wallet_balance", { user_id: userId, actor_id: userId }),
       callTool("messaging.get_unread", { user_id: userId }),
@@ -670,6 +707,7 @@ export default function DashboardPage() {
       className="dashboard-page"
       data-matex-ui-prototypes={Object.keys(MATEXUI_TO_WEB_V2_ROUTES).join(",")}
     >
+      <OnboardingTour />
       <DashboardIdentityBar
         email={user?.email}
         accountType={user?.accountType}

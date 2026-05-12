@@ -107,15 +107,14 @@ async function verifyIntegrity() {
 
 async function getRetentionStatus({ args }: ToolRequest) {
   // Edge counterpart of log-mcp's get_retention_status. Replaces the
-  // hardcoded RETENTION_CHECKS in apps/web-v2's /compliance page. Five of
-  // six checks are live DB counts; catalytic-converter serial coverage
-  // stays as a static "see Listings > Create" prompt because cross-tenant
-  // resolution through yardops_mcp.cat_converters is a separate task.
+  // hardcoded RETENTION_CHECKS in apps/web-v2's /compliance page. All six
+  // checks are live DB counts including catalytic-converter listings,
+  // counted via the listing category slug.
   const userId = String(args.user_id ?? "");
   if (!userId) return failEnvelope("VALIDATION_ERROR", "user_id is required.");
   const supabase = serviceClient();
 
-  const [txs, kycDocs, companies, lctrEligible, strs] = await Promise.all([
+  const [txs, kycDocs, companies, lctrEligible, strs, catListings] = await Promise.all([
     supabase
       .schema("payments_mcp")
       .from("transactions")
@@ -143,6 +142,14 @@ async function getRetentionStatus({ args }: ToolRequest) {
       .select("log_id", { count: "exact", head: true })
       .eq("user_id", userId)
       .or("action.eq.compliance.str_filed,event_name.eq.compliance.str_filed"),
+    // Catalytic-converter listings for this seller. Counted via join on the
+    // category slug so we don't need a hardcoded category_id UUID.
+    supabase
+      .schema("listing_mcp")
+      .from("listings")
+      .select("listing_id, categories!inner(slug)", { count: "exact", head: true })
+      .eq("seller_id", userId)
+      .ilike("categories.slug", "%catalytic%"),
   ]);
 
   const txCount = txs.count ?? 0;
@@ -150,6 +157,7 @@ async function getRetentionStatus({ args }: ToolRequest) {
   const companyCount = companies.count ?? 0;
   const lctrCount = lctrEligible.count ?? 0;
   const strCount = strs.count ?? 0;
+  const catCount = catListings.count ?? 0;
 
   const checks = [
     {
@@ -180,9 +188,12 @@ async function getRetentionStatus({ args }: ToolRequest) {
       id: "catalytic_serials",
       label: "Catalytic converter serial records",
       description: "Serial number, VIN, and photo documentation for all catalytic converter transactions.",
-      count: 0,
-      ok: false,
-      action: "Catalytic converter compliance fields are required on listings — see Listings > Create.",
+      count: catCount,
+      ok: catCount === 0,
+      action:
+        catCount === 0
+          ? "No catalytic-converter listings on file — no serial records required yet."
+          : "Required for every catalytic listing — collect serial / VIN / photos via Listings > Create.",
     },
     {
       id: "str_filings",

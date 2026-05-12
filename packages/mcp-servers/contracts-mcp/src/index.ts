@@ -48,6 +48,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     { name: "evaluate_breach", description: "Evaluate a contract order for breach; computes shortfall and late-delivery penalties using contract.breach_penalties + pricing_model.base_price. Accepts contract_order_id (preferred) or order_id (orders_mcp FK).", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, contract_order_id: { type: "string" }, order_id: { type: "string", description: "Alternative to contract_order_id; orders_mcp.orders FK." } }, required: ["contract_id"] } },
     { name: "collect_penalty", description: "Record and trigger collection of a breach penalty", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, order_id: { type: "string" }, penalty_amount: { type: "number" }, reason: { type: "string" } }, required: ["contract_id", "order_id", "penalty_amount", "reason"] } },
     { name: "list_contracts", description: "List contracts for a user (as buyer or seller). Optional status filter. If no user_id is provided, returns all contracts (admin view).", inputSchema: { type: "object", properties: { user_id: { type: "string" }, status: { type: "string" }, contract_type: { type: "string" }, limit: { type: "number" } } } },
+    { name: "get_fulfillment_history", description: "Per-month fulfillment buckets for a contract over the last N months (default 6, max 12). Each bucket reports scheduled_quantity, fulfilled_quantity, and pct (0–100). Powers the /contracts fulfillment chart.", inputSchema: { type: "object", properties: { contract_id: { type: "string" }, months: { type: "number" } }, required: ["contract_id"] } },
     { name: "ping", description: "Health check", inputSchema: { type: "object", properties: {} } },
   ],
 }));
@@ -339,25 +340,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   if (tool === "evaluate_breach") {
-    // Schema-aligned column reads. The old impl read
-    // contracts.quantity_kg / .price_per_kg (don't exist; real columns
-    // are total_volume + pricing_model JSONB) and contract_orders.quantity_kg
-    // / .delivery_date (real columns: quantity + scheduled_date), so every
-    // prior call to this tool either crashed or returned garbage.
+    // P1-1d redesign — compare scheduled (contract_orders.quantity) vs
+    // actually-delivered (orders_mcp.orders.quantity when the order has
+    // reached delivered/inspected/completed). Drive late-delivery off
+    // contract_orders.status (the installment lifecycle), not
+    // contract.total_volume. The previous logic was wrong for any
+    // multi-installment contract because total_volume is the SUM of all
+    // installments — comparing one shipment against it always looked
+    // catastrophically short.
     //
-    // TODO(p1-1d): The comparison semantics here are conceptually
-    // questionable — it compares the WHOLE-contract total_volume to a
-    // single contract_order's quantity, which only makes sense when the
-    // contract is a one-shot delivery. For multi-delivery contracts the
-    // right model is to compare scheduled quantity vs. delivered
-    // quantity (from orders_mcp.orders via contract_orders.order_id FK)
-    // and to drive penalties off contract_orders.status (missed |
-    // fulfilled). Out of scope for the column-rename PR; opening as a
-    // separate redesign.
-    //
-    // We accept both `contract_order_id` (the row PK) and `order_id`
-    // (the orders_mcp.orders FK) to identify the contract_order being
-    // evaluated. The caller's identifier shape varies by caller.
+    // Accepts contract_order_id (row PK) or order_id (orders_mcp FK).
     const contractId = String(args.contract_id ?? "");
     const contractOrderId = args.contract_order_id ? String(args.contract_order_id) : "";
     const orderId = args.order_id ? String(args.order_id) : "";
@@ -368,7 +360,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     let orderQuery = supabase
       .schema("contracts_mcp")
       .from("contract_orders")
-      .select("quantity,calculated_price,status,scheduled_date")
+      .select("contract_order_id,order_id,quantity,calculated_price,status,scheduled_date")
       .eq("contract_id", contractId);
     if (contractOrderId) {
       orderQuery = orderQuery.eq("contract_order_id", contractOrderId);
@@ -380,7 +372,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       supabase
         .schema("contracts_mcp")
         .from("contracts")
-        .select("total_volume,pricing_model,breach_penalties,status,unit")
+        .select("pricing_model,breach_penalties,status,unit")
         .eq("contract_id", contractId)
         .maybeSingle(),
       orderQuery.maybeSingle(),
@@ -391,24 +383,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!orderResult.data) return fail("NOT_FOUND", "Contract order not found.");
 
     const contract = contractResult.data as Record<string, unknown>;
-    const order = orderResult.data as Record<string, unknown>;
+    const contractOrder = orderResult.data as Record<string, unknown>;
     const penaltyConfig = (contract.breach_penalties ?? {}) as Record<string, unknown>;
     const pricingModel = (contract.pricing_model ?? {}) as Record<string, unknown>;
 
-    const orderQty = Number(order.quantity ?? 0);
-    const contractQty = Number(contract.total_volume ?? 0);
-    // For 'fixed' pricing read base_price from the JSONB; for index_linked
-    // a richer derivation belongs here (out of scope, see TODO above).
-    const basePrice = Number(pricingModel.base_price ?? 0);
+    const scheduledQty = Number(contractOrder.quantity ?? 0);
+    const installmentStatus = String(contractOrder.status ?? "scheduled");
+    const linkedOrderId = contractOrder.order_id ? String(contractOrder.order_id) : "";
 
-    const shortfallQty = Math.max(0, contractQty - orderQty);
-    const shortfallPct = contractQty > 0 ? Number(((shortfallQty / contractQty) * 100).toFixed(2)) : 0;
+    let deliveredQty = 0;
+    const DELIVERED_STATUSES = ["delivered", "inspected", "completed"];
+    if (linkedOrderId) {
+      const orderRowResult = await supabase
+        .schema("orders_mcp")
+        .from("orders")
+        .select("quantity,status")
+        .eq("order_id", linkedOrderId)
+        .maybeSingle();
+      if (orderRowResult.error) return fail("DB_ERROR", "Database operation failed");
+      const orderRow = orderRowResult.data as Record<string, unknown> | null;
+      if (orderRow && DELIVERED_STATUSES.includes(String(orderRow.status ?? ""))) {
+        deliveredQty = Number(orderRow.quantity ?? 0);
+      }
+    }
+
+    // For 'fixed' pricing read base_price from the JSONB; index_linked
+    // pricing isn't supported by this tool yet (penalty calc would need
+    // the captured index_value per installment).
+    const basePrice = Number(pricingModel.base_price ?? 0);
+    const shortfallQty = Math.max(0, scheduledQty - deliveredQty);
+    const shortfallPct = scheduledQty > 0 ? Number(((shortfallQty / scheduledQty) * 100).toFixed(2)) : 0;
     const penaltyRate = Number(penaltyConfig.shortfall_rate ?? 0.05);
     const penaltyAmount = shortfallPct > 0 ? Number((shortfallQty * basePrice * penaltyRate).toFixed(2)) : 0;
-    const isLateDelivery =
-      order.scheduled_date &&
-      order.status !== "fulfilled" &&
-      new Date(String(order.scheduled_date)) < new Date();
+
+    const scheduledDate = contractOrder.scheduled_date ? new Date(String(contractOrder.scheduled_date)) : null;
+    const isLateDelivery = Boolean(
+      scheduledDate &&
+        installmentStatus !== "fulfilled" &&
+        scheduledDate < new Date(),
+    );
     const latePenalty = isLateDelivery ? Number(penaltyConfig.late_delivery_fee ?? 0) : 0;
     const totalPenalty = Number((penaltyAmount + latePenalty).toFixed(2));
     const isBreach = totalPenalty > 0;
@@ -418,19 +431,74 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         type: "text",
         text: ok({
           contract_id: contractId,
-          contract_order_id: contractOrderId || null,
-          order_id: orderId || null,
+          contract_order_id: String(contractOrder.contract_order_id ?? contractOrderId) || null,
+          order_id: linkedOrderId || orderId || null,
+          installment_status: installmentStatus,
+          scheduled_quantity: scheduledQty,
+          delivered_quantity: deliveredQty,
           is_breach: isBreach,
           shortfall_quantity: shortfallQty,
           shortfall_unit: String(contract.unit ?? ""),
           shortfall_pct: shortfallPct,
-          late_delivery: Boolean(isLateDelivery),
+          late_delivery: isLateDelivery,
           penalty_amount: penaltyAmount,
           late_penalty: latePenalty,
           total_penalty: totalPenalty,
         }),
       }],
     };
+  }
+
+  if (tool === "get_fulfillment_history") {
+    // Replaces the hardcoded 6-month bar chart on /contracts (P1-2 in the
+    // audit). For a given contract, bucket contract_orders by month
+    // (scheduled_date) and compute scheduled vs fulfilled quantity per
+    // bucket. Empty months get zeros — caller renders them as no-bar so
+    // the timeline is intuitive even when delivery cadence is irregular.
+    const contractId = String(args.contract_id ?? "");
+    const months = Math.min(Math.max(Number(args.months ?? 6), 1), 12);
+    if (!contractId) return fail("VALIDATION_ERROR", "contract_id is required.");
+
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
+    const startIso = start.toISOString().slice(0, 10);
+
+    const rowsResult = await supabase
+      .schema("contracts_mcp")
+      .from("contract_orders")
+      .select("scheduled_date,quantity,status")
+      .eq("contract_id", contractId)
+      .gte("scheduled_date", startIso)
+      .order("scheduled_date", { ascending: true });
+    if (rowsResult.error) return fail("DB_ERROR", "Database operation failed");
+
+    type Bucket = { year: number; month: number; scheduled: number; fulfilled: number };
+    const buckets: Bucket[] = [];
+    for (let i = 0; i < months; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      buckets.push({ year: d.getFullYear(), month: d.getMonth(), scheduled: 0, fulfilled: 0 });
+    }
+
+    const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    for (const raw of rowsResult.data ?? []) {
+      const row = raw as Record<string, unknown>;
+      const d = new Date(String(row.scheduled_date));
+      const bucket = buckets.find((b) => b.year === d.getFullYear() && b.month === d.getMonth());
+      if (!bucket) continue;
+      const qty = Number(row.quantity ?? 0);
+      bucket.scheduled += qty;
+      if (String(row.status) === "fulfilled") bucket.fulfilled += qty;
+    }
+
+    const points = buckets.map((b) => ({
+      label: monthLabels[b.month],
+      year: b.year,
+      scheduled_quantity: Number(b.scheduled.toFixed(2)),
+      fulfilled_quantity: Number(b.fulfilled.toFixed(2)),
+      pct: b.scheduled > 0 ? Math.round((b.fulfilled / b.scheduled) * 100) : 0,
+    }));
+
+    return { content: [{ type: "text", text: ok({ contract_id: contractId, months, points }) }] };
   }
 
   if (tool === "list_contracts") {
