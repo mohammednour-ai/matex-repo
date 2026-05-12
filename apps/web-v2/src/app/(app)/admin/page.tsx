@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/shadcn/badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import clsx from "clsx";
 import { AppPageHeader } from "@/components/layout/AppPageHeader";
+import { PriceSparkline } from "@/components/intelligence/PriceSparkline";
 
 type TabId =
   | "overview"
@@ -76,6 +77,7 @@ export default function AdminPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
+  const [overviewHistory, setOverviewHistory] = useState<Record<string, number[]>>({});
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [listings, setListings] = useState<Record<string, unknown>[]>([]);
   const [orders, setOrders] = useState<Record<string, unknown>[]>([]);
@@ -135,9 +137,16 @@ export default function AdminPage() {
   );
 
   const loadOverview = useCallback(async () => {
-    const r = await callTool("admin.get_platform_overview", {});
-    const p = unwrapToolPayload(r);
-    setOverview(p);
+    // Pull current totals + 14-day history in parallel; the history call is
+    // best-effort so a failure there doesn't blank the cards.
+    const [r, h] = await Promise.all([
+      callTool("admin.get_platform_overview", {}),
+      callTool("admin.get_overview_history", { days: 14 }),
+    ]);
+    setOverview(unwrapToolPayload(r));
+    const hp = unwrapToolPayload(h);
+    const series = (hp?.series as Record<string, number[]> | undefined) ?? {};
+    setOverviewHistory(series);
   }, []);
 
   const loadUsers = useCallback(async () => {
@@ -332,12 +341,30 @@ export default function AdminPage() {
       {tab === "overview" && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {overview &&
-            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => (
-              <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
-                <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
-              </div>
-            ))}
+            ["total_users", "total_listings", "total_orders", "open_disputes"].map((k) => {
+              const series = overviewHistory[k] ?? [];
+              // Trend is derived from the last two non-zero buckets; "open_disputes"
+              // inverts the colour mapping since fewer disputes is good.
+              const last = series.at(-1) ?? 0;
+              const prev = series.at(-2) ?? 0;
+              const goingUp = last > prev;
+              const goingDown = last < prev;
+              const isDisputes = k === "open_disputes";
+              const trend: "up" | "down" | "stable" = goingUp
+                ? (isDisputes ? "down" : "up")
+                : goingDown
+                  ? (isDisputes ? "up" : "down")
+                  : "stable";
+              return (
+                <div key={k} className="rounded-xl border border-line bg-surfaceBg p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">{k.replace(/_/g, " ")}</p>
+                  <p className="text-2xl font-bold text-fg mt-1">{String(overview[k] ?? "—")}</p>
+                  {series.length > 0 && (
+                    <PriceSparkline series={series} trend={trend} height={32} className="mt-2" />
+                  )}
+                </div>
+              );
+            })}
           {!overview && <p className="text-fg-subtle text-sm">Loading overview…</p>}
         </div>
       )}

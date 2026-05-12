@@ -40,6 +40,7 @@ const server = new Server({ name: SERVER_NAME, version: SERVER_VERSION }, { capa
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     { name: "get_platform_overview", description: "Aggregated stats across all schemas", inputSchema: { type: "object", properties: {} } },
+    { name: "get_overview_history", description: "Daily history for admin overview sparklines (last N days)", inputSchema: { type: "object", properties: { days: { type: "number" } } } },
     { name: "suspend_user", description: "Set user account_status to suspended", inputSchema: { type: "object", properties: { user_id: { type: "string" }, reason: { type: "string" } }, required: ["user_id", "reason"] } },
     { name: "unsuspend_user", description: "Reactivate a suspended user account", inputSchema: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] } },
     { name: "moderate_listing", description: "Remove or flag a listing", inputSchema: { type: "object", properties: { listing_id: { type: "string" }, action: { type: "string", description: "remove or flag" }, reason: { type: "string" } }, required: ["listing_id", "action", "reason"] } },
@@ -128,6 +129,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [{
         type: "text",
         text: ok({ total_users: 0, active_listings: 0, total_orders: 0, total_escrow_held: 0, open_disputes: 0, timestamp: now() }),
+      }],
+    };
+  }
+
+  if (tool === "get_overview_history") {
+    // 14 daily buckets for the admin sparklines. Mirrors the edge-function
+    // implementation in supabase/functions/admin/index.ts. Returns a zeroed
+    // series in dev when no DB is configured so the UI still renders.
+    const days = Math.max(1, Math.min(Number(args.days ?? 14), 60));
+    const startDate = new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const startIso = startDate.toISOString();
+
+    function bucket(rows: Array<{ created_at: string | null }>): number[] {
+      const out = new Array(days).fill(0);
+      for (const r of rows) {
+        if (!r.created_at) continue;
+        const t = new Date(r.created_at).getTime();
+        const idx = Math.floor((t - startDate.getTime()) / (24 * 60 * 60 * 1000));
+        if (idx >= 0 && idx < days) out[idx] += 1;
+      }
+      return out;
+    }
+
+    if (supabase) {
+      const [usersRes, listingsRes, ordersRes, disputesRes] = await Promise.all([
+        supabase.schema("auth_mcp").from("users").select("created_at").gte("created_at", startIso),
+        supabase.schema("listing_mcp").from("listings").select("created_at").gte("created_at", startIso),
+        supabase.schema("orders_mcp").from("orders").select("created_at").gte("created_at", startIso),
+        supabase.schema("dispute_mcp").from("disputes").select("created_at").gte("created_at", startIso),
+      ]);
+      return {
+        content: [{
+          type: "text",
+          text: ok({
+            days,
+            start_date: startIso,
+            series: {
+              total_users: bucket((usersRes.data as Array<{ created_at: string | null }>) ?? []),
+              total_listings: bucket((listingsRes.data as Array<{ created_at: string | null }>) ?? []),
+              total_orders: bucket((ordersRes.data as Array<{ created_at: string | null }>) ?? []),
+              open_disputes: bucket((disputesRes.data as Array<{ created_at: string | null }>) ?? []),
+            },
+          }),
+        }],
+      };
+    }
+
+    const empty = new Array(days).fill(0);
+    return {
+      content: [{
+        type: "text",
+        text: ok({
+          days,
+          start_date: startIso,
+          series: { total_users: empty, total_listings: empty, total_orders: empty, open_disputes: empty },
+        }),
       }],
     };
   }
