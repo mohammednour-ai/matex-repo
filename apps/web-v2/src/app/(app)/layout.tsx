@@ -28,6 +28,7 @@ import {
   FileSearch,
 } from "lucide-react";
 import { clearSession, getUser } from "@/lib/api";
+import { showWarning } from "@/lib/toast";
 import { MatexCopilot } from "@/components/layout/MatexCopilot";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import clsx from "clsx";
@@ -389,17 +390,21 @@ function UserMenu() {
 
   async function handleSignOut() {
     // Awaiting the DELETE matters: it clears the HttpOnly matex_session
-    // cookie that the middleware checks. If we kicked router.replace
-    // before this resolved, a quick back-button navigation could land
-    // the user back on a protected page because the cookie is still
-    // valid for a few hundred ms after sign-out. The original .catch(() => {})
-    // swallowed errors silently; we keep that since sign-out should
-    // succeed locally even when the server-side clear fails.
+    // cookie that the middleware checks. Local sign-out (clearSession +
+    // replace) always runs so the user is never stuck on a protected
+    // page; if the server-side revoke fails we surface a warning so the
+    // user knows their session may still be live on other devices.
+    let revokeFailed = false;
     try {
-      await fetch("/api/auth/session", { method: "DELETE" });
+      const res = await fetch("/api/auth/session", { method: "DELETE" });
+      if (!res.ok) revokeFailed = true;
     } catch {
-      // Network drop on sign-out — local state is still cleared below
-      // and the cookie has a short Max-Age. Surface nothing to the user.
+      revokeFailed = true;
+    }
+    if (revokeFailed) {
+      showWarning(
+        "Signed out locally, but couldn't revoke the server session. If you're on a shared device, sign in again and retry.",
+      );
     }
     clearSession();
     router.replace("/login");
