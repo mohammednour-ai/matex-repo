@@ -101,46 +101,42 @@ async function uploadFile(
   listingId: string,
   onProgress: (pct: number) => void,
 ): Promise<string> {
-  const res = await callTool("listing.upload_images", {
-    listing_id: listingId,
-    file_name: file.name,
-    content_type: file.type || "application/octet-stream",
-    size_bytes: file.size,
-  });
-  if (!res.success) {
-    throw new Error(res.error?.message ?? "Failed to get upload URL");
-  }
-  const plan = parseUploadPlan(res.data);
-  if (!plan) {
-    throw new Error("Upload service did not return a usable upload plan (public_url / upload_url).");
-  }
-
-  if (plan.kind === "noop") {
-    onProgress(100);
-    await persistListingImageUrl(listingId, plan.publicUrl);
-    return plan.publicUrl;
-  }
-
-  await new Promise<void>((resolve, reject) => {
+  // Posts the file to the Next.js /api/upload proxy. The proxy uses the
+  // supabase-js SDK server-side because Supabase Storage's PUT endpoint
+  // rejects the new `sb_secret_*` API key format ("Invalid Compact JWS"),
+  // and we'd previously been handing the service-role key to the browser —
+  // both a functional and security problem.
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("listing_id", listingId);
+  const publicUrl = await new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
-    xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error("Network error"));
-    xhr.open("PUT", plan.uploadUrl);
-    if (plan.headers) {
-      for (const [k, v] of Object.entries(plan.headers)) {
-        if (v != null && v !== "") xhr.setRequestHeader(k, String(v));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const body = JSON.parse(xhr.responseText) as { public_url?: string; error?: string };
+          if (body.public_url) return resolve(body.public_url);
+          return reject(new Error(body.error ?? "Upload succeeded but no public_url returned"));
+        } catch {
+          return reject(new Error("Upload response was not valid JSON"));
+        }
       }
-    } else {
-      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    }
-    xhr.send(file);
+      try {
+        const body = JSON.parse(xhr.responseText) as { error?: string };
+        reject(new Error(body.error ?? `Upload failed (${xhr.status})`));
+      } catch {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.open("POST", "/api/upload");
+    xhr.send(fd);
   });
-
-  await persistListingImageUrl(listingId, plan.publicUrl);
-  return plan.publicUrl;
+  await persistListingImageUrl(listingId, publicUrl);
+  return publicUrl;
 }
 
 export function MediaUploader({

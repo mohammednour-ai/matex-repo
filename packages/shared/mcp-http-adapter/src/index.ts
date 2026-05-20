@@ -599,12 +599,25 @@ async function handleTool(
     if (!email || !phone || !password) return err("VALIDATION_ERROR", "email, phone, password are required.");
     const userId = randomUUID();
     const passwordHash = sha256Hex(password);
-    await pool.query(
-      `insert into auth_mcp.users
-        (user_id,email,phone,password_hash,account_type,account_status,email_verified,phone_verified,mfa_enabled)
-       values ($1,$2,$3,$4,'individual','pending_review',false,false,false)`,
-      [userId, email, phone, passwordHash],
-    );
+    try {
+      await pool.query(
+        `insert into auth_mcp.users
+          (user_id,email,phone,password_hash,account_type,account_status,email_verified,phone_verified,mfa_enabled)
+         values ($1,$2,$3,$4,'individual','pending_review',false,false,false)`,
+        [userId, email, phone, passwordHash],
+      );
+    } catch (e) {
+      // 23505 = unique_violation. Use ALREADY_EXISTS (in the gateway's
+      // SAFE_ERROR_CODES whitelist) so the friendly message reaches the UI
+      // instead of being redacted to "service temporarily unavailable".
+      const pgErr = e as { code?: string; constraint?: string };
+      if (pgErr?.code === "23505") {
+        const c = String(pgErr.constraint ?? "");
+        const which = c.includes("email") ? "email" : c.includes("phone") ? "phone" : "email or phone";
+        return err("ALREADY_EXISTS", `An account with this ${which} already exists.`);
+      }
+      throw e;
+    }
     return ok({ user: { user_id: userId, email, phone }, status: "pending_review" });
   }
   if (tool === "auth.login") {
@@ -2145,10 +2158,13 @@ async function handleTool(
       where.push(`a.status = $${params.length}`);
     }
     params.push(limit);
+    // 2026-05-13 fix: column is `scheduled_start`, not `start_time`. The
+    // previous SQL hit `column a.start_time does not exist` → 400 on every
+    // /auctions page load.
     const sql = `select a.*, (select count(*)::int from auction_mcp.lots l where l.auction_id = a.auction_id) as lot_count
                  from auction_mcp.auctions a
                  ${where.length ? `where ${where.join(" and ")}` : ""}
-                 order by a.start_time desc limit $${params.length}`;
+                 order by coalesce(a.actual_start, a.scheduled_start) desc nulls last limit $${params.length}`;
     const rows = (await pool.query(sql, params)).rows;
     return ok({ auctions: rows, total: rows.length });
   }

@@ -11,7 +11,7 @@
   },
   "packageManager": "pnpm@8.15.0",
   "scripts": {
-    "dev": "pnpm --filter @matex/web dev",
+    "dev": "pnpm --filter @matex/web-v2 dev",
     "dev:gateway": "pnpm --filter @matex/mcp-gateway dev",
     "dev:web-v2-stack": "pnpm -r --parallel --filter @matex/mcp-gateway --filter @matex/web-v2 dev",
     "dev:http-adapters": "tsx --env-file=.env.local scripts/start-http-adapters.ts",

@@ -1057,49 +1057,43 @@ function RegisterForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 /** Full-screen login videos in `public/` — played back-to-back, then repeat. */
 const LOGIN_BG_VIDEOS = ["/login-bg3.mp4", "/login-bg2.mp4"] as const;
 
-const LOGIN_HERO_TRUST_CHIPS = [
-  "FINTRAC / PCMLTFA compliance built-in",
-  "Interac e-Transfer — Canada's primary B2B payment rail",
-  "Catalytic converter regulatory tracking",
-  "Immutable audit trail for every transaction",
-] as const;
 
 const DIFFERENTIATOR_FEATURES = [
   {
-    icon: "🛡️",
+    icon: "/icons/icon-compliance.png",
+    alt: "Compliance shield",
     title: "FINTRAC compliance",
     detail: "Auto-generated LCTRs, STR filing, 5-year record retention — PCMLTFA-ready out of the box.",
-    unique: true,
   },
   {
-    icon: "💳",
+    icon: "/icons/icon-payment.png",
+    alt: "Payment transfer arrows",
     title: "Interac e-Transfer",
     detail: "Canada's dominant B2B payment rail — no US-only processors, no cross-border friction.",
-    unique: true,
   },
   {
-    icon: "🔒",
+    icon: "/icons/icon-escrow.png",
+    alt: "Escrow vault lock",
     title: "Escrow-backed settlement",
     detail: "Funds held in escrow until delivery and inspection are confirmed. No net-30 exposure.",
-    unique: true,
   },
   {
-    icon: "📋",
+    icon: "/icons/icon-tracking.png",
+    alt: "Catalytic converter barcode tracking",
     title: "Cat converter tracking",
     detail: "Serial number, VIN, and seller ID capture per converter — Bill C-36 compliant by default.",
-    unique: true,
   },
   {
-    icon: "📊",
+    icon: "/icons/icon-pricing.png",
+    alt: "Live market price chart",
     title: "Live LME price feeds",
     detail: "Real-time copper, aluminum, and PGM prices tied directly to listing and contract values.",
-    unique: false,
   },
   {
-    icon: "🤖",
+    icon: "/icons/icon-copilot.png",
+    alt: "AI trading copilot brain",
     title: "AI trading copilot",
     detail: "Natural-language access to every platform tool — search, contracts, escrow, analytics.",
-    unique: false,
   },
 ] as const;
 
@@ -1317,17 +1311,6 @@ export default function LoginPage() {
           </p>
 
 
-          <div
-            className="login-reveal-item flex w-full max-w-full flex-col items-start gap-3 border-t border-white/10 pt-4 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2 sm:pt-5"
-            style={loginRevealDelay(620)}
-          >
-            {LOGIN_HERO_TRUST_CHIPS.map((t) => (
-              <div key={t} className="flex items-start gap-2 text-xs sm:items-center sm:text-sm">
-                <span className="mt-1.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-orange-400 sm:mt-0" />
-                <span className="font-medium leading-snug text-zinc-100">{t}</span>
-              </div>
-            ))}
-          </div>
 
           {/* Compliance-first differentiator grid */}
           <div
@@ -1347,13 +1330,14 @@ export default function LoginPage() {
                   key={f.title}
                   className="group relative overflow-hidden rounded-xl border border-white/8 bg-white/[0.04] px-3.5 py-3 backdrop-blur-sm transition-colors hover:border-orange-400/25 hover:bg-white/[0.07]"
                 >
-                  {f.unique && (
-                    <span className="absolute right-2 top-2 rounded-full bg-orange-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-orange-300">
-                      Only Matex
-                    </span>
-                  )}
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className="text-base leading-none" aria-hidden>{f.icon}</span>
+                    <Image
+                      src={f.icon}
+                      alt={f.alt}
+                      width={28}
+                      height={28}
+                      className="shrink-0"
+                    />
                     <span className="text-sm font-semibold text-white">{f.title}</span>
                   </div>
                   <p className="text-xs leading-relaxed text-zinc-400">{f.detail}</p>
