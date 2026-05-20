@@ -14,10 +14,9 @@ Two companion documents must be read alongside this file:
 
 ```
 apps/
-  web/                          @matex/web — legacy Next.js frontend; critical fixes only, all new feature work goes in web-v2
-  web-v2/                       @matex/web-v2 — active Next.js 14 frontend (App Router) — port 3002
+  web-v2/                       @matex/web-v2 — Next.js 14 frontend (App Router) — port 3002 — the active marketplace UI
+  yardops/                      @matex/yardops — Next.js 14 yard-operations console — port 3003
   mcp-gateway/                  @matex/mcp-gateway — Node MCP gateway (auth, routing, rate limiting) — port 3001
-  mobile/                       React Native + Expo app
   event-relay/                  Redis Streams → Supabase Realtime relay
 packages/
   mcp-servers/<domain>-mcp/     24 local MCP servers (one per business domain)
@@ -48,7 +47,7 @@ Always use `pnpm` (≥8) and Node ≥20. Most workflows go through workspace fil
 pnpm install                              # install all workspace deps
 
 # Development
-pnpm dev                                  # @matex/web (legacy) only
+pnpm dev                                  # @matex/web-v2 only (the marketplace UI)
 pnpm dev:gateway                          # MCP gateway on :3001
 pnpm dev:web-v2-stack                     # gateway + web-v2 (parallel) — preferred
 pnpm dev:db-stack                         # gateway + web-v2 via concurrently with named output

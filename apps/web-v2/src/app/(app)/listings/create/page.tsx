@@ -185,6 +185,50 @@ const STEPS = [
   { n: 6, label: "Review", icon: Eye },
 ];
 
+// ─── Price payload helper ─────────────────────────────────────────────────────
+//
+// The DB stores `price_type ∈ {fixed, negotiable, auction}` and a single
+// `asking_price` column. The UI lets the user pick `saleMode ∈ {fixed,
+// bidding, auction}` and prompts for one of askingPrice / startingBid /
+// reservePrice. Without this mapping the listing.create_listing / update_listing
+// payloads omit price_type entirely, so every listing — including auctions —
+// was being saved as price_type='fixed'.
+
+function parseMoney(value: string | number | null | undefined): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (!value) return 0;
+  const n = Number(String(value).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function buildPricePayload(form: {
+  saleMode: SaleMode;
+  askingPrice?: string;
+  startingBid?: string;
+  reservePrice?: string;
+  auctionDate?: string;
+}): Record<string, unknown> {
+  const mode = form.saleMode || "fixed";
+  const price =
+    mode === "bidding" ? parseMoney(form.startingBid)
+    : mode === "auction" ? parseMoney(form.reservePrice)
+    : parseMoney(form.askingPrice);
+  const dbPriceType =
+    mode === "bidding" ? "negotiable"
+    : mode === "auction" ? "auction"
+    : "fixed";
+  return {
+    price_type: dbPriceType,
+    sale_mode: mode,
+    asking_price: price,
+    ...(mode === "bidding" ? { starting_bid: parseMoney(form.startingBid) } : {}),
+    ...(mode === "auction" ? {
+      reserve_price: parseMoney(form.reservePrice),
+      ...(form.auctionDate ? { auction_session_date: form.auctionDate } : {}),
+    } : {}),
+  };
+}
+
 // ─── Commission helper ───────────────────────────────────────────────────────
 
 function calcCommission(amount: number, mode: SaleMode): number {
@@ -1853,6 +1897,7 @@ export default function CreateListingPage() {
           moisture_pct: formData.moisturePct,
           quantity: formData.quantity,
           unit: formData.unit,
+          ...buildPricePayload(formData),
           status: "draft",
           ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
         });
@@ -1877,6 +1922,7 @@ export default function CreateListingPage() {
         has_permit: formData.hasPermit,
         permit_number: formData.hasPermit ? formData.permitNumber : undefined,
         certifications: formData.certifications,
+        ...buildPricePayload(formData),
         status: "draft",
       });
       if (!res.success) {
@@ -1938,6 +1984,7 @@ export default function CreateListingPage() {
           moisture_pct: formData.moisturePct,
           quantity: formData.quantity,
           unit: formData.unit,
+          ...buildPricePayload(formData),
           status: "draft",
           ...(imageUrls.length > 0 ? { image_urls: imageUrls } : {}),
         });

@@ -114,7 +114,16 @@ export function extractId(result: MCPResponse, key: string): string {
 // (Supabase Edge). Add tools here as their domain function ships and passes
 // parity tests. The MCP path remains available as fallback and is the AI
 // surface (apps/web-v2/src/app/api/chat/route.ts).
-const TOOLS_ON_EDGE = new Set<string>([
+//
+// 2026-05-12 dev workaround note: Edge functions verify JWTs against
+// Supabase's project secret, but our Node adapter signs with the local
+// JWT_SECRET. If a local dev env hits "Your session is invalid." on every
+// edge call, set NEXT_PUBLIC_EDGE_ROUTING_ENABLED=false to force the
+// gateway path until the secrets are aligned. Default is ON so the
+// production edge work (sparklines / revenue chart / dashboard seed /
+// retention / generate_invoice / etc.) keeps routing through Supabase.
+const EDGE_ROUTING_ENABLED = process.env.NEXT_PUBLIC_EDGE_ROUTING_ENABLED !== "false";
+const TOOLS_ON_EDGE = new Set<string>(EDGE_ROUTING_ENABLED ? [
   "escrow.create_escrow",
   "escrow.hold_funds",
   "escrow.release_funds",
@@ -308,7 +317,7 @@ const TOOLS_ON_EDGE = new Set<string>([
   "admin.update_platform_config",
   "admin.get_platform_config",
   "admin.ping",
-]);
+] : []);
 
 const SUPABASE_FN_BASE =
   (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "") + "/functions/v1";
